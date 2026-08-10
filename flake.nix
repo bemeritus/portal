@@ -38,14 +38,15 @@
         rustToolchain =
           with inputs.fenix.packages.${prev.stdenv.hostPlatform.system};
           combine (
-            with stable;
-            [
+            (with stable; [
               clippy
               rustc
               cargo
               rustfmt
               rust-src
-            ]
+            ])
+            # wasm target for the Leptos client bundle (hydrate)
+            ++ [ targets.wasm32-unknown-unknown.stable.rust-std ]
           );
       };
 
@@ -62,6 +63,12 @@
               cargo-watch
               rust-analyzer
               self.formatter.${system}
+
+              # --- Leptos full-stack toolchain ---
+              cargo-leptos # build/run the SSR + wasm app
+              binaryen # wasm-opt, used by cargo-leptos release builds
+              sqlx-cli # database migrations (sqlx migrate)
+              postgresql_15 # local Postgres server + psql client
             ];
 
             env = {
