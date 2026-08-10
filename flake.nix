@@ -66,6 +66,7 @@
 
               # --- Leptos full-stack toolchain ---
               cargo-leptos # build/run the SSR + wasm app
+              wasm-bindgen-cli # required by cargo-leptos (nix build disables auto-download)
               binaryen # wasm-opt, used by cargo-leptos release builds
               sqlx-cli # database migrations (sqlx migrate)
               postgresql_15 # local Postgres server + psql client
