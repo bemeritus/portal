@@ -5,6 +5,7 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 
 use crate::app::use_user;
+use crate::components::ThemeSwitcher;
 use crate::server::auth::logout;
 
 #[component]
@@ -25,6 +26,7 @@ pub fn Navbar() -> impl IntoView {
         <nav class="navbar">
             <a class="brand" href="/">"📚 Knowledge Base"</a>
             <div class="spacer"></div>
+            <ThemeSwitcher/>
             <Suspense fallback=|| ()>
                 {move || {
                     user.get().map(|maybe| match maybe {

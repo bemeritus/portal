@@ -1929,6 +1929,7 @@ dependencies = [
  "tower-sessions",
  "uuid",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

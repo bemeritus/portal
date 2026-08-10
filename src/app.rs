@@ -6,7 +6,7 @@ use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
-use crate::components::Navbar;
+use crate::components::{provide_theme, Navbar};
 use crate::models::User;
 use crate::pages::admin_users::AdminUsersPage;
 use crate::pages::categories::CategoriesPage;
@@ -25,6 +25,10 @@ pub fn use_user() -> UserResource {
     expect_context::<UserResource>()
 }
 
+/// Applies the stored theme before hydration so there is no flash of the
+/// default (dark) theme when the user has chosen another.
+const THEME_BOOTSTRAP: &str = "(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();";
+
 /// The HTML document shell used for server-side rendering.
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -33,6 +37,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <script inner_html=THEME_BOOTSTRAP></script>
                 <AutoReload options=options.clone()/>
                 <HydrationScripts options/>
                 <MetaTags/>
@@ -47,6 +52,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    provide_theme();
 
     let user: UserResource = Resource::new(
         || (),

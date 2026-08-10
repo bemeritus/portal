@@ -25,6 +25,12 @@ http = "1"
 # Pinned to match the wasm-bindgen-cli provided by the flake (must be exact).
 wasm-bindgen = { version = "=0.2.121", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "Storage",
+], optional = true }
 
 # --- Server only (ssr) ---
 leptos_axum = { version = "0.8", optional = true }
@@ -52,6 +58,7 @@ hydrate = [
     "leptos/hydrate",
     "dep:wasm-bindgen",
     "dep:console_error_panic_hook",
+    "dep:web-sys",
 ]
 ssr = [
     "dep:leptos_axum",
