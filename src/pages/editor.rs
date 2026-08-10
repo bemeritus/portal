@@ -10,6 +10,16 @@ use crate::models::{DocumentDraft, QaBlockInput};
 use crate::server::categories::list_categories;
 use crate::server::documents::{create_document, get_document_draft, update_document};
 
+/// Grow a textarea to fit its content: collapse to `auto` so `scroll_height`
+/// reflects the text, then pin the height to that. Keeps the answer box in step
+/// with the Markdown as it's typed (and when an existing doc is loaded).
+#[cfg(feature = "hydrate")]
+fn autosize(el: &web_sys::HtmlTextAreaElement) {
+    let style = web_sys::HtmlElement::style(el);
+    let _ = style.set_property("height", "auto");
+    let _ = style.set_property("height", &format!("{}px", el.scroll_height()));
+}
+
 /// `/docs/new`
 #[component]
 pub fn NewDocumentPage() -> impl IntoView {
@@ -228,6 +238,9 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
             <For each=move || blocks.get() key=|b| b.id let:block>
                 {
                     let bid = block.id;
+                    let answer_ref = NodeRef::<leptos::html::Textarea>::new();
+                    #[cfg(feature = "hydrate")]
+                    answer_ref.on_load(|el| autosize(&el));
                     view! {
                         <div class="block-editor">
                             <div class="block-head">
@@ -284,8 +297,15 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                             />
                             <label>"Answer (Markdown)"</label>
                             <textarea
+                                node_ref=answer_ref
                                 prop:value=block.answer
-                                on:input=move |ev| block.answer.set(event_target_value(&ev))
+                                on:input=move |ev| {
+                                    block.answer.set(event_target_value(&ev));
+                                    #[cfg(feature = "hydrate")]
+                                    if let Some(el) = answer_ref.get() {
+                                        autosize(&el);
+                                    }
+                                }
                             ></textarea>
                         </div>
                     }

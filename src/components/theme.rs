@@ -12,25 +12,25 @@ use leptos::prelude::*;
 pub enum Theme {
     Dark,
     Light,
-    Blue,
+    Gruvbox,
 }
 
 impl Theme {
-    pub const ALL: [Theme; 3] = [Theme::Dark, Theme::Light, Theme::Blue];
+    pub const ALL: [Theme; 3] = [Theme::Dark, Theme::Light, Theme::Gruvbox];
 
     /// The `data-theme` / storage value.
     pub fn as_str(self) -> &'static str {
         match self {
             Theme::Dark => "dark",
             Theme::Light => "light",
-            Theme::Blue => "blue",
+            Theme::Gruvbox => "gruvbox",
         }
     }
 
     pub fn from_str(s: &str) -> Theme {
         match s {
             "light" => Theme::Light,
-            "blue" => Theme::Blue,
+            "gruvbox" => Theme::Gruvbox,
             _ => Theme::Dark,
         }
     }
@@ -40,7 +40,7 @@ impl Theme {
         match self {
             Theme::Dark => "Dark",
             Theme::Light => "White",
-            Theme::Blue => "White-Blue",
+            Theme::Gruvbox => "Gruvbox",
         }
     }
 }
