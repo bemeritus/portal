@@ -65,6 +65,9 @@ async fn main() {
         .nest_service("/uploads", ServeDir::new(config.uploads_dir.clone()))
         .fallback(leptos_axum::file_and_error_handler(shell))
         .layer(Extension(state))
+        // Ordering matters: layers added later wrap earlier ones, so the
+        // session layer runs first and `Session` is available to the guard.
+        .layer(axum::middleware::from_fn(require_login))
         .layer(session_layer)
         .with_state(leptos_options);
 
@@ -75,6 +78,44 @@ async fn main() {
     axum::serve(listener, app.into_make_service())
         .await
         .expect("server error");
+}
+
+/// Paths an anonymous visitor may still reach: the login page itself, the
+/// client bundle that renders it, and the Leptos server functions — those
+/// authorize themselves and must stay callable, otherwise logging in would be
+/// impossible. `/api/upload` is a plain Axum handler with no such check of its
+/// own, so it is deliberately *not* exempt.
+#[cfg(feature = "ssr")]
+fn is_public_path(path: &str) -> bool {
+    path == "/login"
+        || path.starts_with("/pkg/")
+        || (path.starts_with("/api/") && path != "/api/upload")
+}
+
+/// Send anonymous visitors to `/login` before anything is rendered.
+///
+/// Guarding here rather than inside the app means an unauthenticated visitor
+/// never receives another page's markup at all. A client-side check would have
+/// to let the server stream the page first and correct it after hydration,
+/// which both leaks the content and shows a visible flash of the wrong page.
+#[cfg(feature = "ssr")]
+async fn require_login(
+    session: tower_sessions::Session,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::{IntoResponse, Redirect};
+    use portal::backend::SESSION_UID;
+
+    if is_public_path(request.uri().path()) {
+        return next.run(request).await;
+    }
+
+    let uid: Option<uuid::Uuid> = session.get(SESSION_UID).await.ok().flatten();
+    match uid {
+        Some(_) => next.run(request).await,
+        None => Redirect::to("/login").into_response(),
+    }
 }
 
 /// Multipart image upload (§7 Files, SR-5): validate content type + size, store

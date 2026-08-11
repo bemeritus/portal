@@ -1,9 +1,9 @@
 //! `/admin/users` — admin user management (§8, FR-5..FR-8).
 //!
-//! Two layers of permission are edited here: the global R/W/E/D flags, which
-//! apply to every category, and per-category grants, which add rights on top
-//! for individual categories. A user meant to be confined to a few categories
-//! simply has the global flags off and grants on those categories.
+//! Access is edited in exactly one place: the per-category R/W/E/D matrix. A
+//! user reaches a category only through a tick there, so a user with an empty
+//! matrix sees nothing at all. The only thing above it is the admin flag, which
+//! grants everything everywhere and makes the matrix irrelevant.
 
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -15,6 +15,39 @@ use crate::server::categories::list_categories;
 use crate::server::users::{
     create_user, list_users, reset_password, set_user_active, update_category_permissions,
 };
+
+/// Alphabet for generated passwords. `0/O`, `1/l/I` are left out: an admin has
+/// to read these out or retype them, and those are the pairs that get confused.
+const PASSWORD_ALPHABET: &[u8] =
+    b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/// Length in characters. 16 over a 56-symbol alphabet is ~93 bits of entropy.
+const PASSWORD_LEN: usize = 16;
+
+/// Generate a random initial password.
+///
+/// The entropy is `Uuid::new_v4`, which under `uuid`'s `js` feature — already
+/// enabled for the wasm target in Cargo.toml — binds to `crypto.getRandomValues`
+/// in the browser, so this is a real CSPRNG without adding a dependency.
+///
+/// Bytes at or above `limit` are discarded rather than folded with `%`, which
+/// would make the first symbols of the alphabet slightly likelier than the rest.
+fn generate_password() -> String {
+    let n = PASSWORD_ALPHABET.len();
+    let limit = (256 / n) * n;
+    let mut out = String::with_capacity(PASSWORD_LEN);
+    while out.len() < PASSWORD_LEN {
+        for byte in uuid::Uuid::new_v4().as_bytes() {
+            if (*byte as usize) < limit {
+                out.push(PASSWORD_ALPHABET[*byte as usize % n] as char);
+                if out.len() == PASSWORD_LEN {
+                    break;
+                }
+            }
+        }
+    }
+    out
+}
 
 /// One editable line of the category matrix: the category plus its four
 /// checkboxes.
@@ -265,13 +298,23 @@ pub fn AdminUsersPage() -> impl IntoView {
                         </div>
                         <div>
                             <label for="cu-pass">"Initial password"</label>
-                            <input
-                                id="cu-pass"
-                                type="text"
-                                autocomplete="off"
-                                prop:value=cu_pass
-                                on:input=move |ev| set_cu_pass.set(event_target_value(&ev))
-                            />
+                            <div style="display:flex;gap:8px">
+                                <input
+                                    id="cu-pass"
+                                    type="text"
+                                    autocomplete="off"
+                                    prop:value=cu_pass
+                                    on:input=move |ev| set_cu_pass.set(event_target_value(&ev))
+                                />
+                                <button
+                                    type="button"
+                                    class="btn secondary grow-0"
+                                    title="Generate a random password"
+                                    on:click=move |_| set_cu_pass.set(generate_password())
+                                >
+                                    "Generate"
+                                </button>
+                            </div>
                             <p class="hint">"Shown in the clear so you can pass it on."</p>
                         </div>
                     </div>
@@ -480,7 +523,7 @@ fn user_row(
                 }}
             </td>
             <td>
-                <div style="display:flex;gap:8px">
+                <div style="display:flex;gap:6px">
                     <input
                         type="text"
                         placeholder="new password"
@@ -493,6 +536,19 @@ fn user_row(
                         }
                     />
                     <button
+                        type="button"
+                        class="btn small secondary"
+                        title="Generate a random password"
+                        aria-label="Generate a random password"
+                        on:click=move |_| {
+                            set_pw.set(generate_password());
+                            set_reset_done.set(false);
+                        }
+                    >
+                        "Generate"
+                    </button>
+                    <button
+                        type="button"
                         class="btn small secondary"
                         prop:disabled=move || reset_busy() || pw.get().trim().is_empty()
                         on:click=move |_| {
@@ -511,5 +567,53 @@ fn user_row(
                 }}
             </td>
         </tr>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{generate_password, PASSWORD_ALPHABET, PASSWORD_LEN};
+    use std::collections::HashSet;
+
+    #[test]
+    fn alphabet_excludes_ambiguous_characters() {
+        for bad in b"0O1lI" {
+            assert!(
+                !PASSWORD_ALPHABET.contains(bad),
+                "{} is easy to misread and must not be in the alphabet",
+                *bad as char
+            );
+        }
+        let unique: HashSet<&u8> = PASSWORD_ALPHABET.iter().collect();
+        assert_eq!(unique.len(), PASSWORD_ALPHABET.len(), "duplicate symbol");
+    }
+
+    #[test]
+    fn generated_passwords_have_the_right_shape() {
+        for _ in 0..200 {
+            let password = generate_password();
+            assert_eq!(password.chars().count(), PASSWORD_LEN);
+            assert!(
+                password.bytes().all(|b| PASSWORD_ALPHABET.contains(&b)),
+                "unexpected symbol in {password}"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_passwords_do_not_repeat() {
+        let seen: HashSet<String> = (0..500).map(|_| generate_password()).collect();
+        assert_eq!(seen.len(), 500, "generator produced a collision");
+    }
+
+    /// The rejection sampling should leave every symbol reachable; a modulo
+    /// fold would still pass the tests above while quietly biasing the result.
+    #[test]
+    fn every_symbol_is_reachable() {
+        let mut seen = HashSet::new();
+        for _ in 0..2000 {
+            seen.extend(generate_password().bytes());
+        }
+        assert_eq!(seen.len(), PASSWORD_ALPHABET.len());
     }
 }

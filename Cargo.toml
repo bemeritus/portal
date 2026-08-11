@@ -80,8 +80,10 @@ ssr = [
     "leptos_router/ssr",
 ]
 
-# `uuid`'s v4 generation pulls in `getrandom`, which needs a JS randomness
-# source when compiled to wasm (even though we only generate UUIDs server-side).
+# `uuid`'s v4 generation needs a randomness source, and on wasm the `js` feature
+# is what supplies one: it binds `crypto.getRandomValues`. The admin screen's
+# password generator depends on this — without it there is no CSPRNG in the
+# browser build.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 uuid = { version = "1", features = ["js"] }
 
