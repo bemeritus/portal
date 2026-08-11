@@ -4,10 +4,12 @@
 //! list; on save they are serialized to JSON and sent to the server.
 
 use leptos::prelude::*;
+use leptos_meta::Title;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
+use crate::components::ConfirmButton;
 use crate::models::{DocumentDraft, QaBlockInput};
-use crate::server::categories::list_categories;
+use crate::server::categories::list_writable_categories;
 use crate::server::documents::{create_document, get_document_draft, update_document};
 
 /// `/docs/new`
@@ -36,12 +38,19 @@ pub fn EditDocumentPage() -> impl IntoView {
     );
 
     view! {
-        <Suspense fallback=|| view! { <p class="muted">"Loading…"</p> }>
+        <Suspense fallback=|| {
+            view! {
+                <p class="loading-inline">
+                    <span class="spinner"></span>
+                    "Loading document…"
+                </p>
+            }
+        }>
             {move || {
                 draft
                     .get()
                     .map(|res| match res {
-                        Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                        Err(e) => view! { <p class="flash error">{e.to_string()}</p> }.into_any(),
                         Ok(d) => view! { <EditorForm initial=Some(d)/> }.into_any(),
                     })
             }}
@@ -112,9 +121,11 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
         });
     };
 
+    // Only categories the author may write to / edit in — picking any other
+    // would be rejected by the server anyway.
     let categories = Resource::new(
         || (),
-        |_| async move { list_categories().await.unwrap_or_default() },
+        |_| async move { list_writable_categories().await.unwrap_or_default() },
     );
 
     let save = Action::new(move |_: &()| {
@@ -163,18 +174,38 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
     } else {
         "New document"
     };
+    let busy = move || save.pending().get();
+    // The two things the server will reject anyway; say so before the round-trip.
+    let title_missing = move || title.get().trim().is_empty();
+    let cat_missing = move || cat.get().is_empty();
+    let back_href = match doc_id {
+        Some(id) => format!("/docs/{id}"),
+        None => "/".to_string(),
+    };
+    let back_label = if is_edit {
+        "← Back to document"
+    } else {
+        "← All documents"
+    };
 
     view! {
+        <Title text=format!("{heading} · Knowledge Base")/>
+        <a class="backlink" href=back_href.clone()>
+            {back_label}
+        </a>
         <h1>{heading}</h1>
         <form on:submit=move |ev| {
             ev.prevent_default();
-            save.dispatch(());
+            if !busy() {
+                save.dispatch(());
+            }
         }>
             <div class="panel">
                 <label for="title">"Title"</label>
                 <input
                     id="title"
                     type="text"
+                    placeholder="What is this document about?"
                     prop:value=title
                     on:input=move |ev| set_title.set(event_target_value(&ev))
                 />
@@ -215,11 +246,25 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                             <option value="draft">"Draft"</option>
                             <option value="published">"Published"</option>
                         </select>
+                        <p class="hint">
+                            {move || {
+                                if status.get() == "published" {
+                                    "Visible to everyone who can read this category."
+                                } else {
+                                    "Drafts stay hidden from other readers."
+                                }
+                            }}
+                        </p>
                     </div>
                 </div>
             </div>
 
-            <h3 style="margin-top:24px">"Q&A blocks"</h3>
+            <h3 style="margin-top:24px">
+                "Q&A blocks"
+                <span class="muted" style="font-weight:400;font-size:14px">
+                    {move || format!(" ({})", blocks.get().len())}
+                </span>
+            </h3>
             <p class="muted">
                 "Answers accept Markdown. Embed an uploaded image with " <code>"![alt](/uploads/…)"</code>
                 "."
@@ -228,14 +273,29 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
             <For each=move || blocks.get() key=|b| b.id let:block>
                 {
                     let bid = block.id;
+                    // Recomputed on every reorder, so the numbering and the
+                    // enabled/disabled arrows always match what you see.
+                    let position = move || blocks.get().iter().position(|x| x.id == bid);
+                    let number = move || position().map(|i| i + 1).unwrap_or(0);
+                    let is_first = move || position() == Some(0);
+                    let is_last = move || {
+                        let list = blocks.get();
+                        position().map(|i| i + 1 >= list.len()).unwrap_or(true)
+                    };
+                    let only_one = move || blocks.get().len() <= 1;
+                    let q_id = format!("q-{bid}");
+                    let a_id = format!("a-{bid}");
                     view! {
                         <div class="block-editor">
                             <div class="block-head">
-                                <strong>"Question"</strong>
+                                <strong>{move || format!("Question {}", number())}</strong>
                                 <div class="grow-0">
                                     <button
                                         type="button"
-                                        class="btn small secondary"
+                                        class="btn icon secondary"
+                                        title="Move up"
+                                        aria-label="Move this block up"
+                                        prop:disabled=is_first
                                         on:click=move |_| {
                                             blocks
                                                 .update(|v| {
@@ -251,7 +311,10 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                                     </button>
                                     <button
                                         type="button"
-                                        class="btn small secondary"
+                                        class="btn icon secondary"
+                                        title="Move down"
+                                        aria-label="Move this block down"
+                                        prop:disabled=is_last
                                         on:click=move |_| {
                                             blocks
                                                 .update(|v| {
@@ -265,26 +328,48 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                                     >
                                         "↓"
                                     </button>
-                                    <button
-                                        type="button"
-                                        class="btn small danger"
-                                        on:click=move |_| {
-                                            blocks.update(|v| v.retain(|x| x.id != bid));
-                                        }
-                                    >
-                                        "Remove"
-                                    </button>
+                                    // A block can hold a lot of typing — never
+                                    // drop it on a single stray click.
+                                    <span class="danger" style="margin-left:12px">
+                                        <Show
+                                            when=only_one
+                                            fallback=move || {
+                                                view! {
+                                                    <ConfirmButton
+                                                        label="Remove"
+                                                        confirm_label="Yes, remove"
+                                                        on_confirm=move || {
+                                                            blocks.update(|v| v.retain(|x| x.id != bid));
+                                                        }
+                                                    />
+                                                }
+                                            }
+                                        >
+                                            <button
+                                                type="button"
+                                                class="btn small danger"
+                                                title="A document needs at least one block"
+                                                disabled
+                                            >
+                                                "Remove"
+                                            </button>
+                                        </Show>
+                                    </span>
                                 </div>
                             </div>
+                            <label for=q_id.clone()>"Question"</label>
                             <input
+                                id=q_id
                                 type="text"
-                                placeholder="Question"
+                                placeholder="e.g. How do I reset my password?"
                                 prop:value=block.question
                                 on:input=move |ev| block.question.set(event_target_value(&ev))
                             />
-                            <label>"Answer (Markdown)"</label>
+                            <label for=a_id.clone()>"Answer (Markdown)"</label>
                             <textarea
+                                id=a_id
                                 class="md-editor"
+                                placeholder="Write the answer here. **Markdown** works."
                                 prop:value=block.answer
                                 on:input=move |ev| block.answer.set(event_target_value(&ev))
                             ></textarea>
@@ -297,13 +382,36 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                 "+ Add block"
             </button>
 
-            {move || error().map(|e| view! { <p class="error">{e}</p> })}
+            {move || error().map(|e| view! { <p class="flash error">{e}</p> })}
 
-            <div style="margin-top:20px;display:flex;gap:10px">
-                <button class="btn" type="submit" prop:disabled=move || save.pending().get()>
-                    "Save"
+            <div class="form-bar">
+                <button
+                    class="btn"
+                    type="submit"
+                    prop:disabled=move || busy() || title_missing() || cat_missing()
+                >
+                    <Show when=busy fallback=|| ()>
+                        <span class="spinner"></span>
+                    </Show>
+                    {move || if busy() { "Saving…" } else { "Save" }}
                 </button>
-                <a class="btn secondary" href="/">"Cancel"</a>
+                <a class="btn secondary" href=back_href>
+                    "Cancel"
+                </a>
+                // Explains a disabled Save instead of leaving it a mystery.
+                <Show when=move || title_missing() || cat_missing() fallback=|| ()>
+                    <span class="muted" style="font-size:13px">
+                        {move || {
+                            if title_missing() && cat_missing() {
+                                "Add a title and choose a category to save."
+                            } else if title_missing() {
+                                "Add a title to save."
+                            } else {
+                                "Choose a category to save."
+                            }
+                        }}
+                    </span>
+                </Show>
             </div>
         </form>
 
@@ -318,17 +426,27 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
 fn ImageUploader() -> impl IntoView {
     view! {
         <div class="panel" style="margin-top:28px">
-            <h3>"Upload an image"</h3>
-            <p class="muted">
-                "Choose a file and submit; the response shows the URL to paste into an answer as "
-                <code>"![alt](URL)"</code> "."
-            </p>
-            <form action="/api/upload" method="post" enctype="multipart/form-data" target="_blank">
-                <input type="file" name="file" accept="image/*"/>
-                <div style="margin-top:10px">
-                    <button class="btn secondary" type="submit">"Upload"</button>
-                </div>
-            </form>
+            // Collapsed by default: most edits never touch it, and an open file
+            // picker under the save bar reads like part of the document form.
+            <details>
+                <summary style="cursor:pointer;font-weight:600">"Upload an image"</summary>
+                <p class="hint" style="margin-top:10px">
+                    "Pick a file and submit. The upload opens in a new tab and shows the URL to
+                    paste into an answer as " <code>"![alt](URL)"</code>
+                    ". Uploading does not save the document."
+                </p>
+                <form
+                    action="/api/upload"
+                    method="post"
+                    enctype="multipart/form-data"
+                    target="_blank"
+                >
+                    <input type="file" name="file" accept="image/*" aria-label="Image file"/>
+                    <div style="margin-top:10px">
+                        <button class="btn secondary" type="submit">"Upload"</button>
+                    </div>
+                </form>
+            </details>
         </div>
     }
 }

@@ -100,14 +100,56 @@ pub async fn delete_category(id: uuid::Uuid) -> Result<(), ServerFnError> {
     Ok(())
 }
 
-/// List all categories (used by filters and the editor).
+/// List the categories the caller can see: everything for an admin or for
+/// anyone holding a global flag, otherwise only the categories they have been
+/// granted something on. Used by the admin screens and the home filter.
 #[server]
 pub async fn list_categories() -> Result<Vec<Category>, ServerFnError> {
     use crate::backend;
-    backend::require_user().await?;
+    let user = backend::require_user().await?;
+
+    // Only admins see every category. Everyone else sees exactly the ones
+    // they hold a grant on.
+    let sees_all = user.is_admin;
+    let visible = user.accessible_categories();
+
+    fetch_categories(sees_all, &visible).await
+}
+
+/// List the categories the caller may author or edit documents in — what the
+/// editor's category picker should offer.
+#[server]
+pub async fn list_writable_categories() -> Result<Vec<Category>, ServerFnError> {
+    use crate::backend;
+    use crate::models::Permission;
+    let user = backend::require_user().await?;
+
+    let sees_all = user.is_admin;
+    let mut writable = user.granted_categories(Permission::Write);
+    for id in user.granted_categories(Permission::Edit) {
+        if !writable.contains(&id) {
+            writable.push(id);
+        }
+    }
+
+    fetch_categories(sees_all, &writable).await
+}
+
+/// Shared tail of the two listings above.
+#[cfg(feature = "ssr")]
+async fn fetch_categories(
+    all: bool,
+    ids: &[uuid::Uuid],
+) -> Result<Vec<Category>, ServerFnError> {
+    use crate::backend;
     let cats = sqlx::query_as::<_, Category>(
-        "SELECT id, name, slug, description, created_at FROM categories ORDER BY name",
+        "SELECT id, name, slug, description, created_at
+         FROM categories
+         WHERE $1::bool OR id = ANY($2::uuid[])
+         ORDER BY name",
     )
+    .bind(all)
+    .bind(ids)
     .fetch_all(&backend::pool())
     .await?;
     Ok(cats)

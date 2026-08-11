@@ -6,6 +6,10 @@
 //! Ownership rule (decided open question §12.1): a user may always edit or
 //! delete a document they authored; the `EDIT` / `DELETE` permissions extend
 //! that to *other* people's documents.
+//!
+//! Permissions are category-scoped: every check below asks whether the user
+//! holds the permission *in the document's category*, which is true when the
+//! global flag is set (all categories) or a grant covers that one category.
 
 use leptos::prelude::*;
 
@@ -41,7 +45,7 @@ pub async fn create_document(
     use crate::backend;
     use crate::models::Permission;
 
-    let user = backend::require(Permission::Write).await?;
+    let user = backend::require_in_category(Permission::Write, category_id).await?;
     let title = title.trim().to_string();
     if title.is_empty() {
         return Err(ServerFnError::new("Title is required"));
@@ -95,14 +99,27 @@ pub async fn update_document(
     use crate::models::Permission;
 
     let user = backend::require_user().await?;
-    let author_id: Option<uuid::Uuid> =
-        sqlx::query_scalar("SELECT author_id FROM documents WHERE id = $1")
+    let existing: Option<(uuid::Uuid,)> =
+        sqlx::query_as("SELECT category_id FROM documents WHERE id = $1")
             .bind(id)
             .fetch_optional(&backend::pool())
             .await?;
-    let author_id = author_id.ok_or_else(|| ServerFnError::new("Document not found"))?;
-    if author_id != user.id && !user.has(Permission::Edit) {
+    let (current_category,) =
+        existing.ok_or_else(|| ServerFnError::new("Document not found"))?;
+
+    // Edit rights are judged against the category the document is in today.
+    if !user.has_in(current_category, Permission::Edit) {
         return Err(ServerFnError::new("403: you cannot edit this document"));
+    }
+    // Moving it elsewhere additionally requires rights in the destination,
+    // otherwise a user could push documents into categories they can't touch.
+    if category_id != current_category
+        && !user.has_in(category_id, Permission::Write)
+        && !user.has_in(category_id, Permission::Edit)
+    {
+        return Err(ServerFnError::new(
+            "403: you cannot move this document into that category",
+        ));
     }
 
     let title = title.trim().to_string();
@@ -153,7 +170,7 @@ pub async fn update_document(
 pub async fn get_document(id: uuid::Uuid) -> Result<DocumentWithBlocks, ServerFnError> {
     use crate::backend;
     use crate::models::Permission;
-    backend::require(Permission::Read).await?;
+    let user = backend::require_user().await?;
 
     #[derive(sqlx::FromRow)]
     struct MetaRow {
@@ -183,6 +200,12 @@ pub async fn get_document(id: uuid::Uuid) -> Result<DocumentWithBlocks, ServerFn
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| ServerFnError::new("Document not found"))?;
+
+    // READ is decided solely by the document's category — authoring it does
+    // not grant a way back in once the category is withheld.
+    if !user.has_in(meta.category_id, Permission::Read) {
+        return Err(ServerFnError::new("403: you cannot read this document"));
+    }
 
     let raw_blocks: Vec<(String, String)> = sqlx::query_as(
         "SELECT question, answer FROM qa_blocks WHERE document_id = $1 ORDER BY position, created_at",
@@ -239,7 +262,7 @@ pub async fn get_document_draft(id: uuid::Uuid) -> Result<DocumentDraft, ServerF
     .await?
     .ok_or_else(|| ServerFnError::new("Document not found"))?;
 
-    if row.author_id != user.id && !user.has(Permission::Edit) {
+    if !user.has_in(row.category_id, Permission::Edit) {
         return Err(ServerFnError::new("403: you cannot edit this document"));
     }
 
@@ -272,7 +295,7 @@ pub async fn list_documents(
 ) -> Result<Vec<DocumentSummary>, ServerFnError> {
     use crate::backend;
     use crate::models::Permission;
-    backend::require(Permission::Read).await?;
+    let user = backend::require_user().await?;
 
     // Normalize an empty title filter to NULL so the predicate is skipped.
     let title_filter = title_filter.and_then(|t| {
@@ -284,6 +307,12 @@ pub async fn list_documents(
         }
     });
 
+    // Only admins see across categories. For everyone else the listing is the
+    // categories they were granted READ on — nothing else gets in, not even
+    // documents they wrote themselves.
+    let reads_all = user.is_admin;
+    let readable = user.granted_categories(Permission::Read);
+
     let docs = sqlx::query_as::<_, DocumentSummary>(
         "SELECT d.id, d.title, d.status, d.category_id,
                 c.name AS category_name,
@@ -294,10 +323,13 @@ pub async fn list_documents(
          JOIN users u ON u.id = d.author_id
          WHERE ($1::text IS NULL OR d.title ILIKE '%' || $1 || '%')
            AND ($2::uuid IS NULL OR d.category_id = $2)
+           AND ($3::bool OR d.category_id = ANY($4::uuid[]))
          ORDER BY d.created_at DESC",
     )
     .bind(title_filter)
     .bind(category_filter)
+    .bind(reads_all)
+    .bind(&readable)
     .fetch_all(&backend::pool())
     .await?;
 
@@ -311,13 +343,14 @@ pub async fn delete_document(id: uuid::Uuid) -> Result<(), ServerFnError> {
     use crate::models::Permission;
     let user = backend::require_user().await?;
 
-    let author_id: Option<uuid::Uuid> =
-        sqlx::query_scalar("SELECT author_id FROM documents WHERE id = $1")
+    let existing: Option<(uuid::Uuid,)> =
+        sqlx::query_as("SELECT category_id FROM documents WHERE id = $1")
             .bind(id)
             .fetch_optional(&backend::pool())
             .await?;
-    let author_id = author_id.ok_or_else(|| ServerFnError::new("Document not found"))?;
-    if author_id != user.id && !user.has(Permission::Delete) {
+    let (category_id,) =
+        existing.ok_or_else(|| ServerFnError::new("Document not found"))?;
+    if !user.has_in(category_id, Permission::Delete) {
         return Err(ServerFnError::new("403: you cannot delete this document"));
     }
 

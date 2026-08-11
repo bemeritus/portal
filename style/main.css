@@ -1,5 +1,10 @@
-/* Shape tokens shared by every theme. */
-:root { --radius: 10px; }
+/* Shape / motion tokens shared by every theme. */
+:root {
+  --radius: 10px;
+  --radius-sm: 8px;
+  --nav-h: 56px;
+  --fast: 0.15s ease;
+}
 
 /* Dark (default — also what SSR renders before the client applies a stored choice). */
 :root,
@@ -14,6 +19,10 @@
   --accent-2: #3a67d6;
   --danger: #e5484d;
   --ok: #46a758;
+  --ring: rgba(91, 140, 255, 0.45);
+  --danger-soft: rgba(229, 72, 77, 0.12);
+  --ok-soft: rgba(70, 167, 88, 0.12);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 /* White — neutral light. */
@@ -28,6 +37,10 @@
   --accent-2: #2f6fed;
   --danger: #d92d20;
   --ok: #1f9d55;
+  --ring: rgba(47, 111, 237, 0.35);
+  --danger-soft: rgba(217, 45, 32, 0.08);
+  --ok-soft: rgba(31, 157, 85, 0.1);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.08);
 }
 
 /* Gruvbox — dark, warm retro palette. */
@@ -42,9 +55,15 @@
   --accent-2: #458588;
   --danger: #fb4934;
   --ok: #b8bb26;
+  --ring: rgba(131, 165, 152, 0.45);
+  --danger-soft: rgba(251, 73, 52, 0.14);
+  --ok-soft: rgba(184, 187, 38, 0.14);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
@@ -53,27 +72,72 @@ body {
   color: var(--text);
   line-height: 1.5;
   transition: background 0.2s ease, color 0.2s ease;
+  /* Long words / URLs must never push the layout sideways on a phone. */
+  overflow-wrap: break-word;
 }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* One visible focus treatment everywhere — keyboard users can always see
+   where they are, mouse users never get a stray ring. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .container { max-width: 960px; margin: 0 auto; padding: 24px 20px 64px; }
 
-/* Navbar */
+/* ---------------------------------------------------------------- Navbar */
+
 .navbar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 12px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--nav-h);
+  padding: 8px 20px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
-.navbar .brand { font-weight: 700; font-size: 18px; }
+.navbar .brand { font-weight: 700; font-size: 18px; color: var(--text); white-space: nowrap; }
+.navbar .brand:hover { text-decoration: none; opacity: 0.85; }
 .navbar .spacer { flex: 1; }
-.navbar a { color: var(--muted); }
-.navbar a:hover { color: var(--text); }
-.navbar .who { color: var(--muted); font-size: 14px; }
+.navbar .who { color: var(--muted); font-size: 14px; white-space: nowrap; }
 
-/* Cards / panels */
+/* Grouped so the whole set can collapse behind the mobile toggle. */
+.nav-links { display: flex; align-items: center; gap: 6px; }
+.nav-links a {
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: color var(--fast), background var(--fast);
+}
+.nav-links a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
+/* The current page is called out so you always know where you are. */
+.nav-links a[aria-current="page"] { color: var(--text); background: var(--panel-2); font-weight: 600; }
+
+.nav-tools { display: flex; align-items: center; gap: 10px; }
+
+/* Hamburger: hidden on desktop, revealed by the media query below. */
+.nav-toggle {
+  display: none;
+  padding: 6px 10px;
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------- Cards / panels */
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -87,76 +151,247 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius);
   padding: 16px;
   margin-bottom: 12px;
+  color: inherit;
+  transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
 }
-.card:hover { border-color: var(--accent-2); text-decoration: none; }
-.card h3 { margin: 0 0 6px; }
-.card .meta { color: var(--muted); font-size: 13px; }
+.card:hover {
+  border-color: var(--accent-2);
+  text-decoration: none;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+.card:active { transform: none; }
+.card h3 { margin: 0 0 6px; color: var(--text); }
+.card:hover h3 { color: var(--accent); }
+.card .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
-/* Forms */
+/* ----------------------------------------------------------------- Forms */
+
 label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 14px; }
-input[type=text], input[type=password], input[type=search], select, textarea {
+.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+
+input[type=text], input[type=password], input[type=search], input[type=file], select, textarea {
   width: 100%;
   padding: 10px 12px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font: inherit;
+  transition: border-color var(--fast), box-shadow var(--fast);
 }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 0.8; }
 textarea { min-height: 120px; resize: none; overflow: hidden; }
 /* Markdown answer editor: taller box with an internal scrollbar. */
-.md-editor { min-height: 320px; max-height: 60vh; resize: vertical; overflow-y: auto; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+.md-editor {
+  min-height: 320px;
+  max-height: 60vh;
+  resize: vertical;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+/* The generic ring above already marks focus on fields — don't double it. */
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; }
 
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 9px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--accent-2);
   background: var(--accent-2);
   color: white;
   font: inherit;
+  line-height: 1.3;
+  white-space: nowrap;
   cursor: pointer;
+  transition: background var(--fast), border-color var(--fast), color var(--fast), opacity var(--fast);
 }
-.btn:hover { background: var(--accent); text-decoration: none; }
+.btn:hover { background: var(--accent); border-color: var(--accent); text-decoration: none; color: white; }
+.btn:active { transform: translateY(1px); }
 .btn.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+.btn.secondary:hover { background: var(--panel-2); color: var(--text); border-color: var(--accent-2); }
 .btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
 .btn.small { padding: 5px 10px; font-size: 13px; }
+/* Square buttons for single-glyph controls (block reordering). */
+.btn.icon { padding: 5px 9px; font-size: 13px; min-width: 30px; }
+/* Disabled must look disabled, not just ignore clicks. */
+.btn:disabled, .btn[disabled] { opacity: 0.55; cursor: not-allowed; transform: none; }
+.btn:disabled:hover, .btn[disabled]:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.btn.secondary:disabled:hover { background: transparent; border-color: var(--border); }
 
 .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-.row > * { flex: 1; }
-.row .grow-0 { flex: 0; }
+.row > * { flex: 1; min-width: 0; }
+.row .grow-0 { flex: 0 0 auto; }
+
+/* A horizontal group of buttons that wraps instead of overflowing. */
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
 .badge {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
   font-size: 12px; border: 1px solid var(--border); color: var(--muted);
+  white-space: nowrap;
 }
-.badge.published { color: var(--ok); border-color: var(--ok); }
+.badge.published { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
 .badge.draft { color: var(--muted); }
 
 .error { color: var(--danger); margin: 10px 0; }
 .success { color: var(--ok); margin: 10px 0; }
 .muted { color: var(--muted); }
 
-/* Q&A view */
-.qa { margin: 18px 0; }
+/* Inline alerts — an error you can actually notice next to a form. */
+.flash {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+.flash.error { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+.flash.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+
+/* Empty / loading states, so a blank screen always explains itself. */
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.empty .empty-title { color: var(--text); font-weight: 600; margin-bottom: 6px; }
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-inline { color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 8px; }
+
+/* Placeholder rows while the first document list is in flight. */
+.skeleton {
+  height: 78px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 50%, var(--panel) 75%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* --------------------------------------------------------------- Q&A view */
+
+.qa { margin: 18px 0; padding-top: 4px; scroll-margin-top: calc(var(--nav-h) + 12px); }
+.qa + .qa { border-top: 1px solid var(--border); padding-top: 18px; }
 .qa .q { font-weight: 600; font-size: 17px; margin-bottom: 6px; }
+.qa .q .qnum { color: var(--muted); font-weight: 500; margin-right: 6px; }
 .qa .a { color: var(--text); }
-.qa .a img { max-width: 100%; border-radius: 8px; }
+.qa .a img { max-width: 100%; border-radius: var(--radius-sm); }
+/* Markdown answers can contain anything — keep it inside the column. */
+.qa .a pre {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  overflow-x: auto;
+}
+.qa .a pre code { background: none; padding: 0; font-size: 13px; }
+.qa .a blockquote {
+  margin: 12px 0;
+  padding: 4px 14px;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+.qa .a table { display: block; overflow-x: auto; }
+.qa .a > :first-child { margin-top: 0; }
+.qa .a > :last-child { margin-bottom: 0; }
+
+/* Jump list for documents with several questions. */
+.toc { margin: 16px 0; }
+.toc summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.toc ol { margin: 10px 0 0; padding-left: 22px; color: var(--muted); }
+.toc li { margin: 4px 0; }
 
 .doc-header h1 { margin-bottom: 4px; }
-.doc-header .meta { color: var(--muted); }
+.doc-header .meta { color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* Small "← back" affordance above a detail page title. */
+.backlink { display: inline-block; margin-bottom: 10px; color: var(--muted); font-size: 14px; }
+.backlink:hover { color: var(--accent); }
+
+/* ---------------------------------------------------------------- Tables */
 
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 th { color: var(--muted); font-weight: 500; font-size: 13px; }
 
+/* Wrap every wide table in this: it scrolls itself instead of the page. */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  -webkit-overflow-scrolling: touch;
+}
+.table-wrap > table { min-width: 640px; }
+.table-wrap th, .table-wrap td { white-space: nowrap; }
+/* Opt a prose column back into wrapping. */
+.table-wrap td.wrap { white-space: normal; min-width: 220px; }
+.table-wrap tr:last-child td { border-bottom: none; }
+
 .center-narrow { max-width: 380px; margin: 10vh auto 0; }
 
-.block-editor { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; background: var(--panel-2); }
-.block-editor .block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.block-editor .block-head .grow-0 { display: flex; gap: 6px; align-items: center; }
+/* --------------------------------------------------------------- Editor */
+
+.block-editor {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--panel-2);
+}
+.block-editor .block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.block-editor .block-head .grow-0 { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
 .block-editor .block-head .grow-0 .danger { margin-left: 12px; }
+
+/* Save / Cancel stay reachable without scrolling to the end of a long form. */
+.form-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 20px;
+  padding: 12px 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
 
 .theme-select {
   width: auto;
@@ -165,9 +400,69 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
-label.chk { display: inline-flex; align-items: center; gap: 4px; margin: 0; color: var(--text); font-size: 14px; }
-label.chk input { width: auto; }
+label.chk {
+  display: inline-flex; align-items: center; gap: 4px; margin: 0;
+  color: var(--text); font-size: 14px; cursor: pointer;
+}
+label.chk input { width: auto; cursor: pointer; }
+
+/* Per-category permission matrix (admin → users). */
+.perm-matrix { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2); overflow: hidden; }
+.perm-matrix th, .perm-matrix td { padding: 5px 10px; font-size: 13px; }
+.perm-matrix th:not(:first-child), .perm-matrix td:not(:first-child) { text-align: center; width: 60px; }
+.perm-matrix tr:last-child td { border-bottom: none; }
+.perm-matrix input { width: auto; margin: 0; }
+/* Bigger hit area than a bare 13px checkbox row. */
+.perm-matrix td:not(:first-child) label { display: block; margin: 0; padding: 2px; cursor: pointer; }
+
+.cat-perms summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 2px 0; }
+.cat-perms summary:hover { color: var(--text); }
+.cat-perms[open] summary { margin-bottom: 8px; }
+.cat-perms .perm-matrix { min-width: 320px; white-space: normal; }
+
 code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+
+/* ------------------------------------------------------------ Responsive */
+
+@media (max-width: 760px) {
+  .container { padding: 18px 14px 56px; }
+
+  .nav-toggle { display: inline-flex; }
+  /* Links stack under the bar and are shown only when toggled open. */
+  .navbar { flex-wrap: wrap; padding: 8px 14px; gap: 10px; }
+  .navbar .spacer { flex: 1; }
+  .nav-links {
+    display: none;
+    order: 10;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding-bottom: 6px;
+  }
+  .navbar.open .nav-links { display: flex; }
+  .nav-links a { padding: 10px 12px; }
+  .nav-links .who { padding: 6px 12px; }
+  .nav-links .btn { width: 100%; }
+
+  /* Filters and form rows read better stacked than squeezed. */
+  .row > * { flex-basis: 100%; }
+  .row .grow-0 { flex-basis: auto; }
+
+  .center-narrow { margin-top: 4vh; max-width: none; }
+  .md-editor { max-height: 50vh; }
+  h1 { font-size: 26px; }
+}
+
+/* Respect the OS "reduce motion" setting. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

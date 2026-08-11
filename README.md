@@ -10,6 +10,9 @@ per [`platform_doc.md`](./platform_doc.md).
 - **No public signup** — only an admin creates users (`/admin/users`).
 - **Per-user permissions**: `READ`, `WRITE`, `EDIT`, `DELETE` (independent
   flags); plus an `admin` role that holds everything.
+- **Per-category permissions**: the same four flags can instead be granted on
+  individual categories, so a user is confined to the categories they were
+  given. Global flag OR category grant — see spec §4.2.1.
 - **Q&A documents**: a title + category and an ordered list of question/answer
   blocks; answers are **Markdown**, rendered to sanitized HTML.
 - **Categories**, admin-managed; each document belongs to exactly one.
@@ -26,6 +29,8 @@ per [`platform_doc.md`](./platform_doc.md).
 3. Images are stored **locally** under `uploads/`.
 4. `DELETE` is implemented.
 5. Q&A answers are **Markdown**.
+6. Category grants are **additive** to the global flags, not a replacement —
+   accounts created before category scoping keep working unchanged.
 
 ## Prerequisites
 
@@ -112,7 +117,12 @@ style/main.css
 - Passwords hashed with argon2; the hash never leaves the server.
 - Session cookies are `HttpOnly`, `SameSite=Lax`. **Set `with_secure(true)` in
   `src/main.rs` when serving over HTTPS.**
-- Every server function passes an auth/permission guard before touching data.
+- Every server function passes an auth/permission guard before touching data;
+  document guards resolve the permission **against that document's category**.
+- Category scoping is enforced in SQL for listings too, not just for single
+  records — hiding a link in the UI is never the only control.
+- Permissions are re-read from the database on every request, so revoking a
+  grant takes effect immediately rather than at the user's next login.
 - SQLx parameterized queries throughout; upload MIME + size validated.
 - Sessions use an in-memory store for simplicity — swap in the tower-sessions
   Postgres store for persistence across restarts.

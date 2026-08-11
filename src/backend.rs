@@ -14,7 +14,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use tower_sessions::Session;
 use uuid::Uuid;
 
-use crate::models::{Permission, User};
+use crate::models::{CategoryPermission, Permission, User};
 
 /// Session key under which the authenticated user id is stored.
 pub const SESSION_UID: &str = "uid";
@@ -133,6 +133,20 @@ pub async fn session() -> Result<Session, ServerFnError> {
 
 // --- Auth guards (SR-3) -----------------------------------------------------
 
+/// The per-category grants held by one user.
+pub async fn category_perms_for(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<CategoryPermission>, sqlx::Error> {
+    sqlx::query_as::<_, CategoryPermission>(
+        "SELECT category_id, can_read, can_write, can_edit, can_delete
+         FROM user_category_permissions WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+}
+
 /// The currently logged-in user, if any and still active. Fetches fresh from
 /// the DB so permission changes take effect immediately.
 pub async fn current_user_opt() -> Result<Option<User>, ServerFnError> {
@@ -144,16 +158,20 @@ pub async fn current_user_opt() -> Result<Option<User>, ServerFnError> {
     let Some(uid) = uid else {
         return Ok(None);
     };
+    let pool = pool();
     let user = sqlx::query_as::<_, User>(
         "SELECT id, username, is_admin, can_read, can_write, can_edit, can_delete, is_active, created_at
          FROM users WHERE id = $1",
     )
     .bind(uid)
-    .fetch_optional(&pool())
+    .fetch_optional(&pool)
     .await?;
 
     Ok(match user {
-        Some(u) if u.is_active => Some(u),
+        Some(mut u) if u.is_active => {
+            u.category_perms = category_perms_for(&pool, u.id).await?;
+            Some(u)
+        }
         _ => None,
     })
 }
@@ -165,13 +183,21 @@ pub async fn require_user() -> Result<User, ServerFnError> {
         .ok_or_else(|| ServerFnError::new("401: not authenticated"))
 }
 
-/// Require the given permission, returning the user on success or a 403 error.
-pub async fn require(perm: Permission) -> Result<User, ServerFnError> {
+/// Require the given permission *on a specific category* — the only way to
+/// authorize anything for a non-admin. There is deliberately no category-less
+/// variant: a permission with no category attached is what used to let a
+/// global flag reach into categories the user was never granted.
+pub async fn require_in_category(
+    perm: Permission,
+    category_id: Uuid,
+) -> Result<User, ServerFnError> {
     let user = require_user().await?;
-    if user.has(perm) {
+    if user.has_in(category_id, perm) {
         Ok(user)
     } else {
-        Err(ServerFnError::new("403: permission denied"))
+        Err(ServerFnError::new(
+            "403: permission denied for this category",
+        ))
     }
 }
 

@@ -1,6 +1,7 @@
 //! `/login` — the only public page (§8, FR-1..FR-3).
 
 use leptos::prelude::*;
+use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
 
 use crate::app::use_user;
@@ -31,19 +32,29 @@ pub fn LoginPage() -> impl IntoView {
         _ => None,
     };
 
+    // Nothing to submit until both fields have something in them — a disabled
+    // button is clearer than a round-trip that comes back "invalid credentials".
+    let incomplete =
+        move || username.get().trim().is_empty() || password.get().trim().is_empty();
+    let busy = move || login_action.pending().get();
+
     view! {
+        <Title text="Sign in · Knowledge Base"/>
         <div class="center-narrow panel">
-            <h2>"Sign in"</h2>
+            <h2 style="margin-top:0">"Sign in"</h2>
             <p class="muted">"Accounts are created by an administrator."</p>
             <form on:submit=move |ev| {
                 ev.prevent_default();
-                login_action.dispatch((username.get_untracked(), password.get_untracked()));
+                if !incomplete() && !busy() {
+                    login_action.dispatch((username.get_untracked(), password.get_untracked()));
+                }
             }>
                 <label for="u">"Username"</label>
                 <input
                     id="u"
                     type="text"
                     autocomplete="username"
+                    autofocus="true"
                     prop:value=username
                     on:input=move |ev| set_username.set(event_target_value(&ev))
                 />
@@ -55,14 +66,17 @@ pub fn LoginPage() -> impl IntoView {
                     prop:value=password
                     on:input=move |ev| set_password.set(event_target_value(&ev))
                 />
-                {move || error().map(|e| view! { <p class="error">{e}</p> })}
+                {move || error().map(|e| view! { <p class="flash error">{e}</p> })}
                 <div style="margin-top:16px">
                     <button
                         class="btn"
                         type="submit"
-                        prop:disabled=move || login_action.pending().get()
+                        prop:disabled=move || busy() || incomplete()
                     >
-                        "Log in"
+                        <Show when=busy fallback=|| ()>
+                            <span class="spinner"></span>
+                        </Show>
+                        {move || if busy() { "Signing in…" } else { "Log in" }}
                     </button>
                 </div>
             </form>

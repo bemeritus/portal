@@ -66,7 +66,15 @@ pub fn App() -> impl IntoView {
         <Router>
             <Navbar/>
             <main class="container">
-                <Routes fallback=|| view! { <p class="muted">"Page not found."</p> }>
+                <Routes fallback=|| {
+                    view! {
+                        <div class="empty">
+                            <div class="empty-title">"Page not found"</div>
+                            <p>"That address does not match anything on this portal."</p>
+                            <a class="btn secondary" href="/">"Go to documents"</a>
+                        </div>
+                    }
+                }>
                     <Route path=path!("/login") view=LoginPage/>
                     <Route path=path!("/") view=HomePage/>
                     <Route path=path!("/docs/new") view=NewDocumentPage/>

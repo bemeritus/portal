@@ -10,6 +10,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// A user account, minus any secret material.
+///
+/// Access is decided **per category only**: a non-admin may act on a document
+/// exactly when [`User::category_perms`] grants that action on the document's
+/// category. The `can_*` columns are legacy global flags that no longer grant
+/// anything — they used to mean "in every category", which let a user read
+/// categories an admin had deliberately withheld. Admins still hold everything.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(sqlx::FromRow))]
 pub struct User {
@@ -22,20 +28,75 @@ pub struct User {
     pub can_delete: bool,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
+    /// Loaded by a second query, never by `FromRow` — hence `skip`.
+    #[cfg_attr(feature = "ssr", sqlx(skip))]
+    pub category_perms: Vec<CategoryPermission>,
 }
 
 impl User {
-    /// Whether this user holds the given permission. Admins hold everything.
-    pub fn has(&self, perm: Permission) -> bool {
-        if self.is_admin {
-            return true;
-        }
+    /// Whether this user holds the permission in the given category. For a
+    /// non-admin this is *only* the grant on that category — there is no
+    /// global flag and no author exemption that can widen it.
+    pub fn has_in(&self, category_id: Uuid, perm: Permission) -> bool {
+        self.is_admin
+            || self
+                .category_perms
+                .iter()
+                .any(|c| c.category_id == category_id && c.allows(perm))
+    }
+
+    /// Whether this user holds the permission on *some* category — used to
+    /// decide whether to show an action at all (e.g. the "New document"
+    /// button), never to authorize one.
+    pub fn has_anywhere(&self, perm: Permission) -> bool {
+        self.is_admin || self.category_perms.iter().any(|c| c.allows(perm))
+    }
+
+    /// The categories this user was granted `perm` on. Only meaningful for a
+    /// non-admin; an admin reaches every category regardless.
+    pub fn granted_categories(&self, perm: Permission) -> Vec<Uuid> {
+        self.category_perms
+            .iter()
+            .filter(|c| c.allows(perm))
+            .map(|c| c.category_id)
+            .collect()
+    }
+
+    /// The categories this user can see at all — those with any grant on them.
+    pub fn accessible_categories(&self) -> Vec<Uuid> {
+        self.category_perms
+            .iter()
+            .filter(|c| !c.is_empty())
+            .map(|c| c.category_id)
+            .collect()
+    }
+}
+
+/// One user's permissions on one category (§4.2.1, §6.6). Doubles as the
+/// payload the admin UI sends when assigning permissions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::FromRow))]
+pub struct CategoryPermission {
+    pub category_id: Uuid,
+    pub can_read: bool,
+    pub can_write: bool,
+    pub can_edit: bool,
+    pub can_delete: bool,
+}
+
+impl CategoryPermission {
+    pub fn allows(&self, perm: Permission) -> bool {
         match perm {
             Permission::Read => self.can_read,
             Permission::Write => self.can_write,
             Permission::Edit => self.can_edit,
             Permission::Delete => self.can_delete,
         }
+    }
+
+    /// A grant with nothing ticked is the same as no grant at all.
+    pub fn is_empty(&self) -> bool {
+        !(self.can_read || self.can_write || self.can_edit || self.can_delete)
     }
 }
 

@@ -1,12 +1,122 @@
 //! `/admin/users` — admin user management (§8, FR-5..FR-8).
+//!
+//! Two layers of permission are edited here: the global R/W/E/D flags, which
+//! apply to every category, and per-category grants, which add rights on top
+//! for individual categories. A user meant to be confined to a few categories
+//! simply has the global flags off and grants on those categories.
 
 use leptos::prelude::*;
+use leptos_meta::Title;
 
 use crate::app::use_user;
-use crate::models::User;
+use crate::components::ConfirmButton;
+use crate::models::{Category, CategoryPermission, User};
+use crate::server::categories::list_categories;
 use crate::server::users::{
-    create_user, list_users, reset_password, set_user_active, update_permissions,
+    create_user, list_users, reset_password, set_user_active, update_category_permissions,
 };
+
+/// One editable line of the category matrix: the category plus its four
+/// checkboxes.
+#[derive(Clone)]
+struct CatRow {
+    id: uuid::Uuid,
+    name: String,
+    r: RwSignal<bool>,
+    w: RwSignal<bool>,
+    e: RwSignal<bool>,
+    d: RwSignal<bool>,
+}
+
+/// Build one matrix line per category, pre-ticked from any existing grants.
+fn build_rows(cats: &[Category], existing: &[CategoryPermission]) -> Vec<CatRow> {
+    cats.iter()
+        .map(|c| {
+            let g = existing.iter().find(|g| g.category_id == c.id).copied();
+            CatRow {
+                id: c.id,
+                name: c.name.clone(),
+                r: RwSignal::new(g.map(|g| g.can_read).unwrap_or(false)),
+                w: RwSignal::new(g.map(|g| g.can_write).unwrap_or(false)),
+                e: RwSignal::new(g.map(|g| g.can_edit).unwrap_or(false)),
+                d: RwSignal::new(g.map(|g| g.can_delete).unwrap_or(false)),
+            }
+        })
+        .collect()
+}
+
+/// Serialize the ticked lines into the JSON payload the server expects.
+fn rows_json(rows: &[CatRow]) -> String {
+    let grants: Vec<CategoryPermission> = rows
+        .iter()
+        .map(|row| CategoryPermission {
+            category_id: row.id,
+            can_read: row.r.get_untracked(),
+            can_write: row.w.get_untracked(),
+            can_edit: row.e.get_untracked(),
+            can_delete: row.d.get_untracked(),
+        })
+        .filter(|g| !g.is_empty())
+        .collect();
+    serde_json::to_string(&grants).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// The shared R/W/E/D matrix widget.
+fn category_matrix(rows: RwSignal<Vec<CatRow>>) -> impl IntoView {
+    view! {
+        <Show
+            when=move || !rows.get().is_empty()
+            fallback=|| {
+                view! { <p class="muted">"No categories yet — create some first."</p> }
+            }
+        >
+            <table class="perm-matrix">
+                <thead>
+                    <tr>
+                        <th>"Category"</th>
+                        <th>"Read"</th>
+                        <th>"Write"</th>
+                        <th>"Edit"</th>
+                        <th>"Delete"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <For each=move || rows.get() key=|row| row.id let:row>
+                        {
+                            let (r, w, e, d) = (row.r, row.w, row.e, row.d);
+                            let name = row.name.clone();
+                            // A bare checkbox in a grid announces nothing useful,
+                            // and the label widens the click target to the cell.
+                            let cell = move |flag: RwSignal<bool>, perm: &str, name: &str| {
+                                let aria = format!("{perm} in {name}");
+                                view! {
+                                    <td>
+                                        <label aria-label=aria>
+                                            <input
+                                                type="checkbox"
+                                                prop:checked=flag
+                                                on:change=move |ev| flag.set(event_target_checked(&ev))
+                                            />
+                                        </label>
+                                    </td>
+                                }
+                            };
+                            view! {
+                                <tr>
+                                    <td>{row.name.clone()}</td>
+                                    {cell(r, "Read", &name)}
+                                    {cell(w, "Write", &name)}
+                                    {cell(e, "Edit", &name)}
+                                    {cell(d, "Delete", &name)}
+                                </tr>
+                            }
+                        }
+                    </For>
+                </tbody>
+            </table>
+        </Show>
+    }
+}
 
 #[component]
 pub fn AdminUsersPage() -> impl IntoView {
@@ -17,36 +127,41 @@ pub fn AdminUsersPage() -> impl IntoView {
         || (),
         |_| async move { list_users().await.unwrap_or_default() },
     );
+    let categories = Resource::new(
+        || (),
+        |_| async move { list_categories().await.unwrap_or_default() },
+    );
 
     // --- Create user form ---------------------------------------------------
     let (cu_name, set_cu_name) = signal(String::new());
     let (cu_pass, set_cu_pass) = signal(String::new());
     let (cu_admin, set_cu_admin) = signal(false);
-    let (cu_read, set_cu_read) = signal(true);
-    let (cu_write, set_cu_write) = signal(false);
-    let (cu_edit, set_cu_edit) = signal(false);
-    let (cu_delete, set_cu_delete) = signal(false);
+
+    // The create form's matrix, (re)built once the category list arrives.
+    let cu_rows: RwSignal<Vec<CatRow>> = RwSignal::new(Vec::new());
+    Effect::new(move |_| {
+        if let Some(cats) = categories.get() {
+            cu_rows.set(build_rows(&cats, &[]));
+        }
+    });
 
     let create = Action::new(move |_: &()| {
         let payload = (
             cu_name.get_untracked(),
             cu_pass.get_untracked(),
             cu_admin.get_untracked(),
-            cu_read.get_untracked(),
-            cu_write.get_untracked(),
-            cu_edit.get_untracked(),
-            cu_delete.get_untracked(),
+            rows_json(&cu_rows.get_untracked()),
         );
         async move {
-            let (n, p, a, r, w, e, d) = payload;
-            create_user(n, p, a, r, w, e, d).await
+            let (n, p, a, cats) = payload;
+            create_user(n, p, a, cats).await
         }
     });
 
     // Shared actions used by the rows.
-    let perms = Action::new(|args: &(uuid::Uuid, bool, bool, bool, bool)| {
-        let (id, r, w, e, d) = *args;
-        async move { update_permissions(id, r, w, e, d).await }
+    let cat_perms = Action::new(|args: &(uuid::Uuid, String)| {
+        let (id, json) = args.clone();
+        async move { update_category_permissions(id, json).await }
     });
     let active = Action::new(|args: &(uuid::Uuid, bool)| {
         let (id, a) = *args;
@@ -58,6 +173,12 @@ pub fn AdminUsersPage() -> impl IntoView {
         if matches!(create.value().get(), Some(Ok(()))) {
             set_cu_name.set(String::new());
             set_cu_pass.set(String::new());
+            for row in cu_rows.get_untracked() {
+                row.r.set(false);
+                row.w.set(false);
+                row.e.set(false);
+                row.d.set(false);
+            }
             users.refetch();
         }
     });
@@ -66,44 +187,96 @@ pub fn AdminUsersPage() -> impl IntoView {
             users.refetch();
         }
     });
+    Effect::new(move |_| {
+        if matches!(cat_perms.value().get(), Some(Ok(()))) {
+            users.refetch();
+        }
+    });
 
     let create_error = move || match create.value().get() {
         Some(Err(e)) => Some(e.to_string()),
         _ => None,
     };
+    let create_ok = move || matches!(create.value().get(), Some(Ok(())));
+    let create_busy = move || create.pending().get();
+    let create_incomplete =
+        move || cu_name.get().trim().is_empty() || cu_pass.get().trim().is_empty();
+
+    // The row-level actions used to fail silently — a click that did nothing
+    // and said nothing. Surface whichever one broke.
+    let row_error = move || {
+        [cat_perms.value().get(), active.value().get()]
+            .into_iter()
+            .find_map(|v| match v {
+                Some(Err(e)) => Some(e.to_string()),
+                _ => None,
+            })
+    };
 
     view! {
+        // Hoisted above the Suspense: leptos_meta can only write into the
+        // streamed <head> before it is flushed, so a title nested inside a
+        // suspended branch never makes it into the server response.
+        <Title text="Users · Knowledge Base"/>
+        // The admin check has to happen *inside* the Suspense closure, reading
+        // the resource there — that is what makes SSR wait for it. Checking it
+        // outside renders "administrators only" first and corrects it after
+        // hydration, which admins see as a flash of the wrong page.
+        <Suspense fallback=|| {
+            view! {
+                <p class="loading-inline">
+                    <span class="spinner"></span>
+                    "Loading…"
+                </p>
+            }
+        }>
+        {move || me.get().map(|_| view! {
         <Show
             when=is_admin
-            fallback=|| view! { <p class="muted">"This area is for administrators."</p> }
+            fallback=|| {
+                view! {
+                    <div class="empty">
+                        <div class="empty-title">"Administrators only"</div>
+                        <p style="margin:0">"This area is for administrators."</p>
+                    </div>
+                }
+            }
         >
             <h1>"Users"</h1>
 
             <div class="panel" style="margin:16px 0">
-                <h3>"Create user"</h3>
+                <h3 style="margin-top:0">"Create user"</h3>
                 <form on:submit=move |ev| {
                     ev.prevent_default();
-                    create.dispatch(());
+                    if !create_incomplete() && !create_busy() {
+                        create.dispatch(());
+                    }
                 }>
                     <div class="row">
                         <div>
-                            <label>"Username"</label>
+                            <label for="cu-name">"Username"</label>
                             <input
+                                id="cu-name"
                                 type="text"
+                                autocomplete="off"
                                 prop:value=cu_name
                                 on:input=move |ev| set_cu_name.set(event_target_value(&ev))
                             />
                         </div>
                         <div>
-                            <label>"Initial password"</label>
+                            <label for="cu-pass">"Initial password"</label>
                             <input
+                                id="cu-pass"
                                 type="text"
+                                autocomplete="off"
                                 prop:value=cu_pass
                                 on:input=move |ev| set_cu_pass.set(event_target_value(&ev))
                             />
+                            <p class="hint">"Shown in the clear so you can pass it on."</p>
                         </div>
                     </div>
-                    <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap">
+                    <label style="margin-top:14px">"Role"</label>
+                    <div style="margin-top:6px">
                         <label class="chk">
                             <input
                                 type="checkbox"
@@ -112,101 +285,137 @@ pub fn AdminUsersPage() -> impl IntoView {
                             />
                             " Admin"
                         </label>
-                        <label class="chk">
-                            <input
-                                type="checkbox"
-                                prop:checked=cu_read
-                                on:change=move |ev| set_cu_read.set(event_target_checked(&ev))
-                            />
-                            " Read"
-                        </label>
-                        <label class="chk">
-                            <input
-                                type="checkbox"
-                                prop:checked=cu_write
-                                on:change=move |ev| set_cu_write.set(event_target_checked(&ev))
-                            />
-                            " Write"
-                        </label>
-                        <label class="chk">
-                            <input
-                                type="checkbox"
-                                prop:checked=cu_edit
-                                on:change=move |ev| set_cu_edit.set(event_target_checked(&ev))
-                            />
-                            " Edit"
-                        </label>
-                        <label class="chk">
-                            <input
-                                type="checkbox"
-                                prop:checked=cu_delete
-                                on:change=move |ev| set_cu_delete.set(event_target_checked(&ev))
-                            />
-                            " Delete"
-                        </label>
                     </div>
+
+                    <label style="margin-top:18px">"Per-category permissions"</label>
+                    <p class="muted" style="margin:4px 0 10px">
+                        "This is the whole of a user's access: they can only reach the categories
+                        ticked below. Leave it empty and they see nothing."
+                    </p>
+                    // Admin bypasses the matrix entirely, so say so instead of
+                    // presenting boxes that will not be consulted.
+                    <Show when=move || cu_admin.get() fallback=|| ()>
+                        <p class="flash error">
+                            "Admins hold every permission in every category. The matrix below has
+                            no effect."
+                        </p>
+                    </Show>
+                    <Suspense fallback=|| view! { <p class="muted">"Loading categories…"</p> }>
+                        {move || category_matrix(cu_rows)}
+                    </Suspense>
+
                     <div style="margin-top:14px">
-                        <button class="btn" type="submit">"Create user"</button>
+                        <button
+                            class="btn"
+                            type="submit"
+                            prop:disabled=move || create_busy() || create_incomplete()
+                        >
+                            <Show when=create_busy fallback=|| ()>
+                                <span class="spinner"></span>
+                            </Show>
+                            {move || if create_busy() { "Creating…" } else { "Create user" }}
+                        </button>
                     </div>
-                    {move || create_error().map(|e| view! { <p class="error">{e}</p> })}
+                    {move || create_error().map(|e| view! { <p class="flash error">{e}</p> })}
+                    <Show when=create_ok fallback=|| ()>
+                        <p class="flash ok">"User created."</p>
+                    </Show>
                 </form>
             </div>
 
-            <Suspense fallback=|| view! { <p class="muted">"Loading…"</p> }>
+            {move || row_error().map(|e| view! { <p class="flash error">{e}</p> })}
+            <p class="hint" style="margin-bottom:8px">
+                "R = read, W = write, E = edit, D = delete, per category. A user reaches a category
+                only through a tick here — there is no permission that applies across categories,
+                and authoring a document does not grant access to its category."
+            </p>
+
+            <Suspense fallback=|| {
+                view! {
+                    <p class="loading-inline">
+                        <span class="spinner"></span>
+                        "Loading users…"
+                    </p>
+                }
+            }>
                 {move || {
+                    let cats = categories.get().unwrap_or_default();
                     users
                         .get()
                         .map(|list| {
                             view! {
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>"Username"</th>
-                                            <th>"Role"</th>
-                                            <th>"Permissions"</th>
-                                            <th>"Status"</th>
-                                            <th>"Reset password"</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {list
-                                            .into_iter()
-                                            .map(|u| user_row(u, perms, active))
-                                            .collect_view()}
-                                    </tbody>
-                                </table>
+                                <div class="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>"Username"</th>
+                                                <th>"Role"</th>
+                                                <th>"Categories"</th>
+                                                <th>"Status"</th>
+                                                <th>"Reset password"</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {list
+                                                .into_iter()
+                                                .map(|u| user_row(u, cats.clone(), cat_perms, active))
+                                                .collect_view()}
+                                        </tbody>
+                                    </table>
+                                </div>
                             }
                         })
                 }}
             </Suspense>
         </Show>
+        })}
+        </Suspense>
     }
 }
 
 fn user_row(
     u: User,
-    perms: Action<(uuid::Uuid, bool, bool, bool, bool), Result<(), ServerFnError>>,
+    cats: Vec<Category>,
+    cat_perms: Action<(uuid::Uuid, String), Result<(), ServerFnError>>,
     active: Action<(uuid::Uuid, bool), Result<(), ServerFnError>>,
 ) -> impl IntoView {
     let id = u.id;
     let is_admin_user = u.is_admin;
-    // Per-row editable permission signals, seeded from the current values.
-    let r = RwSignal::new(u.can_read);
-    let w = RwSignal::new(u.can_write);
-    let e = RwSignal::new(u.can_edit);
-    let d = RwSignal::new(u.can_delete);
     let currently_active = u.is_active;
 
+    let cat_rows = RwSignal::new(build_rows(&cats, &u.category_perms));
+    let granted = u.category_perms.iter().filter(|g| !g.is_empty()).count();
+    let summary = if is_admin_user {
+        "all categories".to_string()
+    } else if granted == 0 {
+        "none".to_string()
+    } else {
+        format!("{granted} granted")
+    };
+
     let (pw, set_pw) = signal(String::new());
+    let (reset_done, set_reset_done) = signal(false);
     let reset = Action::new(move |_: &()| {
         let (id, np) = (id, pw.get_untracked());
         async move { reset_password(id, np).await }
     });
-    Effect::new(move |_| {
-        if matches!(reset.value().get(), Some(Ok(()))) {
+    Effect::new(move |_| match reset.value().get() {
+        Some(Ok(())) => {
             set_pw.set(String::new());
+            // The field emptying is the only thing that happened otherwise —
+            // indistinguishable from a click that did nothing.
+            set_reset_done.set(true);
         }
+        Some(Err(_)) => set_reset_done.set(false),
+        None => {}
     });
+    let reset_busy = move || reset.pending().get();
+    let reset_error = move || match reset.value().get() {
+        Some(Err(e)) => Some(e.to_string()),
+        _ => None,
+    };
+    let cat_busy = Signal::derive(move || cat_perms.pending().get());
+    let active_busy = Signal::derive(move || active.pending().get());
 
     view! {
         <tr>
@@ -217,55 +426,22 @@ fn user_row(
                     view! { <span class="muted">"all"</span> }.into_any()
                 } else {
                     view! {
-                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                            <label class="chk">
-                                <input
-                                    type="checkbox"
-                                    prop:checked=r
-                                    on:change=move |ev| r.set(event_target_checked(&ev))
-                                />
-                                " R"
-                            </label>
-                            <label class="chk">
-                                <input
-                                    type="checkbox"
-                                    prop:checked=w
-                                    on:change=move |ev| w.set(event_target_checked(&ev))
-                                />
-                                " W"
-                            </label>
-                            <label class="chk">
-                                <input
-                                    type="checkbox"
-                                    prop:checked=e
-                                    on:change=move |ev| e.set(event_target_checked(&ev))
-                                />
-                                " E"
-                            </label>
-                            <label class="chk">
-                                <input
-                                    type="checkbox"
-                                    prop:checked=d
-                                    on:change=move |ev| d.set(event_target_checked(&ev))
-                                />
-                                " D"
-                            </label>
+                        <details class="cat-perms">
+                            <summary>{summary}</summary>
+                            {category_matrix(cat_rows)}
                             <button
                                 class="btn small secondary"
+                                style="margin-top:8px"
+                                prop:disabled=move || cat_busy.get()
                                 on:click=move |_| {
-                                    perms
-                                        .dispatch((
-                                            id,
-                                            r.get_untracked(),
-                                            w.get_untracked(),
-                                            e.get_untracked(),
-                                            d.get_untracked(),
-                                        ));
+                                    cat_perms.dispatch((id, rows_json(&cat_rows.get_untracked())));
                                 }
                             >
-                                "Save"
+                                {move || {
+                                    if cat_busy.get() { "Saving…" } else { "Save categories" }
+                                }}
                             </button>
-                        </div>
+                        </details>
                     }
                         .into_any()
                 }}
@@ -273,27 +449,32 @@ fn user_row(
             <td>
                 {if currently_active {
                     view! {
-                        <button
-                            class="btn small danger"
-                            on:click=move |_| {
+                        // Blocking someone locks them out immediately — worth a
+                        // second click.
+                        <ConfirmButton
+                            label="Block"
+                            confirm_label="Yes, block"
+                            pending=active_busy
+                            on_confirm=move || {
                                 active.dispatch((id, false));
                             }
-                        >
-                            "Block"
-                        </button>
+                        />
                     }
                         .into_any()
                 } else {
                     view! {
-                        <span class="badge">"blocked"</span>
-                        <button
-                            class="btn small secondary"
-                            on:click=move |_| {
-                                active.dispatch((id, true));
-                            }
-                        >
-                            "Activate"
-                        </button>
+                        <div class="actions" style="gap:6px">
+                            <span class="badge">"blocked"</span>
+                            <button
+                                class="btn small secondary"
+                                prop:disabled=move || active_busy.get()
+                                on:click=move |_| {
+                                    active.dispatch((id, true));
+                                }
+                            >
+                                "Activate"
+                            </button>
+                        </div>
                     }
                         .into_any()
                 }}
@@ -303,18 +484,31 @@ fn user_row(
                     <input
                         type="text"
                         placeholder="new password"
+                        aria-label="New password"
+                        autocomplete="off"
                         prop:value=pw
-                        on:input=move |ev| set_pw.set(event_target_value(&ev))
+                        on:input=move |ev| {
+                            set_pw.set(event_target_value(&ev));
+                            set_reset_done.set(false);
+                        }
                     />
                     <button
                         class="btn small secondary"
+                        prop:disabled=move || reset_busy() || pw.get().trim().is_empty()
                         on:click=move |_| {
                             reset.dispatch(());
                         }
                     >
-                        "Set"
+                        {move || if reset_busy() { "Setting…" } else { "Set" }}
                     </button>
                 </div>
+                <Show when=move || reset_done.get() fallback=|| ()>
+                    <span class="success" style="font-size:12px">"Password updated"</span>
+                </Show>
+                {move || {
+                    reset_error()
+                        .map(|e| view! { <span class="error" style="font-size:12px">{e}</span> })
+                }}
             </td>
         </tr>
     }
