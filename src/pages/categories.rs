@@ -5,6 +5,7 @@ use leptos_meta::Title;
 
 use crate::app::use_user;
 use crate::components::ConfirmButton;
+use crate::error::user_message;
 use crate::models::Category;
 use crate::server::categories::{create_category, delete_category, list_categories};
 
@@ -13,10 +14,10 @@ pub fn CategoriesPage() -> impl IntoView {
     let user = use_user();
     let is_admin = move || user.get().flatten().map(|u| u.is_admin).unwrap_or(false);
 
-    let cats = Resource::new(
-        || (),
-        |_| async move { list_categories().await.unwrap_or_default() },
-    );
+    // A failed listing used to fall back to an empty list, which rendered the
+    // "No categories yet — add one above" empty state. That is advice to create
+    // duplicates of categories that are already there.
+    let cats = Resource::new(|| (), |_| async move { list_categories().await });
 
     let (name, set_name) = signal(String::new());
     let (desc, set_desc) = signal(String::new());
@@ -45,7 +46,7 @@ pub fn CategoriesPage() -> impl IntoView {
     });
 
     let action_error = move || match (create.value().get(), delete.value().get()) {
-        (Some(Err(e)), _) | (_, Some(Err(e))) => Some(e.to_string()),
+        (Some(Err(e)), _) | (_, Some(Err(e))) => Some(user_message(&e)),
         _ => None,
     };
     // Creating a category is otherwise silent — the row just appears somewhere
@@ -142,7 +143,16 @@ pub fn CategoriesPage() -> impl IntoView {
             }>
                 {move || {
                     cats.get()
-                        .map(|list| {
+                        .map(|res| {
+                            let list = match res {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    return view! {
+                                        <p class="flash error">{user_message(&e)}</p>
+                                    }
+                                        .into_any();
+                                }
+                            };
                             if list.is_empty() {
                                 view! {
                                     <div class="empty">

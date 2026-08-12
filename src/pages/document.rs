@@ -6,6 +6,7 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::app::use_user;
 use crate::components::ConfirmButton;
+use crate::error::user_message;
 use crate::models::{DocumentWithBlocks, Permission};
 use crate::server::documents::{delete_document, get_document};
 
@@ -42,7 +43,7 @@ pub fn DocumentPage() -> impl IntoView {
     });
 
     let delete_error = move || match delete_action.value().get() {
-        Some(Err(e)) => Some(e.to_string()),
+        Some(Err(e)) => Some(user_message(&e)),
         _ => None,
     };
 
@@ -61,7 +62,7 @@ pub fn DocumentPage() -> impl IntoView {
                         Err(e) => {
                             view! {
                                 <a class="backlink" href="/">"← All documents"</a>
-                                <p class="flash error">{e.to_string()}</p>
+                                <p class="flash error">{user_message(&e)}</p>
                             }
                                 .into_any()
                         }

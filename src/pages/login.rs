@@ -5,6 +5,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
 
 use crate::app::use_user;
+use crate::error::user_message;
 use crate::server::auth::login;
 
 #[component]
@@ -28,7 +29,7 @@ pub fn LoginPage() -> impl IntoView {
     });
 
     let error = move || match login_action.value().get() {
-        Some(Err(e)) => Some(e.to_string()),
+        Some(Err(e)) => Some(user_message(&e)),
         _ => None,
     };
 

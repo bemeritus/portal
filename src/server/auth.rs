@@ -22,7 +22,8 @@ pub async fn login(username: String, password: String) -> Result<(), ServerFnErr
         sqlx::query_as("SELECT id, password_hash, is_active FROM users WHERE username = $1")
             .bind(&username)
             .fetch_optional(&backend::pool())
-            .await?;
+            .await
+            .map_err(|e| backend::internal("looking up the user logging in", e))?;
 
     let (id, hash, is_active) = row.ok_or_else(invalid)?;
     if !backend::verify_password(&password, &hash) {
@@ -37,7 +38,7 @@ pub async fn login(username: String, password: String) -> Result<(), ServerFnErr
     session
         .insert(backend::SESSION_UID, id)
         .await
-        .map_err(|e| ServerFnError::new(format!("session: {e}")))?;
+        .map_err(|e| backend::internal("storing the session for a new login", e))?;
 
     leptos_axum::redirect("/");
     Ok(())
@@ -51,7 +52,7 @@ pub async fn logout() -> Result<(), ServerFnError> {
     session
         .flush()
         .await
-        .map_err(|e| ServerFnError::new(format!("session: {e}")))?;
+        .map_err(|e| backend::internal("clearing the session on logout", e))?;
     leptos_axum::redirect("/login");
     Ok(())
 }

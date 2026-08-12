@@ -4,6 +4,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 
 use crate::app::use_user;
+use crate::error::user_message;
 use crate::models::{DocumentSummary, Permission};
 use crate::server::categories::list_categories;
 use crate::server::documents::list_documents;
@@ -48,10 +49,14 @@ pub fn HomePage() -> impl IntoView {
     let (cat, set_cat) = signal(String::new()); // "" = all, else category uuid
     let timer: StoredValue<Timer> = StoredValue::new(Default::default());
 
-    let categories = Resource::new(
-        || (),
-        |_| async move { list_categories().await.unwrap_or_default() },
-    );
+    // Kept as a `Result`: a failed lookup and a user with no categories both
+    // produce an empty dropdown, and only one of them is worth saying anything
+    // about.
+    let categories = Resource::new(|| (), |_| async move { list_categories().await });
+    let categories_error = move || match categories.get() {
+        Some(Err(e)) => Some(user_message(&e)),
+        _ => None,
+    };
 
     // Re-runs whenever either filter changes (FR-20: filters combine).
     let docs = Resource::new(
@@ -116,6 +121,7 @@ pub fn HomePage() -> impl IntoView {
                             {move || {
                                 categories
                                     .get()
+                                    .and_then(Result::ok)
                                     .map(|cats| {
                                         cats.into_iter()
                                             .map(|c| {
@@ -128,6 +134,10 @@ pub fn HomePage() -> impl IntoView {
                             }}
                         </Suspense>
                     </select>
+                    {move || {
+                        categories_error()
+                            .map(|e| view! { <p class="flash error">{e}</p> })
+                    }}
                 </div>
                 <Show when=filtered fallback=|| ()>
                     <div class="grow-0">
@@ -153,7 +163,7 @@ pub fn HomePage() -> impl IntoView {
             {move || {
                 docs.get()
                     .map(|res| match res {
-                        Err(e) => view! { <p class="flash error">{e.to_string()}</p> }.into_any(),
+                        Err(e) => view! { <p class="flash error">{user_message(&e)}</p> }.into_any(),
                         Ok(list) if list.is_empty() => {
                             let filtered_now = filtered();
                             view! {

@@ -8,6 +8,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::components::ConfirmButton;
+use crate::error::user_message;
 use crate::models::{DocumentDraft, QaBlockInput};
 use crate::server::categories::list_writable_categories;
 use crate::server::documents::{create_document, get_document_draft, update_document};
@@ -50,7 +51,7 @@ pub fn EditDocumentPage() -> impl IntoView {
                 draft
                     .get()
                     .map(|res| match res {
-                        Err(e) => view! { <p class="flash error">{e.to_string()}</p> }.into_any(),
+                        Err(e) => view! { <p class="flash error">{user_message(&e)}</p> }.into_any(),
                         Ok(d) => view! { <EditorForm initial=Some(d)/> }.into_any(),
                     })
             }}
@@ -123,10 +124,15 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
 
     // Only categories the author may write to / edit in — picking any other
     // would be rejected by the server anyway.
-    let categories = Resource::new(
-        || (),
-        |_| async move { list_writable_categories().await.unwrap_or_default() },
-    );
+    //
+    // The failure is kept rather than defaulted to an empty list: with no
+    // category to choose, Save stays disabled behind "Choose a category to
+    // save" and there is no category to choose. That has to say why.
+    let categories = Resource::new(|| (), |_| async move { list_writable_categories().await });
+    let categories_error = move || match categories.get() {
+        Some(Err(e)) => Some(user_message(&e)),
+        _ => None,
+    };
 
     let save = Action::new(move |_: &()| {
         let title_v = title.get_untracked().trim().to_string();
@@ -140,13 +146,16 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                 answer: b.answer.get_untracked(),
             })
             .collect();
-        let json = serde_json::to_string(&blocks_v).unwrap_or_default();
         async move {
             if title_v.is_empty() {
                 return Err(ServerFnError::new("Title is required"));
             }
             let category_id = uuid::Uuid::parse_str(&cat_v)
                 .map_err(|_| ServerFnError::new("Please choose a category"))?;
+            // Defaulting to `""` here sent the server an empty payload, which
+            // came back as a JSON parser message about column 0.
+            let json = serde_json::to_string(&blocks_v)
+                .map_err(|_| ServerFnError::new("Could not prepare the Q&A blocks for saving"))?;
             match doc_id {
                 Some(id) => {
                     update_document(id, title_v, category_id, status_v, json).await?;
@@ -165,7 +174,7 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
     });
 
     let error = move || match save.value().get() {
-        Some(Err(e)) => Some(e.to_string()),
+        Some(Err(e)) => Some(user_message(&e)),
         _ => None,
     };
 
@@ -222,6 +231,7 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                                 {move || {
                                     categories
                                         .get()
+                                        .and_then(Result::ok)
                                         .map(|cats| {
                                             cats.into_iter()
                                                 .map(|c| {
@@ -235,6 +245,10 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                                 }}
                             </Suspense>
                         </select>
+                        {move || {
+                            categories_error()
+                                .map(|e| view! { <p class="flash error">{e}</p> })
+                        }}
                     </div>
                     <div>
                         <label for="status">"Status"</label>

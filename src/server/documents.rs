@@ -54,8 +54,14 @@ pub async fn create_document(
     let blocks = parse_blocks(&blocks_json)?;
 
     let pool = backend::pool();
-    let mut tx = pool.begin().await?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| backend::internal("opening a transaction to create a document", e))?;
 
+    // The category comes from a picker, but nothing stops a crafted request
+    // naming one that was deleted since — that is a foreign-key violation, not
+    // a server fault.
     let doc_id: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO documents (title, category_id, author_id, status)
          VALUES ($1, $2, $3, $4) RETURNING id",
@@ -66,7 +72,13 @@ pub async fn create_document(
     .bind(&status)
     .fetch_one(&mut *tx)
     .await
-    .map_err(|e| ServerFnError::new(format!("create document: {e}")))?;
+    .map_err(|e| {
+        backend::db_reference(
+            "creating a document",
+            e,
+            "That category no longer exists. Reload the page and pick another.",
+        )
+    })?;
 
     for (i, block) in blocks.iter().enumerate() {
         sqlx::query(
@@ -78,10 +90,15 @@ pub async fn create_document(
         .bind(&block.answer)
         .bind(i as i32)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| backend::internal("inserting a Q&A block for a new document", e))?;
     }
 
-    tx.commit().await?;
+    // Dropping `tx` unread would roll back silently, so a failed commit has to
+    // be reported: the client must not be told a document it cannot open.
+    tx.commit()
+        .await
+        .map_err(|e| backend::internal("committing a new document", e))?;
     Ok(doc_id)
 }
 
@@ -103,7 +120,8 @@ pub async fn update_document(
         sqlx::query_as("SELECT category_id FROM documents WHERE id = $1")
             .bind(id)
             .fetch_optional(&backend::pool())
-            .await?;
+            .await
+            .map_err(|e| backend::internal("loading the document being edited", e))?;
     let (current_category,) =
         existing.ok_or_else(|| ServerFnError::new("Document not found"))?;
 
@@ -130,9 +148,12 @@ pub async fn update_document(
     let blocks = parse_blocks(&blocks_json)?;
 
     let pool = backend::pool();
-    let mut tx = pool.begin().await?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| backend::internal("opening a transaction to update a document", e))?;
 
-    sqlx::query(
+    let updated = sqlx::query(
         "UPDATE documents SET title = $2, category_id = $3, status = $4, updated_at = now() WHERE id = $1",
     )
     .bind(id)
@@ -140,13 +161,26 @@ pub async fn update_document(
     .bind(category_id)
     .bind(&status)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        backend::db_reference(
+            "updating a document",
+            e,
+            "That category no longer exists. Reload the page and pick another.",
+        )
+    })?;
+
+    // Someone else may have deleted it between the check above and this write.
+    if updated.rows_affected() == 0 {
+        return Err(ServerFnError::new("Document not found"));
+    }
 
     // Simplest correct strategy: replace all blocks (FR-14 ordering preserved).
     sqlx::query("DELETE FROM qa_blocks WHERE document_id = $1")
         .bind(id)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| backend::internal("clearing the old Q&A blocks", e))?;
     for (i, block) in blocks.iter().enumerate() {
         sqlx::query(
             "INSERT INTO qa_blocks (document_id, question, answer, position)
@@ -157,10 +191,15 @@ pub async fn update_document(
         .bind(&block.answer)
         .bind(i as i32)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| backend::internal("inserting a Q&A block for an edited document", e))?;
     }
 
-    tx.commit().await?;
+    // A failed commit means none of the above landed — reporting success here
+    // would send the author back to the unchanged document as if it had saved.
+    tx.commit()
+        .await
+        .map_err(|e| backend::internal("committing an edited document", e))?;
     Ok(())
 }
 
@@ -198,7 +237,8 @@ pub async fn get_document(id: uuid::Uuid) -> Result<DocumentWithBlocks, ServerFn
     )
     .bind(id)
     .fetch_optional(&pool)
-    .await?
+    .await
+    .map_err(|e| backend::internal("loading a document", e))?
     .ok_or_else(|| ServerFnError::new("Document not found"))?;
 
     // READ is decided solely by the document's category — authoring it does
@@ -212,7 +252,8 @@ pub async fn get_document(id: uuid::Uuid) -> Result<DocumentWithBlocks, ServerFn
     )
     .bind(id)
     .fetch_all(&pool)
-    .await?;
+    .await
+    .map_err(|e| backend::internal("loading a document's Q&A blocks", e))?;
 
     let blocks = raw_blocks
         .into_iter()
@@ -259,7 +300,8 @@ pub async fn get_document_draft(id: uuid::Uuid) -> Result<DocumentDraft, ServerF
     )
     .bind(id)
     .fetch_optional(&pool)
-    .await?
+    .await
+    .map_err(|e| backend::internal("loading a document draft", e))?
     .ok_or_else(|| ServerFnError::new("Document not found"))?;
 
     if !user.has_in(row.category_id, Permission::Edit) {
@@ -271,7 +313,8 @@ pub async fn get_document_draft(id: uuid::Uuid) -> Result<DocumentDraft, ServerF
     )
     .bind(id)
     .fetch_all(&pool)
-    .await?
+    .await
+    .map_err(|e| backend::internal("loading a draft's Q&A blocks", e))?
     .into_iter()
     .map(|(question, answer)| QaBlockInput { question, answer })
     .collect();
@@ -331,7 +374,8 @@ pub async fn list_documents(
     .bind(reads_all)
     .bind(&readable)
     .fetch_all(&backend::pool())
-    .await?;
+    .await
+    .map_err(|e| backend::internal("listing documents", e))?;
 
     Ok(docs)
 }
@@ -347,7 +391,8 @@ pub async fn delete_document(id: uuid::Uuid) -> Result<(), ServerFnError> {
         sqlx::query_as("SELECT category_id FROM documents WHERE id = $1")
             .bind(id)
             .fetch_optional(&backend::pool())
-            .await?;
+            .await
+            .map_err(|e| backend::internal("loading the document being deleted", e))?;
     let (category_id,) =
         existing.ok_or_else(|| ServerFnError::new("Document not found"))?;
     if !user.has_in(category_id, Permission::Delete) {
@@ -357,7 +402,8 @@ pub async fn delete_document(id: uuid::Uuid) -> Result<(), ServerFnError> {
     sqlx::query("DELETE FROM documents WHERE id = $1")
         .bind(id)
         .execute(&backend::pool())
-        .await?;
+        .await
+        .map_err(|e| backend::internal("deleting a document", e))?;
     Ok(())
 }
 

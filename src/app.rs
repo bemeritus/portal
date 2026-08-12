@@ -54,9 +54,20 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
     provide_theme();
 
+    // A failure here is indistinguishable from being logged out: the navbar and
+    // every permission gate fall back to the anonymous view. Which of the two
+    // it was only ever shows up in the log.
     let user: UserResource = Resource::new(
         || (),
-        |_| async move { current_user().await.ok().flatten() },
+        |_| async move {
+            match current_user().await {
+                Ok(user) => user,
+                Err(e) => {
+                    leptos::logging::error!("could not load the current user: {e}");
+                    None
+                }
+            }
+        },
     );
     provide_context(user);
 

@@ -22,7 +22,16 @@ async fn main() {
     let config = Config::from_env();
     let pool = backend::init_pool(&config).await;
     backend::seed_admin(&pool, &config).await;
-    tokio::fs::create_dir_all(&config.uploads_dir).await.ok();
+    // Every upload writes in here and `/uploads` is served straight off it, so
+    // a directory that cannot be created is a startup failure, not something to
+    // discover one 500 at a time.
+    if let Err(e) = tokio::fs::create_dir_all(&config.uploads_dir).await {
+        panic!(
+            "could not create the uploads directory '{}': {e}\n\
+             Set UPLOADS_DIR to a writable path.",
+            config.uploads_dir
+        );
+    }
 
     let state = AppState {
         pool,
@@ -74,10 +83,12 @@ async fn main() {
     log!("listening on http://{addr}");
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
-        .expect("bind listener");
+        .unwrap_or_else(|e| {
+            panic!("could not bind {addr}: {e}\nIs another process already using that port?")
+        });
     axum::serve(listener, app.into_make_service())
         .await
-        .expect("server error");
+        .unwrap_or_else(|e| panic!("the server stopped with an error: {e}"));
 }
 
 /// Paths an anonymous visitor may still reach: the login page itself, the
@@ -111,7 +122,16 @@ async fn require_login(
         return next.run(request).await;
     }
 
-    let uid: Option<uuid::Uuid> = session.get(SESSION_UID).await.ok().flatten();
+    // A session store that cannot answer is treated as "not logged in" — the
+    // safe direction — but it is a fault, not a visitor without a cookie, so it
+    // is not allowed to pass unrecorded.
+    let uid: Option<uuid::Uuid> = match session.get(SESSION_UID).await {
+        Ok(uid) => uid,
+        Err(e) => {
+            leptos::logging::error!("could not read the session while guarding a request: {e}");
+            None
+        }
+    };
     match uid {
         Some(_) => next.run(request).await,
         None => Redirect::to("/login").into_response(),
@@ -132,7 +152,16 @@ async fn upload_handler(
 
     let max = state.config.max_upload_bytes;
 
-    while let Ok(Some(field)) = multipart.next_field().await {
+    loop {
+        // `while let Ok(Some(_))` swallowed every multipart failure into the
+        // loop's exit condition, so a body over the size limit — or any
+        // malformed request — came back as "No 'file' field in the request".
+        // Axum already knows the right status and wording for each of them.
+        let field = match multipart.next_field().await {
+            Ok(Some(field)) => field,
+            Ok(None) => break,
+            Err(e) => return (e.status(), e.body_text()).into_response(),
+        };
         if field.name() != Some("file") {
             continue;
         }
@@ -148,7 +177,9 @@ async fn upload_handler(
 
         let data = match field.bytes().await {
             Ok(b) => b,
-            Err(_) => return (StatusCode::BAD_REQUEST, "Could not read upload").into_response(),
+            // 413 when the body limit is what stopped it, 400 for a truncated
+            // or malformed field — "Could not read upload" said neither.
+            Err(e) => return (e.status(), e.body_text()).into_response(),
         };
         if data.len() > max {
             return (StatusCode::PAYLOAD_TOO_LARGE, "File exceeds the size limit").into_response();
@@ -156,20 +187,33 @@ async fn upload_handler(
 
         let filename = format!("{}.{}", uuid::Uuid::new_v4(), ext);
         let path = std::path::Path::new(&state.config.uploads_dir).join(&filename);
-        if tokio::fs::write(&path, &data).await.is_err() {
+        if let Err(e) = tokio::fs::write(&path, &data).await {
+            leptos::logging::error!("could not write the upload to {}: {e}", path.display());
             return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to store file").into_response();
         }
 
         let url = format!("/uploads/{filename}");
-        let uploaded_by: Option<uuid::Uuid> = session.get(SESSION_UID).await.ok().flatten();
-        let _ = sqlx::query(
+        let uploaded_by: Option<uuid::Uuid> = match session.get(SESSION_UID).await {
+            Ok(uid) => uid,
+            Err(e) => {
+                leptos::logging::error!("could not read the session for an upload: {e}");
+                None
+            }
+        };
+        // The file is already written and usable, so a failed audit row does
+        // not fail the request — but it leaves an untracked file on disk and
+        // has to be visible somewhere.
+        if let Err(e) = sqlx::query(
             "INSERT INTO uploads (file_path, original_name, uploaded_by) VALUES ($1, $2, $3)",
         )
         .bind(&url)
         .bind(&original)
         .bind(uploaded_by)
         .execute(&state.pool)
-        .await;
+        .await
+        {
+            leptos::logging::error!("stored {url} but could not record the upload row: {e}");
+        }
 
         let body = format!("Uploaded.\nURL: {url}\nMarkdown: ![{original}]({url})\n");
         return (StatusCode::OK, body).into_response();

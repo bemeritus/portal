@@ -19,6 +19,48 @@ use crate::models::{CategoryPermission, Permission, User};
 /// Session key under which the authenticated user id is stored.
 pub const SESSION_UID: &str = "uid";
 
+// --- Failures the user should not see ---------------------------------------
+
+/// What the client is told when the cause is ours rather than theirs.
+const INTERNAL_MESSAGE: &str = "Something went wrong. Please try again.";
+
+/// Log a failure with its context and return an error that is safe to send on.
+///
+/// A `ServerFnError` produced by `?` from a `sqlx::Error` carries the
+/// database's own words — constraint names, column names, the host it failed to
+/// reach — and every page in this app renders the error text straight into a
+/// flash message. Anything the user cannot act on belongs in the server log,
+/// and they get one sentence (see `crate::error::user_message`).
+pub fn internal(context: &str, error: impl std::fmt::Display) -> ServerFnError {
+    leptos::logging::error!("{context}: {error}");
+    ServerFnError::new(INTERNAL_MESSAGE)
+}
+
+/// [`internal`], except that a unique-constraint violation *is* something the
+/// user can fix, so it gets `conflict_message` instead.
+pub fn db_conflict(context: &str, error: sqlx::Error, conflict_message: &str) -> ServerFnError {
+    match &error {
+        sqlx::Error::Database(db) if db.is_unique_violation() => {
+            ServerFnError::new(conflict_message.to_string())
+        }
+        _ => internal(context, error),
+    }
+}
+
+/// [`internal`], except that a foreign-key violation — a row pointing at
+/// something absent, or still being pointed at — gets `reference_message`.
+///
+/// Matching the constraint kind rather than mapping every error is the point:
+/// a dropped connection is not "that category still has documents".
+pub fn db_reference(context: &str, error: sqlx::Error, reference_message: &str) -> ServerFnError {
+    match &error {
+        sqlx::Error::Database(db) if db.is_foreign_key_violation() => {
+            ServerFnError::new(reference_message.to_string())
+        }
+        _ => internal(context, error),
+    }
+}
+
 /// Runtime configuration, read from the environment on startup.
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -56,17 +98,32 @@ pub struct AppState {
 }
 
 /// Build the Postgres connection pool and run pending migrations.
+///
+/// Both steps are preconditions for serving anything at all, so a failure here
+/// stops the process — but with a message that names what to check, because
+/// sqlx's own (`PoolTimedOut`, most often) does not.
 pub async fn init_pool(config: &Config) -> PgPool {
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&config.database_url)
         .await
-        .expect("failed to connect to Postgres");
+        .unwrap_or_else(|e| {
+            panic!(
+                "could not connect to Postgres: {e}\n\
+                 Check that the server is running and that DATABASE_URL points at it \
+                 (host, port, database and user must all match)."
+            )
+        });
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("failed to run migrations");
+        .unwrap_or_else(|e| {
+            panic!(
+                "could not apply the migrations in ./migrations: {e}\n\
+                 The database is reachable but its schema could not be brought up to date."
+            )
+        });
 
     pool
 }
@@ -77,11 +134,12 @@ pub async fn seed_admin(pool: &PgPool, config: &Config) {
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM users")
         .fetch_one(pool)
         .await
-        .expect("count users");
+        .unwrap_or_else(|e| panic!("could not count the existing users: {e}"));
     if count > 0 {
         return;
     }
-    let hash = hash_password(&config.admin_password).expect("hash admin password");
+    let hash = hash_password(&config.admin_password)
+        .unwrap_or_else(|e| panic!("could not hash ADMIN_PASSWORD: {e}"));
     sqlx::query(
         "INSERT INTO users (username, password_hash, is_admin, can_read, can_write, can_edit, can_delete, is_active)
          VALUES ($1, $2, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)",
@@ -90,7 +148,13 @@ pub async fn seed_admin(pool: &PgPool, config: &Config) {
     .bind(&hash)
     .execute(pool)
     .await
-    .expect("insert seed admin");
+    .unwrap_or_else(|e| {
+        panic!(
+            "could not create the seed admin '{}': {e}\n\
+             Without it nobody can log in, since the platform has no signup.",
+            config.admin_username
+        )
+    });
     leptos::logging::log!("Seeded admin user '{}'.", config.admin_username);
 }
 
@@ -128,7 +192,7 @@ pub fn config() -> Config {
 pub async fn session() -> Result<Session, ServerFnError> {
     leptos_axum::extract::<Session>()
         .await
-        .map_err(|e| ServerFnError::new(format!("session: {e}")))
+        .map_err(|e| internal("extracting the session", e))
 }
 
 // --- Auth guards (SR-3) -----------------------------------------------------
@@ -154,7 +218,7 @@ pub async fn current_user_opt() -> Result<Option<User>, ServerFnError> {
     let uid: Option<Uuid> = session
         .get(SESSION_UID)
         .await
-        .map_err(|e| ServerFnError::new(format!("session get: {e}")))?;
+        .map_err(|e| internal("reading the session", e))?;
     let Some(uid) = uid else {
         return Ok(None);
     };
@@ -165,11 +229,14 @@ pub async fn current_user_opt() -> Result<Option<User>, ServerFnError> {
     )
     .bind(uid)
     .fetch_optional(&pool)
-    .await?;
+    .await
+    .map_err(|e| internal("loading the current user", e))?;
 
     Ok(match user {
         Some(mut u) if u.is_active => {
-            u.category_perms = category_perms_for(&pool, u.id).await?;
+            u.category_perms = category_perms_for(&pool, u.id)
+                .await
+                .map_err(|e| internal("loading the current user's category grants", e))?;
             Some(u)
         }
         _ => None,

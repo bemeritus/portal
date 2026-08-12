@@ -7,16 +7,6 @@ use leptos::prelude::*;
 
 use crate::models::Category;
 
-#[cfg(feature = "ssr")]
-fn db_err(e: sqlx::Error, unique_msg: &str) -> ServerFnError {
-    if let sqlx::Error::Database(ref dbe) = e {
-        if dbe.is_unique_violation() {
-            return ServerFnError::new(unique_msg.to_string());
-        }
-    }
-    ServerFnError::new(e.to_string())
-}
-
 /// FR-9: create a category.
 #[server]
 pub async fn create_category(name: String, description: String) -> Result<Category, ServerFnError> {
@@ -46,7 +36,13 @@ pub async fn create_category(name: String, description: String) -> Result<Catego
     .bind(&description)
     .fetch_one(&backend::pool())
     .await
-    .map_err(|e| db_err(e, "A category with that name already exists"))?;
+    .map_err(|e| {
+        backend::db_conflict(
+            "creating a category",
+            e,
+            "A category with that name already exists",
+        )
+    })?;
 
     Ok(category)
 }
@@ -75,14 +71,26 @@ pub async fn update_category(
         }
     };
 
-    sqlx::query("UPDATE categories SET name = $2, slug = $3, description = $4 WHERE id = $1")
-        .bind(id)
-        .bind(&name)
-        .bind(&slug)
-        .bind(&description)
-        .execute(&backend::pool())
-        .await
-        .map_err(|e| db_err(e, "A category with that name already exists"))?;
+    let updated =
+        sqlx::query("UPDATE categories SET name = $2, slug = $3, description = $4 WHERE id = $1")
+            .bind(id)
+            .bind(&name)
+            .bind(&slug)
+            .bind(&description)
+            .execute(&backend::pool())
+            .await
+            .map_err(|e| {
+                backend::db_conflict(
+                    "updating a category",
+                    e,
+                    "A category with that name already exists",
+                )
+            })?;
+    // Zero rows means it was deleted meanwhile. Reporting success would leave
+    // the admin looking at edits that went nowhere.
+    if updated.rows_affected() == 0 {
+        return Err(ServerFnError::new("That category no longer exists"));
+    }
     Ok(())
 }
 
@@ -92,11 +100,23 @@ pub async fn update_category(
 pub async fn delete_category(id: uuid::Uuid) -> Result<(), ServerFnError> {
     use crate::backend;
     backend::require_admin().await?;
-    sqlx::query("DELETE FROM categories WHERE id = $1")
+    // Only the FK violation means "still has documents". Mapping *every* error
+    // to that sentence told admins to go delete documents when the real cause
+    // was, say, an unreachable database.
+    let deleted = sqlx::query("DELETE FROM categories WHERE id = $1")
         .bind(id)
         .execute(&backend::pool())
         .await
-        .map_err(|_| ServerFnError::new("Cannot delete a category that still has documents"))?;
+        .map_err(|e| {
+            backend::db_reference(
+                "deleting a category",
+                e,
+                "Cannot delete a category that still has documents",
+            )
+        })?;
+    if deleted.rows_affected() == 0 {
+        return Err(ServerFnError::new("That category no longer exists"));
+    }
     Ok(())
 }
 
@@ -151,6 +171,7 @@ async fn fetch_categories(
     .bind(all)
     .bind(ids)
     .fetch_all(&backend::pool())
-    .await?;
+    .await
+    .map_err(|e| backend::internal("listing categories", e))?;
     Ok(cats)
 }
