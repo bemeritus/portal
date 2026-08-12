@@ -63,6 +63,7 @@ pub fn Sidebar() -> impl IntoView {
                                     {side_link("/", "Documents", open)}
                                     {is_admin.then(|| side_link("/categories", "Categories", open))}
                                     {is_admin.then(|| side_link("/admin/users", "Users", open))}
+                                    {is_admin.then(|| side_link("/admin/logs", "Logs", open))}
                                 </nav>
                                 <div class="side-foot">
                                     <button

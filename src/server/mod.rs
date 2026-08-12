@@ -5,6 +5,7 @@
 //! function that touches data first passes through a guard in
 //! [`crate::backend`] (SR-3).
 
+pub mod audit;
 pub mod auth;
 pub mod categories;
 pub mod documents;

@@ -94,6 +94,28 @@ pub async fn create_document(
         .map_err(|e| backend::internal("inserting a Q&A block for a new document", e))?;
     }
 
+    let category_name: String =
+        sqlx::query_scalar("SELECT name FROM categories WHERE id = $1")
+            .bind(category_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| backend::internal("naming the category a document was created in", e))?;
+    backend::audit_tx(
+        &mut tx,
+        &user,
+        backend::Audit {
+            action: "document.create",
+            target_type: "document",
+            target_id: Some(doc_id),
+            target_name: &title,
+            details: Some(format!(
+                "in {category_name}; {status}; {} Q&A block(s)",
+                blocks.len()
+            )),
+        },
+    )
+    .await?;
+
     // Dropping `tx` unread would roll back silently, so a failed commit has to
     // be reported: the client must not be told a document it cannot open.
     tx.commit()
@@ -116,13 +138,15 @@ pub async fn update_document(
     use crate::models::Permission;
 
     let user = backend::require_user().await?;
-    let existing: Option<(uuid::Uuid,)> =
-        sqlx::query_as("SELECT category_id FROM documents WHERE id = $1")
+    // Title and status come along for the audit entry: "what changed" is only
+    // answerable against what was there before the write.
+    let existing: Option<(uuid::Uuid, String, String)> =
+        sqlx::query_as("SELECT category_id, title, status FROM documents WHERE id = $1")
             .bind(id)
             .fetch_optional(&backend::pool())
             .await
             .map_err(|e| backend::internal("loading the document being edited", e))?;
-    let (current_category,) =
+    let (current_category, old_title, old_status) =
         existing.ok_or_else(|| ServerFnError::new("Document not found"))?;
 
     // Edit rights are judged against the category the document is in today.
@@ -194,6 +218,51 @@ pub async fn update_document(
         .await
         .map_err(|e| backend::internal("inserting a Q&A block for an edited document", e))?;
     }
+
+    let mut changes = Vec::new();
+    if old_title != title {
+        changes.push(format!("title: \"{old_title}\" → \"{title}\""));
+    }
+    if old_status != status {
+        changes.push(format!("status: {old_status} → {status}"));
+    }
+    if category_id != current_category {
+        // Two names for one line, fetched together rather than one query each.
+        let names: Vec<(uuid::Uuid, String)> =
+            sqlx::query_as("SELECT id, name FROM categories WHERE id = ANY($1::uuid[])")
+                .bind(vec![current_category, category_id])
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|e| backend::internal("naming the categories a document moved between", e))?;
+        let name_of = |wanted: uuid::Uuid| {
+            names
+                .iter()
+                .find(|(id, _)| *id == wanted)
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| "(deleted category)".to_string())
+        };
+        changes.push(format!(
+            "moved: {} → {}",
+            name_of(current_category),
+            name_of(category_id)
+        ));
+    }
+    // Blocks are replaced wholesale on every save, so their count is the only
+    // honest thing to say about them without diffing the text itself.
+    changes.push(format!("{} Q&A block(s)", blocks.len()));
+
+    backend::audit_tx(
+        &mut tx,
+        &user,
+        backend::Audit {
+            action: "document.update",
+            target_type: "document",
+            target_id: Some(id),
+            target_name: &title,
+            details: Some(changes.join("; ")),
+        },
+    )
+    .await?;
 
     // A failed commit means none of the above landed — reporting success here
     // would send the author back to the unchanged document as if it had saved.
@@ -387,13 +456,20 @@ pub async fn delete_document(id: uuid::Uuid) -> Result<(), ServerFnError> {
     use crate::models::Permission;
     let user = backend::require_user().await?;
 
-    let existing: Option<(uuid::Uuid,)> =
-        sqlx::query_as("SELECT category_id FROM documents WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&backend::pool())
-            .await
-            .map_err(|e| backend::internal("loading the document being deleted", e))?;
-    let (category_id,) =
+    let pool = backend::pool();
+    // The title is read before the delete because afterwards there is nowhere
+    // left to read it from, and "document deleted: <uuid>" is not a log entry
+    // anyone can use.
+    let existing: Option<(uuid::Uuid, String, String)> = sqlx::query_as(
+        "SELECT d.category_id, d.title, c.name
+         FROM documents d JOIN categories c ON c.id = d.category_id
+         WHERE d.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| backend::internal("loading the document being deleted", e))?;
+    let (category_id, title, category_name) =
         existing.ok_or_else(|| ServerFnError::new("Document not found"))?;
     if !user.has_in(category_id, Permission::Delete) {
         return Err(ServerFnError::new("403: you cannot delete this document"));
@@ -401,9 +477,23 @@ pub async fn delete_document(id: uuid::Uuid) -> Result<(), ServerFnError> {
 
     sqlx::query("DELETE FROM documents WHERE id = $1")
         .bind(id)
-        .execute(&backend::pool())
+        .execute(&pool)
         .await
         .map_err(|e| backend::internal("deleting a document", e))?;
+
+    backend::audit_now(
+        &pool,
+        Some(user.id),
+        &user.username,
+        backend::Audit {
+            action: "document.delete",
+            target_type: "document",
+            target_id: Some(id),
+            target_name: &title,
+            details: Some(format!("in {category_name}")),
+        },
+    )
+    .await;
     Ok(())
 }
 

@@ -215,6 +215,33 @@ async fn upload_handler(
             leptos::logging::error!("stored {url} but could not record the upload row: {e}");
         }
 
+        // Same entry the server functions write, so an upload shows up in the
+        // one timeline with everything else. The handler only has the session's
+        // user id, so the name is resolved here rather than at read time (the
+        // log stores names as they were — see migration 0003).
+        let uploader_name: String = match uploaded_by {
+            Some(uid) => sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+                .bind(uid)
+                .fetch_optional(&state.pool)
+                .await
+                .unwrap_or_default()
+                .unwrap_or_else(|| "unknown".to_string()),
+            None => "unknown".to_string(),
+        };
+        portal::backend::audit_now(
+            &state.pool,
+            uploaded_by,
+            &uploader_name,
+            portal::backend::Audit {
+                action: "upload.create",
+                target_type: "upload",
+                target_id: None,
+                target_name: &original,
+                details: Some(format!("{url}; {} bytes", data.len())),
+            },
+        )
+        .await;
+
         let body = format!("Uploaded.\nURL: {url}\nMarkdown: ![{original}]({url})\n");
         return (StatusCode::OK, body).into_response();
     }

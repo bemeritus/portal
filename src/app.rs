@@ -10,6 +10,7 @@ use leptos_router::path;
 use crate::components::{provide_theme, Navbar, Sidebar};
 use crate::models::User;
 use crate::pages::admin_users::AdminUsersPage;
+use crate::pages::audit::AuditLogPage;
 use crate::pages::categories::CategoriesPage;
 use crate::pages::document::DocumentPage;
 use crate::pages::editor::{EditDocumentPage, NewDocumentPage};
@@ -120,6 +121,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/docs/:id") view=DocumentPage/>
                         <Route path=path!("/categories") view=CategoriesPage/>
                         <Route path=path!("/admin/users") view=AdminUsersPage/>
+                        <Route path=path!("/admin/logs") view=AuditLogPage/>
                     </Routes>
                 </main>
             </div>

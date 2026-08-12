@@ -177,6 +177,25 @@ pub struct DocumentDraft {
     pub blocks: Vec<QaBlockInput>,
 }
 
+/// One recorded change to the platform, as the admin log shows it.
+///
+/// The names are the ones stored with the entry rather than looked up now, so a
+/// line keeps saying what it said when it was written even after the user,
+/// category or document it names has been renamed or deleted.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::FromRow))]
+pub struct AuditEntry {
+    pub id: Uuid,
+    pub at: DateTime<Utc>,
+    pub actor_name: String,
+    /// `<subject>.<verb>`, e.g. `document.create`.
+    pub action: String,
+    pub target_type: String,
+    pub target_id: Option<Uuid>,
+    pub target_name: String,
+    pub details: Option<String>,
+}
+
 /// A Q&A block as authored (question + raw markdown answer), ordered by array
 /// position (§5.4, FR-14).
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]

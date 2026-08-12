@@ -33,6 +33,56 @@ fn parse_grants(json: &str) -> Result<Vec<CategoryPermission>, ServerFnError> {
     Ok(seen)
 }
 
+/// Spell out a set of grants for the audit log: "Onboarding: read, write".
+///
+/// The category *names* are looked up rather than logged as ids, because the
+/// point of the entry is that an admin can read what changed a month later
+/// without going and resolving uuids by hand.
+#[cfg(feature = "ssr")]
+async fn describe_grants(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    grants: &[CategoryPermission],
+) -> Result<String, ServerFnError> {
+    use crate::backend;
+
+    if grants.is_empty() {
+        return Ok("no category access".to_string());
+    }
+    let ids: Vec<uuid::Uuid> = grants.iter().map(|g| g.category_id).collect();
+    let names: Vec<(uuid::Uuid, String)> =
+        sqlx::query_as("SELECT id, name FROM categories WHERE id = ANY($1::uuid[])")
+            .bind(&ids)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(|e| backend::internal("naming the categories being granted", e))?;
+
+    let described: Vec<String> = grants
+        .iter()
+        .map(|g| {
+            let name = names
+                .iter()
+                .find(|(id, _)| *id == g.category_id)
+                .map(|(_, n)| n.as_str())
+                .unwrap_or("(deleted category)");
+            let mut allowed = Vec::new();
+            if g.can_read {
+                allowed.push("read");
+            }
+            if g.can_write {
+                allowed.push("write");
+            }
+            if g.can_edit {
+                allowed.push("edit");
+            }
+            if g.can_delete {
+                allowed.push("delete");
+            }
+            format!("{name}: {}", allowed.join(", "))
+        })
+        .collect();
+    Ok(described.join("; "))
+}
+
 /// Replace a user's per-category grants inside an existing transaction.
 #[cfg(feature = "ssr")]
 async fn replace_grants(
@@ -123,6 +173,24 @@ pub async fn create_user(
     .map_err(|e| backend::db_conflict("creating a user", e, "That username is already taken"))?;
 
     replace_grants(&mut tx, user_id, admin.id, &grants).await?;
+
+    let granted = describe_grants(&mut tx, &grants).await?;
+    backend::audit_tx(
+        &mut tx,
+        &admin,
+        backend::Audit {
+            action: "user.create",
+            target_type: "user",
+            target_id: Some(user_id),
+            target_name: &username,
+            details: Some(format!(
+                "{}; {granted}",
+                if is_admin { "administrator" } else { "regular user" }
+            )),
+        },
+    )
+    .await?;
+
     tx.commit()
         .await
         .map_err(|e| backend::internal("committing a new user", e))?;
@@ -152,7 +220,32 @@ pub async fn update_category_permissions(
         .begin()
         .await
         .map_err(|e| backend::internal("opening a transaction to set category grants", e))?;
+
+    // Also the existence check this never had: without a row here the grants
+    // are cleared and re-inserted for nobody, and the panel reports success.
+    let username: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| backend::internal("naming the user whose grants are being set", e))?;
+    let username = username.ok_or_else(|| ServerFnError::new("That user no longer exists"))?;
+
     replace_grants(&mut tx, user_id, admin.id, &grants).await?;
+
+    let granted = describe_grants(&mut tx, &grants).await?;
+    backend::audit_tx(
+        &mut tx,
+        &admin,
+        backend::Audit {
+            action: "user.permissions",
+            target_type: "user",
+            target_id: Some(user_id),
+            target_name: &username,
+            details: Some(granted),
+        },
+    )
+    .await?;
+
     tx.commit()
         .await
         .map_err(|e| backend::internal("committing category grants", e))?;
@@ -167,18 +260,38 @@ pub async fn set_user_active(user_id: uuid::Uuid, active: bool) -> Result<(), Se
     if admin.id == user_id && !active {
         return Err(ServerFnError::new("You cannot disable your own account"));
     }
-    let updated = sqlx::query("UPDATE users SET is_active = $2 WHERE id = $1")
-        .bind(user_id)
-        .bind(active)
-        .execute(&backend::pool())
-        .await
-        .map_err(|e| backend::internal("changing a user's active state", e))?;
+    let pool = backend::pool();
+    // RETURNING doubles as the rows-affected check and gives the log a name to
+    // print instead of a uuid.
+    let username: Option<String> =
+        sqlx::query_scalar("UPDATE users SET is_active = $2 WHERE id = $1 RETURNING username")
+            .bind(user_id)
+            .bind(active)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| backend::internal("changing a user's active state", e))?;
     // An id that matches nothing is not a success: the admin panel would
     // re-render the row exactly as it was and look like a click that did
     // nothing (which is the bug the row-level error display was added for).
-    if updated.rows_affected() == 0 {
-        return Err(ServerFnError::new("That user no longer exists"));
-    }
+    let username = username.ok_or_else(|| ServerFnError::new("That user no longer exists"))?;
+
+    backend::audit_now(
+        &pool,
+        Some(admin.id),
+        &admin.username,
+        backend::Audit {
+            action: if active {
+                "user.activate"
+            } else {
+                "user.deactivate"
+            },
+            target_type: "user",
+            target_id: Some(user_id),
+            target_name: &username,
+            details: None,
+        },
+    )
+    .await;
     Ok(())
 }
 
@@ -189,23 +302,40 @@ pub async fn reset_password(
     new_password: String,
 ) -> Result<(), ServerFnError> {
     use crate::backend;
-    backend::require_admin().await?;
+    let admin = backend::require_admin().await?;
     if new_password.len() < 6 {
         return Err(ServerFnError::new("Password must be at least 6 characters"));
     }
     let hash = backend::hash_password(&new_password)
         .map_err(|e| backend::internal("hashing a reset password", e))?;
-    let updated = sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
-        .bind(user_id)
-        .bind(&hash)
-        .execute(&backend::pool())
-        .await
-        .map_err(|e| backend::internal("resetting a password", e))?;
+    let pool = backend::pool();
+    let username: Option<String> = sqlx::query_scalar(
+        "UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING username",
+    )
+    .bind(user_id)
+    .bind(&hash)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| backend::internal("resetting a password", e))?;
     // Otherwise the panel reports "Password reset." for a password that was
     // never written anywhere.
-    if updated.rows_affected() == 0 {
-        return Err(ServerFnError::new("That user no longer exists"));
-    }
+    let username = username.ok_or_else(|| ServerFnError::new("That user no longer exists"))?;
+
+    // The new password is not in the entry, obviously — that it was reset, by
+    // whom and when is the whole of what an admin needs to see later.
+    backend::audit_now(
+        &pool,
+        Some(admin.id),
+        &admin.username,
+        backend::Audit {
+            action: "user.password_reset",
+            target_type: "user",
+            target_id: Some(user_id),
+            target_name: &username,
+            details: None,
+        },
+    )
+    .await;
     Ok(())
 }
 
