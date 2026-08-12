@@ -88,9 +88,23 @@ pub fn HomePage() -> impl IntoView {
         <Title text="Documents · Knowledge Base"/>
         <div class="doc-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <h1 style="flex:1;min-width:0">"Documents"</h1>
-            <Show when=can_write fallback=|| ()>
-                <a class="btn" href="/docs/new">"+ New document"</a>
-            </Show>
+            // Read inside the Suspense so SSR waits for the user before
+            // deciding. Outside it the resource answers `None` on the server,
+            // the button is left out of the HTML entirely, and it appears only
+            // once hydration runs — a jump on a fast connection, and nothing at
+            // all without JS.
+            <Suspense fallback=|| ()>
+                {move || {
+                    user.get()
+                        .map(|_| {
+                            view! {
+                                <Show when=can_write fallback=|| ()>
+                                    <a class="btn" href="/docs/new">"+ New document"</a>
+                                </Show>
+                            }
+                        })
+                }}
+            </Suspense>
         </div>
 
         <div class="panel" style="margin:16px 0">
@@ -134,10 +148,15 @@ pub fn HomePage() -> impl IntoView {
                             }}
                         </Suspense>
                     </select>
-                    {move || {
-                        categories_error()
-                            .map(|e| view! { <p class="flash error">{e}</p> })
-                    }}
+                    // Same reason as the button above: read outside a Suspense
+                    // this says nothing on the server, so a failed lookup is
+                    // reported only after hydration.
+                    <Suspense fallback=|| ()>
+                        {move || {
+                            categories_error()
+                                .map(|e| view! { <p class="flash error">{e}</p> })
+                        }}
+                    </Suspense>
                 </div>
                 <Show when=filtered fallback=|| ()>
                     <div class="grow-0">

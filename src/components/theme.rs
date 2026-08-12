@@ -1,4 +1,4 @@
-//! Theme selection: Dark, White, and White-Blue.
+//! Theme selection: Dark, White, Gruvbox Dark and Gruvbox Light.
 //!
 //! The chosen theme is reflected as a `data-theme` attribute on the `<html>`
 //! element (CSS variables in `style/main.css` do the rest) and persisted to
@@ -13,17 +13,28 @@ pub enum Theme {
     Dark,
     Light,
     Gruvbox,
+    GruvboxLight,
 }
 
 impl Theme {
-    pub const ALL: [Theme; 3] = [Theme::Dark, Theme::Light, Theme::Gruvbox];
+    pub const ALL: [Theme; 4] = [
+        Theme::Dark,
+        Theme::Light,
+        Theme::Gruvbox,
+        Theme::GruvboxLight,
+    ];
 
     /// The `data-theme` / storage value.
+    ///
+    /// `Gruvbox` keeps its bare `"gruvbox"` value rather than becoming
+    /// `"gruvbox-dark"`: it is already sitting in people's `localStorage`, and
+    /// renaming it would silently drop them back to the default theme.
     pub fn as_str(self) -> &'static str {
         match self {
             Theme::Dark => "dark",
             Theme::Light => "light",
             Theme::Gruvbox => "gruvbox",
+            Theme::GruvboxLight => "gruvbox-light",
         }
     }
 
@@ -31,6 +42,7 @@ impl Theme {
         match s {
             "light" => Theme::Light,
             "gruvbox" => Theme::Gruvbox,
+            "gruvbox-light" => Theme::GruvboxLight,
             _ => Theme::Dark,
         }
     }
@@ -40,7 +52,8 @@ impl Theme {
         match self {
             Theme::Dark => "Dark",
             Theme::Light => "White",
-            Theme::Gruvbox => "Gruvbox",
+            Theme::Gruvbox => "Gruvbox Dark",
+            Theme::GruvboxLight => "Gruvbox Light",
         }
     }
 }

@@ -245,10 +245,15 @@ fn EditorForm(initial: Option<DocumentDraft>) -> impl IntoView {
                                 }}
                             </Suspense>
                         </select>
-                        {move || {
-                            categories_error()
-                                .map(|e| view! { <p class="flash error">{e}</p> })
-                        }}
+                        // Inside a Suspense so the server renders it: this is
+                        // the message that explains why the picker is empty and
+                        // Save is stuck behind "choose a category".
+                        <Suspense fallback=|| ()>
+                            {move || {
+                                categories_error()
+                                    .map(|e| view! { <p class="flash error">{e}</p> })
+                            }}
+                        </Suspense>
                     </div>
                     <div>
                         <label for="status">"Status"</label>

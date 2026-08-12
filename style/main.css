@@ -25,22 +25,28 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
-/* White — neutral light. */
+/* White — neutral light, deliberately dimmed.
+   Nothing here is pure white: a #ffffff panel is the brightest thing a monitor
+   can emit, and a screen full of it is what makes a light theme tiring to read
+   for any length of time. Everything is stepped down (page 0.81, panels 0.89 of
+   full luminance) while body text stays above 12:1 against both. */
 [data-theme="light"] {
-  --bg: #f6f7f9;
-  --panel: #ffffff;
-  --panel-2: #eef0f3;
-  --border: #d8dce3;
-  --text: #1a1d24;
-  --muted: #5b6472;
-  --accent: #2f6fed;
+  --bg: #e6e9ee;
+  --panel: #eff2f6;
+  --panel-2: #dde2e9;
+  --border: #c5cdd7;
+  --text: #262b33;
+  --muted: #576170;
+  /* Two blues rather than one: the deeper carries links and the button's hover,
+     so hovering is visible instead of a no-op (both were #2f6fed before). */
+  --accent: #2456c9;
   --accent-2: #2f6fed;
-  --danger: #d92d20;
-  --ok: #1f9d55;
-  --ring: rgba(47, 111, 237, 0.35);
-  --danger-soft: rgba(217, 45, 32, 0.08);
-  --ok-soft: rgba(31, 157, 85, 0.1);
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.08);
+  --danger: #c62828;
+  --ok: #177244;
+  --ring: rgba(36, 86, 201, 0.3);
+  --danger-soft: rgba(198, 40, 40, 0.08);
+  --ok-soft: rgba(23, 114, 68, 0.1);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 8px 24px rgba(16, 24, 40, 0.06);
 }
 
 /* Gruvbox — dark, warm retro palette. */
@@ -59,6 +65,31 @@
   --danger-soft: rgba(251, 73, 52, 0.14);
   --ok-soft: rgba(184, 187, 38, 0.14);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Gruvbox — the light side of the same palette, on its *soft* background.
+   Gruvbox ships bg0_h / bg0 / bg0_s precisely so the page can be turned down;
+   this uses the dimmest of the three and steps the panels down with it. */
+[data-theme="gruvbox-light"] {
+  --bg: #f2e5bc;        /* bg0_s */
+  --panel: #ebdbb2;     /* bg1 */
+  --panel-2: #e0d1a8;   /* between bg1 and bg2 — inputs stay legible */
+  --border: #c4b491;
+  --text: #3c3836;      /* fg1 */
+  --muted: #665c54;     /* fg3 — one step darker, for the dimmer surface */
+  /* Blue carries the links and focus ring because on this cream background the
+     faded aqua lands at 4.4:1 — under the 4.5:1 needed for body text. Aqua
+     still shows up as the button fill, where it sits under white at 5:1. */
+  --accent: #076678;    /* blue, faded */
+  --accent-2: #427b58;  /* aqua, faded */
+  --danger: #9d0006;
+  /* Gruvbox's faded green (#79740e) only reaches 3.6:1 on these warm surfaces,
+     so the "published" badge gets a darkened version of it. */
+  --ok: #5f5a0a;
+  --ring: rgba(7, 102, 120, 0.35);
+  --danger-soft: rgba(157, 0, 6, 0.1);
+  --ok-soft: rgba(95, 90, 10, 0.12);
+  --shadow: 0 1px 2px rgba(60, 56, 54, 0.08), 0 8px 24px rgba(60, 56, 54, 0.1);
 }
 
 * { box-sizing: border-box; }
@@ -223,6 +254,15 @@ input[type=text], input[type=password], input[type=search], input[type=file], se
   font: inherit;
   transition: border-color var(--fast), box-shadow var(--fast);
 }
+/* One height for every single-line control. An <input> lays its text out with
+   the inherited line-height (1.5 → 24px of content), while a <select> uses the
+   browser's own metrics and ignores it — so the two come out ~5px apart and a
+   row of them can align its fields at the bottom or its labels at the top, but
+   never both. 46px is what the input already computes to (24 + 2×10 padding +
+   2×1 border), so this pins the select to the input rather than moving either. */
+input[type=text], input[type=password], input[type=search], select {
+  height: 46px;
+}
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 0.8; }
 textarea { min-height: 120px; resize: none; overflow: hidden; }
 /* Markdown answer editor: taller box with an internal scrollbar. */
@@ -274,9 +314,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* Without this the generic disabled:hover repaints it accent-blue mid-logout. */
 .btn.danger:disabled:hover { background: transparent; border-color: var(--danger); }
 
-.row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+/* Top-aligned so every column's label sits on the same line; the fields below
+   them line up because they are all the same height (see above). */
+.row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
 .row > * { flex: 1; min-width: 0; }
 .row .grow-0 { flex: 0 0 auto; }
+/* Buttons in a filter row have no label above them, so they belong on the
+   fields' baseline rather than the labels'. */
+.row > .grow-0 { align-self: flex-end; }
 
 /* A horizontal group of buttons that wraps instead of overflowing. */
 .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -440,6 +485,8 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 
 .theme-select {
   width: auto;
+  /* Opt out of the single-line field height: this one sits in the top bar. */
+  height: auto;
   padding: 5px 8px;
   font-size: 13px;
   background: var(--panel-2);

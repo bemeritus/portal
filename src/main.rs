@@ -72,7 +72,18 @@ async fn main() {
             },
         )
         .nest_service("/uploads", ServeDir::new(config.uploads_dir.clone()))
-        .fallback(leptos_axum::file_and_error_handler(shell))
+        // The fallback renders the app too — for a 404 it is the app's own
+        // "page not found" screen — so it needs the same context as the routes
+        // above. Without it every miss from a signed-in browser (a favicon
+        // request is enough) rendered the navbar, hit `backend::pool()`, found
+        // no `AppState` in context and panicked the request's task.
+        .fallback(leptos_axum::file_and_error_handler_with_context(
+            {
+                let state = state.clone();
+                move || provide_context(state.clone())
+            },
+            shell,
+        ))
         .layer(Extension(state))
         // Ordering matters: layers added later wrap earlier ones, so the
         // session layer runs first and `Session` is available to the guard.
