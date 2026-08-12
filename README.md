@@ -18,6 +18,9 @@ per [`platform_doc.md`](./platform_doc.md).
 - **Categories**, admin-managed; each document belongs to exactly one.
 - **Filtering** on the home page by **title** (ILIKE) and **category**, live.
 - **Image uploads** to a local `uploads/` folder (validated: images only, ≤5 MB).
+- **Change history** (`/admin/logs`, admin only): every user, permission,
+  category, document and upload change is recorded with who, when, what action
+  and what changed — append-only, and entries outlive what they describe.
 - **argon2** password hashing, **tower-sessions** cookie sessions, permission
   guards on every server function.
 
@@ -92,23 +95,30 @@ On first boot, if the `users` table is empty, the **seed admin** is created from
 | `/docs/:id/edit` | Edit document | `EDIT` or owner |
 | `/categories` | Manage categories | admin |
 | `/admin/users` | Manage users | admin |
+| `/admin/logs` | Change history | admin |
 
 Image upload endpoint: `POST /api/upload` (multipart `file`). Uploaded files are
 served from `/uploads/*`.
+
+Navigation: a top bar (brand, "New", theme, username) plus a left rail with the
+sections and **Log out** at its foot; below 760px the rail hides behind the ☰
+toggle. `/login` shows neither — just the centred sign-in panel.
 
 ## Project layout
 
 ```
 migrations/0001_init.sql   schema (users, categories, documents, qa_blocks, uploads)
+migrations/0002_…          user_category_permissions
+migrations/0003_audit_log  change history
 src/
   main.rs                  Axum server: sessions, routes, upload handler, seed
   lib.rs                   crate root + wasm hydrate entry
   app.rs                   Router, route table, HTML shell, shared user resource
   models.rs                shared types (client + server)
-  backend.rs               (ssr) config, pool, guards, argon2, markdown
-  server/                  #[server] functions: auth, users, categories, documents
-  pages/                   login, home, document, editor, categories, admin_users
-  components/navbar.rs
+  backend.rs               (ssr) config, pool, guards, argon2, markdown, audit
+  server/                  #[server] functions: auth, users, categories, documents, audit
+  pages/                   login, home, document, editor, categories, admin_users, audit
+  components/              navbar (top bar), sidebar (section rail), theme, confirm
 style/main.css
 ```
 
@@ -124,5 +134,8 @@ style/main.css
 - Permissions are re-read from the database on every request, so revoking a
   grant takes effect immediately rather than at the user's next login.
 - SQLx parameterized queries throughout; upload MIME + size validated.
+- The change history is admin-gated on the server, not just hidden from the
+  navigation, and records no secrets — a password reset is logged as having
+  happened, never the password.
 - Sessions use an in-memory store for simplicity — swap in the tower-sessions
   Postgres store for persistence across restarts.

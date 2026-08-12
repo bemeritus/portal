@@ -167,6 +167,12 @@ Each request  --->  Session + permission (for the relevant category)
 - FR-21: When a document is opened, all Q&A blocks are shown in sequence.
 - FR-25: The editor's category picker only offers categories the caller may write to or edit in.
 
+### 5.6. Change history (logs)
+- FR-26: Every change made on the platform is recorded: user created, per-category permissions changed, user blocked/activated, password reset, category created/renamed/deleted, document created/edited/deleted, image uploaded.
+- FR-27: Each entry records **who** (username), **when** (timestamp), **what action** (`<subject>.<verb>`, e.g. `document.update`), **on what** (the target's name as it read at the time) and **the specifics** — which fields changed and from what to what.
+- FR-28: The log is visible to administrators only, at `/admin/logs`, newest first, with a free-text search and a filter by kind (users / categories / documents / uploads).
+- FR-29: The log is append-only. Nothing in the platform edits or deletes an entry, and an entry outlives the row it describes — deleting a document leaves the record of the deletion, including the title it had.
+
 ---
 
 ## 6. Database Schema
@@ -254,7 +260,30 @@ documents (1) ────< qa_blocks (N)
 users (1) ────< uploads (N)
 
 users (1) ────< user_category_permissions (N) >──── (1) categories
+
+users (1) ────< audit_log (N)      # actor only; the target is by id + name, unlinked
 ```
+
+### 6.8. `audit_log` (change history)
+| Column | Type | Note |
+|--------|------|------|
+| id | UUID | PK |
+| at | TIMESTAMPTZ | when, default `now()` |
+| actor_id | UUID (FK → users.id, ON DELETE SET NULL) | who, for grouping after a rename |
+| actor_name | TEXT | who, as the name read at the time |
+| action | TEXT | `<subject>.<verb>`, e.g. `category.delete` |
+| target_type | TEXT | `user` \| `category` \| `document` \| `upload` |
+| target_id | UUID, **no FK** | the row acted on, if it had an id |
+| target_name | TEXT | its name/title at the time |
+| details | TEXT, nullable | what changed, one line; `NULL` when the action says everything |
+
+Deliberately denormalized. `target_id` carries **no** foreign key because an
+entry must survive its subject: with one, deleting a document would erase the
+record that it was deleted — the entry an admin most wants. The two name columns
+are stored rather than joined for the same reason, and because a join would
+silently rewrite history when a user or category is later renamed. Indexes on
+`at DESC`, on `(target_type, at DESC)` and on `actor_id` — the three ways the
+admin screen reads it.
 
 ---
 
@@ -291,6 +320,16 @@ In Leptos these are written as **server functions** (`#[server]`). Approximate l
 ### Files
 - `upload_image(bytes, filename) -> Result<String /* URL */>`
 
+### Change history (only `is_admin`)
+- `list_audit_log(target_type, search, limit) -> Result<Vec<AuditEntry>>` — newest first; `target_type` narrows to one kind, `search` matches actor / target / action / details; `limit` is clamped server-side to 1..500
+
+> There is deliberately **no** server function that writes, edits or deletes an
+> entry. Entries are written by the operations they describe, through
+> `backend::audit_tx` (inside the transaction that makes the change, so record
+> and change commit together) or `backend::audit_now` (after a change that has
+> already committed — there a failed insert is logged server-side and never
+> turned into an error the user sees, since the change did happen).
+
 > Every server function has a **guard**: first the session, then the permission
 > is checked. Guards that concern a document or category check the permission
 > **in that category** (`require_in_category`), not merely globally. If the
@@ -309,6 +348,18 @@ In Leptos these are written as **server functions** (`#[server]`). Approximate l
 | `/docs/:id/edit` | Edit document | `EDIT` in that document's category, or author |
 | `/categories` | Manage categories | Admin |
 | `/admin/users` | Manage users | Admin |
+| `/admin/logs` | Change history | Admin |
+
+**Chrome (every page except `/login`):**
+- A **top bar** with the brand, the "New" shortcut (shown when the user may
+  `WRITE` somewhere), the theme switcher and the signed-in username.
+- A **left rail** with the sections — Documents, plus Categories / Users / Logs
+  for an admin — and **Log out** at its foot, in the danger colour so it is not
+  mistaken for another section link.
+- `/login` renders **neither**: it is the one public page and has nothing to
+  navigate to, so it is a centred sign-in panel on an otherwise empty window.
+- Below 760px the rail collapses behind the bar's ☰ toggle; the two share one
+  open/closed signal through context.
 
 **Home page (`/`) contents:**
 - Search bar at the top: title input + category dropdown.
@@ -330,6 +381,17 @@ In Leptos these are written as **server functions** (`#[server]`). Approximate l
   user's current grants (with its own Save), block/activate, password reset.
 - Admins show "all" for both permission columns — there is nothing to edit.
 
+**Logs page (`/admin/logs`):**
+- Table: When (UTC) / Who / Action / Target / Details, newest first.
+- Free-text search and a "Kind" dropdown (everything / users / categories /
+  documents / uploads); a new filter restarts from the first page.
+- "Load more" raises the limit by 100 while a full page comes back.
+- Times are shown in **UTC** and the column says so — the browser's offset is
+  not the server's, and a log that quietly shifts times is worse than one that
+  is explicit about the zone.
+- A document target links to the document, except where the entry records its
+  deletion (that link could only 404).
+
 ---
 
 ## 9. Security Requirements
@@ -344,6 +406,8 @@ In Leptos these are written as **server functions** (`#[server]`). Approximate l
 - SR-8: Re-categorizing a document is treated as a write into the destination: without rights there, the move is rejected. Otherwise a user could push a document into a category they cannot touch and lose access to it — or place content where it was never meant to appear.
 - SR-9: Category scoping is enforced server-side, in SQL, for listings as well as for single-record access. Hiding a link or a dropdown entry in the UI is presentation only and is never the sole control.
 - SR-10: The current user's permissions (global flags **and** grants) are re-read from the database on every request, so a revoked grant takes effect immediately rather than at the next login.
+- SR-11: The change history is admin-only on the server (`require_admin` in `list_audit_log`), not merely hidden in the navigation: it names who did what to accounts a non-admin cannot otherwise see.
+- SR-12: The history is append-only and stores no secrets. A password reset is recorded as having happened, by whom and when — never the password itself.
 
 ---
 
@@ -354,7 +418,8 @@ platform/
 ├── Cargo.toml
 ├── migrations/                 # sqlx migrations
 │   ├── 0001_init.sql                    # users, categories, documents, qa_blocks, uploads
-│   └── 0002_category_permissions.sql    # user_category_permissions
+│   ├── 0002_category_permissions.sql    # user_category_permissions
+│   └── 0003_audit_log.sql               # audit_log
 ├── src/
 │   ├── main.rs                 # start Axum + Leptos
 │   ├── app.rs                  # main Leptos component + router
@@ -367,9 +432,10 @@ platform/
 │   │   ├── auth.rs
 │   │   ├── users.rs
 │   │   ├── documents.rs
-│   │   └── categories.rs
-│   ├── pages/                  # login, home, document, admin
-│   └── components/             # search, filter, qa_block, navbar
+│   │   ├── categories.rs
+│   │   └── audit.rs            # reading the change history (admin)
+│   ├── pages/                  # login, home, document, admin, audit
+│   └── components/             # navbar (top bar), sidebar (section rail), theme, confirm
 ├── uploads/                    # uploaded images
 └── style/                      # css/tailwind
 ```
@@ -405,6 +471,14 @@ platform/
 - `user_category_permissions` table and the additive resolution rule (§4.2.1).
 - Category-aware guards on every document server function; listings narrowed in SQL.
 - Admin UI: the category matrix on user creation and on each existing user.
+
+### Phase 7 — Navigation and change history
+- Sections moved from the top bar into a left rail; `/login` stripped of all
+  chrome; logging out moved to the foot of the rail (§8).
+- `audit_log` table (§6.8) and the two recording helpers.
+- Every mutating operation records who/when/what/what-changed: users,
+  per-category permissions, categories, documents, uploads (§5.6).
+- `/admin/logs` — admin-only listing with search, kind filter and paging.
 
 ---
 
