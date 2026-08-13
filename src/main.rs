@@ -4,6 +4,10 @@
 //! and server functions, exposes the multipart image-upload endpoint, and
 //! statically serves the `uploads/` directory.
 
+// Same reason as in lib.rs: the binary is its own crate root, so it needs its
+// own limit or the release build fails while resolving the SSR view types.
+#![recursion_limit = "256"]
+
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {

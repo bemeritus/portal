@@ -1,0 +1,75 @@
+# Portal: app + PostgreSQL, for running the built image locally or on a single host.
+#
+#   docker compose up --build       start (first run builds the image)
+#   docker compose logs -f app      follow the server log
+#   docker compose down             stop; named volumes survive
+#   docker compose down -v          stop and DELETE the database and uploads
+#
+# Configuration comes from the PORTAL_* variables below, all with defaults, so
+# `docker compose up` works with no setup. Override them in your shell or in a
+# dedicated file passed with `--env-file`.
+#
+# Note on the project's own .env: Compose reads a file named .env in this
+# directory for variable substitution. The dev .env here holds DATABASE_URL,
+# ADMIN_* and LEPTOS_SITE_ADDR pointing at the *local* setup (port 5433,
+# 127.0.0.1) — values that would be wrong inside a container. That is why this
+# file never uses `env_file:` and why its variables are namespaced PORTAL_*:
+# nothing in the dev .env can silently leak into the containers.
+
+name: portal
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${PORTAL_DB_USER:-portal}
+      POSTGRES_PASSWORD: ${PORTAL_DB_PASSWORD:-portal}
+      POSTGRES_DB: ${PORTAL_DB_NAME:-portal}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # The app panics if it cannot reach Postgres at startup, so it must not be
+    # started until this passes — see `depends_on` below.
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${PORTAL_DB_USER:-portal} -d ${PORTAL_DB_NAME:-portal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    # Not published to the host: the app reaches it over the compose network.
+    # Uncomment to inspect it with a local client — pick a free port, as 5432
+    # and 5433 may already be taken by a local cluster.
+    # ports:
+    #   - "127.0.0.1:5434:5432"
+
+  app:
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Host is the service name `db`, and the port is 5432 inside the network
+      # regardless of what the local cluster uses.
+      DATABASE_URL: postgres://${PORTAL_DB_USER:-portal}:${PORTAL_DB_PASSWORD:-portal}@db:5432/${PORTAL_DB_NAME:-portal}
+      # Seeds the first admin, and only while the `users` table is empty.
+      # Change it, or log in and reset the password immediately.
+      ADMIN_USERNAME: ${PORTAL_ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD:-change-me-now}
+      RUST_LOG: ${PORTAL_RUST_LOG:-info}
+      # LEPTOS_* and UPLOADS_DIR are already set in the image; overriding
+      # LEPTOS_SITE_ADDR here would break the published port below.
+    ports:
+      - "${PORTAL_PORT:-3000}:3000"
+    volumes:
+      # Uploaded images must outlive the container. This is the one piece of
+      # state the database does not hold.
+      - uploads:/app/uploads
+    restart: unless-stopped
+    # No healthcheck: the runtime image has no curl or wget, and adding one
+    # only to probe the port is not worth the extra layer.
+
+volumes:
+  pgdata:
+  uploads:

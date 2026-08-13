@@ -1,0 +1,24 @@
+# Build context hygiene. `target/` alone is ~24 GB locally — without this the
+# daemon would copy all of it before the first instruction runs.
+
+target/
+.pgdata/
+.direnv/
+.git/
+.gitignore
+
+# Secrets and local state: the container gets its configuration from the
+# environment (docker run --env-file / compose), never from a baked-in .env.
+.env
+uploads/*
+!uploads/.gitkeep
+
+# Not needed to build the app.
+*.md
+!README.md
+flake.nix
+flake.lock
+justfile
+bootstrap.sh
+result
+result-*

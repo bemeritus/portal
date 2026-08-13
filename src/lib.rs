@@ -8,6 +8,12 @@
 //! [`backend`] and is gated behind `ssr`. Server *functions* in [`server`] are
 //! compiled in both modes: on the client they become typed RPC stubs.
 
+// Leptos view! trees monomorphise into deeply nested generic types. The release
+// profile inlines far more aggressively than dev, which pushes rustc's layout
+// computation past the default depth of 128 — so `cargo leptos build --release`
+// fails with "queries overflow the depth limit" while `watch` builds fine.
+#![recursion_limit = "256"]
+
 pub mod app;
 pub mod components;
 pub mod error;
