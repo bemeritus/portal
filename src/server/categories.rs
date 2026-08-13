@@ -216,10 +216,7 @@ pub async fn list_writable_categories() -> Result<Vec<Category>, ServerFnError> 
 
 /// Shared tail of the two listings above.
 #[cfg(feature = "ssr")]
-async fn fetch_categories(
-    all: bool,
-    ids: &[uuid::Uuid],
-) -> Result<Vec<Category>, ServerFnError> {
+async fn fetch_categories(all: bool, ids: &[uuid::Uuid]) -> Result<Vec<Category>, ServerFnError> {
     use crate::backend;
     let cats = sqlx::query_as::<_, Category>(
         "SELECT id, name, slug, description, created_at

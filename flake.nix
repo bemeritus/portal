@@ -58,6 +58,7 @@
               rustToolchain
               openssl
               pkg-config
+              just # task runner; see ./justfile
               cargo-deny
               cargo-edit
               cargo-watch

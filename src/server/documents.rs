@@ -94,12 +94,11 @@ pub async fn create_document(
         .map_err(|e| backend::internal("inserting a Q&A block for a new document", e))?;
     }
 
-    let category_name: String =
-        sqlx::query_scalar("SELECT name FROM categories WHERE id = $1")
-            .bind(category_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| backend::internal("naming the category a document was created in", e))?;
+    let category_name: String = sqlx::query_scalar("SELECT name FROM categories WHERE id = $1")
+        .bind(category_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| backend::internal("naming the category a document was created in", e))?;
     backend::audit_tx(
         &mut tx,
         &user,
@@ -233,7 +232,9 @@ pub async fn update_document(
                 .bind(vec![current_category, category_id])
                 .fetch_all(&mut *tx)
                 .await
-                .map_err(|e| backend::internal("naming the categories a document moved between", e))?;
+                .map_err(|e| {
+                    backend::internal("naming the categories a document moved between", e)
+                })?;
         let name_of = |wanted: uuid::Uuid| {
             names
                 .iter()

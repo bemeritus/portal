@@ -346,15 +346,12 @@ pub async fn audit_tx(
 /// to report success, so a failed insert must not turn into an error the user
 /// sees — it would name a change that did in fact happen as failed. It goes to
 /// the server log instead, which is the same trade the upload row makes.
-pub async fn audit_now(
-    pool: &PgPool,
-    actor_id: Option<Uuid>,
-    actor_name: &str,
-    entry: Audit<'_>,
-) {
+pub async fn audit_now(pool: &PgPool, actor_id: Option<Uuid>, actor_name: &str, entry: Audit<'_>) {
     let action = entry.action.to_string();
     if let Err(e) = insert_audit(pool, actor_id, actor_name, entry).await {
-        leptos::logging::error!("'{action}' happened but could not be recorded in the audit log: {e}");
+        leptos::logging::error!(
+            "'{action}' happened but could not be recorded in the audit log: {e}"
+        );
     }
 }
 

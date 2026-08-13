@@ -38,7 +38,13 @@ impl Theme {
         }
     }
 
-    pub fn from_str(s: &str) -> Theme {
+    /// Inverse of [`Theme::as_str`].
+    ///
+    /// Deliberately not `FromStr`: the input comes from `localStorage` and from
+    /// a `<select>`, so an unrecognised value is expected rather than an error,
+    /// and it falls back to the default theme. A `Result` here would be an
+    /// error case every caller has to discard.
+    pub fn from_value(s: &str) -> Theme {
         match s {
             "light" => Theme::Light,
             "gruvbox" => Theme::Gruvbox,
@@ -72,7 +78,7 @@ pub fn provide_theme() -> ThemeSignal {
     #[cfg(feature = "hydrate")]
     {
         if let Some(stored) = read_stored() {
-            theme.set(Theme::from_str(&stored));
+            theme.set(Theme::from_value(&stored));
         }
         Effect::new(move |_| {
             apply(theme.get().as_str());
@@ -114,7 +120,7 @@ pub fn ThemeSwitcher() -> impl IntoView {
             class="theme-select"
             title="Theme"
             prop:value=move || theme.get().as_str()
-            on:change=move |ev| theme.set(Theme::from_str(&event_target_value(&ev)))
+            on:change=move |ev| theme.set(Theme::from_value(&event_target_value(&ev)))
         >
             {Theme::ALL
                 .iter()

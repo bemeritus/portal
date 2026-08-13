@@ -185,7 +185,11 @@ pub async fn create_user(
             target_name: &username,
             details: Some(format!(
                 "{}; {granted}",
-                if is_admin { "administrator" } else { "regular user" }
+                if is_admin {
+                    "administrator"
+                } else {
+                    "regular user"
+                }
             )),
         },
     )
@@ -309,14 +313,13 @@ pub async fn reset_password(
     let hash = backend::hash_password(&new_password)
         .map_err(|e| backend::internal("hashing a reset password", e))?;
     let pool = backend::pool();
-    let username: Option<String> = sqlx::query_scalar(
-        "UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING username",
-    )
-    .bind(user_id)
-    .bind(&hash)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| backend::internal("resetting a password", e))?;
+    let username: Option<String> =
+        sqlx::query_scalar("UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING username")
+            .bind(user_id)
+            .bind(&hash)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| backend::internal("resetting a password", e))?;
     // Otherwise the panel reports "Password reset." for a password that was
     // never written anywhere.
     let username = username.ok_or_else(|| ServerFnError::new("That user no longer exists"))?;

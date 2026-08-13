@@ -35,8 +35,7 @@ pub fn LoginPage() -> impl IntoView {
 
     // Nothing to submit until both fields have something in them — a disabled
     // button is clearer than a round-trip that comes back "invalid credentials".
-    let incomplete =
-        move || username.get().trim().is_empty() || password.get().trim().is_empty();
+    let incomplete = move || username.get().trim().is_empty() || password.get().trim().is_empty();
     let busy = move || login_action.pending().get();
 
     view! {

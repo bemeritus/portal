@@ -46,9 +46,7 @@ pub fn user_message(error: &ServerFnError) -> String {
 /// client to branch on, never for the reader.
 fn split_status(message: &str) -> (Option<&str>, &str) {
     match message.split_once(": ") {
-        Some((status, rest))
-            if status.len() == 3 && status.chars().all(|c| c.is_ascii_digit()) =>
-        {
+        Some((status, rest)) if status.len() == 3 && status.chars().all(|c| c.is_ascii_digit()) => {
             (Some(status), rest)
         }
         _ => (None, message),

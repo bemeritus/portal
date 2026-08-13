@@ -18,8 +18,7 @@ use crate::server::users::{
 
 /// Alphabet for generated passwords. `0/O`, `1/l/I` are left out: an admin has
 /// to read these out or retype them, and those are the pairs that get confused.
-const PASSWORD_ALPHABET: &[u8] =
-    b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const PASSWORD_ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /// Length in characters. 16 over a 56-symbol alphabet is ~93 bits of entropy.
 const PASSWORD_LEN: usize = 16;
