@@ -21,9 +21,14 @@
 #   CARGO_LEPTOS      — matches the flake's cargo-leptos
 #   WASM_BINDGEN      — MUST equal the `wasm-bindgen` pin in Cargo.toml, or the
 #                       build fails with a version-mismatch error
+#   WASM_OPT          — binaryen release cargo-leptos downloads for wasm-opt. It
+#                       must be new enough to understand the two-table (funcref
+#                       + externref) module wasm-bindgen 0.2.121 emits; see the
+#                       note on the builder stage below.
 ARG RUST_VERSION=1.96
 ARG CARGO_LEPTOS_VERSION=0.3.7
 ARG WASM_BINDGEN_VERSION=0.2.121
+ARG WASM_OPT_VERSION=version_123
 
 # ---------------------------------------------------------------------------
 # Stage 1: build the server binary and the wasm/JS bundle
@@ -32,12 +37,22 @@ FROM rust:${RUST_VERSION}-bookworm AS builder
 
 ARG CARGO_LEPTOS_VERSION
 ARG WASM_BINDGEN_VERSION
+ARG WASM_OPT_VERSION
 
-# binaryen supplies wasm-opt, which the `wasm-release` profile runs over the
-# hydrate bundle. Without it cargo-leptos tries to fetch a binary at build time.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends binaryen \
-    && rm -rf /var/lib/apt/lists/*
+# wasm-opt post-processes the hydrate bundle for the `wasm-release` profile, and
+# its version is not a free choice. Debian's `binaryen` package is 108 (2022),
+# which predates the layout wasm-bindgen 0.2.121 emits: it rewrites the module
+# with two tables (funcref + externref) but leaves the `__wbindgen_externrefs`
+# export pointing at table 0 — the funcref table, which it also caps at
+# max == initial. The JS glue then calls `__wbindgen_externrefs.grow(4)` during
+# `__wbindgen_init_externref_table`, that throws `RangeError: failed to grow
+# table`, and hydration dies before a single event handler is attached. The page
+# still renders (it is server-side rendered) so the only symptom is that nothing
+# on it works — most visibly, the login form posts nothing and reports nothing.
+#
+# So: do NOT install binaryen from apt. cargo-leptos fetches a matching wasm-opt
+# itself; pinning it here keeps the build reproducible.
+ENV LEPTOS_WASM_OPT_VERSION=${WASM_OPT_VERSION}
 
 RUN rustup target add wasm32-unknown-unknown
 
