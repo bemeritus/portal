@@ -1,7 +1,11 @@
-# Build context hygiene. `target/` alone is ~24 GB locally — without this the
-# daemon would copy all of it before the first instruction runs.
+# Build context hygiene. `backend/target/` alone is ~24 GB locally, and
+# `frontend/node_modules/` is another few hundred MB — without this the daemon
+# would copy all of it before the first instruction runs. Both are rebuilt
+# inside the image anyway.
 
-target/
+backend/target/
+frontend/node_modules/
+frontend/dist/
 .pgdata/
 .direnv/
 .git/
@@ -13,9 +17,11 @@ target/
 uploads/*
 !uploads/.gitkeep
 
-# Not needed to build the app.
+# Not needed to build the app. `*.md` only matches the top level, so the docs
+# directory needs naming separately.
 *.md
 !README.md
+docs/
 flake.nix
 flake.lock
 justfile

@@ -37,17 +37,15 @@
       overlays.default = final: prev: {
         rustToolchain =
           with inputs.fenix.packages.${prev.stdenv.hostPlatform.system};
-          combine (
-            (with stable; [
-              clippy
-              rustc
-              cargo
-              rustfmt
-              rust-src
-            ])
-            # wasm target for the Leptos client bundle (hydrate)
-            ++ [ targets.wasm32-unknown-unknown.stable.rust-std ]
-          );
+          combine (with stable; [
+            clippy
+            rustc
+            cargo
+            rustfmt
+            rust-src
+          ]);
+        # The wasm target is gone with Leptos: the backend is a plain server
+        # binary now, and the browser gets JavaScript built by Vite.
       };
 
       devShells = forEachSupportedSystem (
@@ -65,12 +63,12 @@
               rust-analyzer
               self.formatter.${system}
 
-              # --- Leptos full-stack toolchain ---
-              cargo-leptos # build/run the SSR + wasm app
-              wasm-bindgen-cli # required by cargo-leptos (nix build disables auto-download)
-              binaryen # wasm-opt, used by cargo-leptos release builds
+              # --- Backend (backend/) ---
               sqlx-cli # database migrations (sqlx migrate)
               postgresql_15 # local Postgres server + psql client
+
+              # --- Frontend (frontend/) ---
+              nodejs_22 # node + npm for Vite, React and the type-checker
             ];
 
             env = {

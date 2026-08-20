@@ -131,8 +131,13 @@ pkg_for() {
         buildtools:pacman)  echo "base-devel curl" ;;
         buildtools:zypper)  echo "gcc pkg-config curl" ;;
         buildtools:apk)     echo "build-base curl" ;;
-        # wasm-opt, only needed for release builds — optional for dev.
-        binaryen:*)         echo "binaryen" ;;
+        # Node for the frontend (Vite, React). npm ships with it everywhere
+        # except Debian/Ubuntu, which split it into its own package.
+        node:apt-get) echo "nodejs npm" ;;
+        node:dnf)     echo "nodejs npm" ;;
+        node:pacman)  echo "nodejs npm" ;;
+        node:zypper)  echo "nodejs npm" ;;
+        node:apk)     echo "nodejs npm" ;;
         *) echo "" ;;
     esac
 }
@@ -167,12 +172,6 @@ install_packages() {
     "${cmd[@]}"
 }
 
-# The wasm-bindgen CLI must match the pinned library version exactly, so read
-# it out of Cargo.toml rather than hardcoding a second copy of the number.
-wasm_bindgen_pin() {
-    sed -n 's/^wasm-bindgen *= *{ *version *= *"=\([0-9.]*\)".*/\1/p' Cargo.toml | head -1
-}
-
 install_rust_toolchain() {
     if ! command -v cargo >/dev/null 2>&1; then
         (( NO_INSTALL )) && die "cargo is missing and --no-install was given"
@@ -183,40 +182,29 @@ install_rust_toolchain() {
         source "${CARGO_HOME:-$HOME/.cargo}/env"
     fi
     export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+    # Nothing else to add: the backend is a plain server binary. The wasm
+    # target, cargo-leptos and wasm-bindgen-cli went with the Leptos frontend.
+}
 
-    # Nix (and distro-packaged Rust) provide no rustup, but can still ship the
-    # wasm std — so check the sysroot rather than assume rustup is the only way.
-    if command -v rustup >/dev/null 2>&1; then
-        rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
-            || { info "adding the wasm32-unknown-unknown target"; rustup target add wasm32-unknown-unknown; }
-    elif [[ -d "$(rustc --print sysroot 2>/dev/null)/lib/rustlib/wasm32-unknown-unknown" ]]; then
-        info "wasm32-unknown-unknown target present (provided outside rustup)"
-    else
-        die "the wasm32-unknown-unknown target is missing and rustup is not installed.
-Install rustup, or add the target through whatever provides your Rust toolchain."
+# Node is needed to build the React app in frontend/.
+install_node() {
+    if command -v npm >/dev/null 2>&1; then
+        info "node $(node --version 2>/dev/null), npm $(npm --version 2>/dev/null)"
+        return 0
     fi
-
-    if ! command -v cargo-leptos >/dev/null 2>&1; then
-        (( NO_INSTALL )) && die "cargo-leptos is missing and --no-install was given"
-        info "installing cargo-leptos (this compiles from source and takes a while)"
-        confirm "Run cargo install cargo-leptos --locked?" || die "declined"
-        cargo install cargo-leptos --locked
-    fi
-
-    local pin; pin="$(wasm_bindgen_pin)"
-    if [[ -n "$pin" ]] && ! wasm-bindgen --version 2>/dev/null | grep -q "$pin"; then
-        (( NO_INSTALL )) && die "wasm-bindgen-cli ${pin} is missing and --no-install was given"
-        info "installing wasm-bindgen-cli ${pin} (must match the Cargo.toml pin)"
-        confirm "Run cargo install wasm-bindgen-cli --version ${pin} --locked?" || die "declined"
-        cargo install wasm-bindgen-cli --version "$pin" --locked
-    fi
+    (( NO_INSTALL )) && die "node/npm are missing and --no-install was given"
+    local mgr; mgr="$(detect_pkg_manager)"
+    [[ -n "$mgr" ]] || die "no supported package manager; install Node.js 20+ and npm manually"
+    # shellcheck disable=SC2046
+    install_packages "$mgr" $(pkg_for "$mgr" node)
+    command -v npm >/dev/null 2>&1 || die "npm still not on PATH after installing Node.js"
 }
 
 step "Checking the toolchain (${DISTRO_NAME})"
 
 # The Nix shell pins everything, so prefer it when the flake is present.
 if [[ -f flake.nix ]] && command -v nix >/dev/null 2>&1 && [[ -z "${PORTAL_BOOTSTRAP_REEXEC:-}" ]]; then
-    if ! command -v cargo-leptos >/dev/null 2>&1 || ! command -v initdb >/dev/null 2>&1; then
+    if ! command -v npm >/dev/null 2>&1 || ! command -v initdb >/dev/null 2>&1; then
         info "Nix detected — re-running inside the dev shell"
         info "the first run downloads the toolchain and can take a while"
         export PORTAL_BOOTSTRAP_REEXEC=1
@@ -245,10 +233,7 @@ if (( ${#missing[@]} > 0 )); then
 fi
 
 install_rust_toolchain
-
-if ! command -v wasm-opt >/dev/null 2>&1; then
-    warn "wasm-opt (binaryen) not found — only needed for release builds, dev is fine"
-fi
+install_node
 
 info "toolchain OK"
 
@@ -375,7 +360,7 @@ if pg_isready -h 127.0.0.1 -p "$PG_PORT" -q 2>/dev/null; then
 else
     # The port lives only in this command: postgresql.conf leaves `port`
     # commented out, so omitting -p silently starts on 5432 and the app then
-    # fails with a pool timeout. README.md's setup omits it.
+    # fails with a pool timeout.
     pg_ctl -D "$PGDATA_DIR" -o "-k ${PG_SOCKET_DIR} -p ${PG_PORT}" -l "$PGDATA_DIR/log" start >/dev/null
     for _ in $(seq 1 30); do
         pg_isready -h 127.0.0.1 -p "$PG_PORT" -q 2>/dev/null && break
@@ -397,7 +382,7 @@ fi
 
 # Schema is not applied here: the server runs sqlx::migrate! from ./migrations
 # on every startup, so the migrations stay a single source of truth.
-info "migrations in ./migrations are applied by the server on startup"
+info "migrations in ./backend/migrations are applied by the server on startup"
 
 # The seed only fires while `users` is empty; say so rather than let someone
 # wonder why a freshly set password does not work.
@@ -414,26 +399,40 @@ step "Preparing the uploads directory"
 mkdir -p uploads
 info "uploads/ ready"
 
-# --- 4. Port availability ---------------------------------------------------
-# 3000 serves the app, 3001 is cargo-leptos's hot-reload socket.
+# --- 4. Frontend dependencies -----------------------------------------------
 
-step "Checking ports 3000 and 3001"
+step "Installing the frontend's dependencies"
+if [[ -d frontend/node_modules ]]; then
+    info "frontend/node_modules already present — skipping (run 'just install' to refresh)"
+elif [[ -f frontend/package-lock.json ]]; then
+    # `npm ci` over `npm install`: it installs exactly the lockfile and fails
+    # loudly if the two have drifted, which is what a bootstrap wants.
+    (cd frontend && npm ci)
+else
+    (cd frontend && npm install)
+fi
+
+# --- 5. Port availability ---------------------------------------------------
+# 3000 is the API, 5173 is Vite's dev server (which proxies /api to 3000).
+
+step "Checking ports 3000 and 5173"
 port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && { exec 3<&-; return 0; } || return 1; }
-for port in 3000 3001; do
+for port in 3000 5173; do
     if port_busy "$port"; then
         warn "port ${port} is in use — either the app is already running, or a"
-        warn "previous cargo-leptos was killed and left the socket held. Check with:"
-        warn "  ss -ltnp | grep -E ':3000|:3001'"
-        warn "and if it is a leftover: pkill -f 'cargo-leptos leptos watch'"
+        warn "previous dev server was killed and left the socket held. Check with:"
+        warn "  ss -ltnp | grep -E ':3000|:5173'"
+        warn "and if it is a leftover: just stop-server"
     else
         info "port ${port} free"
     fi
 done
 
-# --- 5. Done ----------------------------------------------------------------
+# --- 6. Done ----------------------------------------------------------------
 
 step "Bootstrap complete"
-info "app:      http://127.0.0.1:3000  (redirects to /login)"
+info "app:      http://127.0.0.1:5173  (Vite; proxies /api to the backend)"
+info "api:      http://127.0.0.1:3000"
 # Report what .env actually holds, which is not necessarily what this run set:
 # an existing .env is kept as-is, and its username may differ from the default.
 env_username="$(grep -E '^ADMIN_USERNAME=' .env | head -1 | cut -d= -f2- | tr -d "\"'")"
@@ -442,10 +441,20 @@ printf '\n'
 info "stop the database later with: pg_ctl -D ${PGDATA_DIR} stop"
 
 if (( SETUP_ONLY )); then
-    info "re-run without --setup-only, or start it yourself: cargo leptos watch"
+    info "re-run without --setup-only, or start both halves yourself: just dev"
     exit 0
 fi
 
-step "Starting the dev server (Ctrl-C to stop)"
+step "Starting both dev servers (Ctrl-C to stop)"
 info "the first build compiles the whole dependency tree — expect several minutes"
-exec cargo leptos watch
+if command -v just >/dev/null 2>&1; then
+    exec just dev
+fi
+
+# `just` is in the Nix shell but not necessarily on a distro install, and its
+# absence should not be the thing that stops a bootstrap at the last step.
+warn "just not found — starting the two processes directly"
+trap 'kill 0' EXIT INT TERM
+(cd backend && cargo run) &
+(cd frontend && npm run dev) &
+wait

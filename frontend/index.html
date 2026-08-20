@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knowledge Base</title>
+    <script>
+      // Applied before first paint, from the same key the theme switcher
+      // writes. Doing it here rather than in React is what stops the light
+      // theme flashing over a dark one while the bundle loads.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          // Kept in step with THEMES in src/components/ThemeSelect.tsx. An
+          // unrecognised value falls through to the stylesheet's default
+          // rather than being written to the attribute.
+          if (["dark", "light", "gruvbox", "gruvbox-light"].indexOf(stored) !== -1) {
+            document.documentElement.dataset.theme = stored;
+          }
+        } catch (e) {
+          /* private mode: fall through to the stylesheet's default */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

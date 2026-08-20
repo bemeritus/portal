@@ -1,0 +1,52 @@
+[package]
+name = "portal-backend"
+version = "0.2.0"
+edition = "2021"
+
+[[bin]]
+name = "portal"
+path = "src/main.rs"
+
+[dependencies]
+# --- Web ---
+axum = { version = "0.8", features = ["multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "signal"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "limit", "trace", "cors"] }
+tower-sessions = "0.14"
+
+# --- Database ---
+sqlx = { version = "0.8", default-features = false, features = [
+    "postgres",
+    "uuid",
+    "chrono",
+    "runtime-tokio-rustls",
+    "macros",
+    "migrate",
+] }
+
+# --- Auth ---
+argon2 = { version = "0.5", features = ["std"] }
+
+# --- Content ---
+# Answers are authored as Markdown and rendered here, not in the browser: the
+# sanitizer is a security control (SR-5-adjacent), and a control that runs on
+# the client is a control the client can skip.
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+ammonia = "4"
+
+# --- Shared ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["serde", "v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

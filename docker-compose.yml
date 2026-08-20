@@ -11,10 +11,11 @@
 #
 # Note on the project's own .env: Compose reads a file named .env in this
 # directory for variable substitution. The dev .env here holds DATABASE_URL,
-# ADMIN_* and LEPTOS_SITE_ADDR pointing at the *local* setup (port 5433,
-# 127.0.0.1) — values that would be wrong inside a container. That is why this
-# file never uses `env_file:` and why its variables are namespaced PORTAL_*:
-# nothing in the dev .env can silently leak into the containers.
+# ADMIN_*, BIND_ADDR and CORS_ORIGINS pointing at the *local* setup (port 5433,
+# 127.0.0.1, Vite on 5173) — values that would be wrong or actively harmful
+# inside a container. That is why this file never uses `env_file:` and why its
+# variables are namespaced PORTAL_*: nothing in the dev .env can silently leak
+# into the containers.
 
 name: portal
 
@@ -58,8 +59,12 @@ services:
       ADMIN_USERNAME: ${PORTAL_ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD:-change-me-now}
       RUST_LOG: ${PORTAL_RUST_LOG:-info}
-      # LEPTOS_* and UPLOADS_DIR are already set in the image; overriding
-      # LEPTOS_SITE_ADDR here would break the published port below.
+      # Set this behind TLS so the session cookie is Secure (SR-2). Off by
+      # default because compose is most often reached over plain HTTP on
+      # localhost, where a Secure cookie is simply never sent.
+      SECURE_COOKIE: ${PORTAL_SECURE_COOKIE:-0}
+      # STATIC_DIR, UPLOADS_DIR and BIND_ADDR are already set in the image;
+      # overriding BIND_ADDR here would break the published port below.
     ports:
       - "${PORTAL_PORT:-3000}:3000"
     volumes:

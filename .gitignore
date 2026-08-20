@@ -1,6 +1,19 @@
+# Rust build output (the backend is its own crate).
+/backend/target
+# The root target/ is left over from the pre-split Leptos crate. Ignored so it
+# cannot be committed by accident; the directory itself is safe to delete.
 /target
+
+# Frontend build output and dependencies.
+/frontend/node_modules
+/frontend/dist
+/frontend/*.tsbuildinfo
+
+# Local state, never committed.
 .direnv
-/uploads/*
-!/uploads/.gitkeep
 .env
 /.pgdata
+
+# Uploaded images are runtime state; keep the directory, not its contents.
+/uploads/*
+!/uploads/.gitkeep
