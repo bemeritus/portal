@@ -6,6 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { ApiError } from "./api/client";
 import { AuthProvider } from "./auth/AuthContext";
+// Self-hosted (bundled) so there is no runtime Google Fonts request — the
+// rounded, modern sans the redesign is built on. Variable file, one weight axis.
+import "@fontsource-variable/manrope";
 import "./styles/main.css";
 
 const queryClient = new QueryClient({

@@ -23,6 +23,21 @@ const PAGE = 100;
 const MAX = 500;
 const TYPING_PAUSE_MS = 250;
 
+/**
+ * The colour class for an action tag, from its verb — the part after the dot.
+ * Deletions are what an audit reader scans for first, so they get the danger
+ * ink; creations read as calm green; permission grants as amber. Everything
+ * else (updates, logins) stays neutral. Returns "" for the neutral case so the
+ * base `.log-action` styling stands alone.
+ */
+function actionKind(action: string): string {
+  const verb = action.slice(action.lastIndexOf(".") + 1);
+  if (verb === "delete") return "delete";
+  if (verb === "create") return "create";
+  if (verb.startsWith("permission")) return "perm";
+  return "";
+}
+
 const KINDS = [
   { value: "", label: "Everything" },
   { value: "user", label: "Users" },
@@ -130,7 +145,7 @@ export function AuditLogPage() {
                     <td className="muted">{formatUtc(entry.at)}</td>
                     <td>{entry.actor_name}</td>
                     <td>
-                      <span className="log-action">{entry.action}</span>
+                      <span className={`log-action ${actionKind(entry.action)}`}>{entry.action}</span>
                     </td>
                     <td>
                       {/* A deleted document has nowhere to link to — that URL

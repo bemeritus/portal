@@ -17,7 +17,7 @@ import { useUser } from "../auth/AuthContext";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash } from "../components/Flash";
 import { Spinner } from "../components/Loading";
-import { formatDate } from "../format";
+import { categoryTagClass, formatDate } from "../format";
 import { hasIn } from "../permissions";
 
 /** Above this many questions, offer a jump list rather than a long scroll. */
@@ -78,7 +78,7 @@ export function DocumentPage() {
           <div className="meta">
             {/* The category reads as a chip, not as prose — it is a thing you
                 can be granted rights on, and the badge says so. */}
-            <span className="badge">{doc.category_name}</span>
+            <span className={`badge ${categoryTagClass(doc.category_id)}`}>{doc.category_name}</span>
             <span>{doc.author_username}</span>
             <span aria-hidden="true">·</span>
             <span>{formatDate(doc.created_at)}</span>

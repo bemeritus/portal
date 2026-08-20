@@ -13,7 +13,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 
 import { useAuth } from "../auth/AuthContext";
 import { hasAnywhere } from "../permissions";
-import { ThemeSelect } from "./ThemeSelect";
+import { UserMenu } from "./UserMenu";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -70,12 +70,6 @@ export function Layout() {
               New
             </NavLink>
           )}
-          <ThemeSelect />
-          {user && (
-            <span className="who" title="Signed in as">
-              {user.username}
-            </span>
-          )}
         </div>
       </nav>
 
@@ -93,17 +87,28 @@ export function Layout() {
               </>
             )}
           </nav>
-          <div className="side-foot">
-            <button type="button" className="btn danger" disabled={loggingOut} onClick={() => void onLogout()}>
-              {loggingOut ? "Logging out…" : "Log out"}
-            </button>
-          </div>
+          {user && (
+            <UserMenu
+              username={user.username}
+              isAdmin={user.is_admin}
+              loggingOut={loggingOut}
+              onLogout={() => void onLogout()}
+            />
+          )}
         </aside>
 
         <main className="container">
           <Outlet />
         </main>
       </div>
+
+      {/* Floating shortcut to the create flow, for anyone who can write. It
+          repeats the bar's "New" link within thumb reach at the bottom-right. */}
+      {canWriteSomewhere && (
+        <Link className="fab" to="/docs/new" aria-label="New document" title="New document">
+          +
+        </Link>
+      )}
     </>
   );
 }

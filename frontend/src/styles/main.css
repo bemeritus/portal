@@ -1,9 +1,14 @@
-/* Shape / motion tokens shared by every theme. */
+/* Shape / motion tokens shared by every theme. The redesign rounds everything
+   off a step: cards to 16, buttons to 14, inputs to 12, and badges to a full
+   pill. These live here (not per-theme) because a corner radius is not a colour
+   — one set of shapes carries across dark, light and both gruvboxes alike. */
 :root {
-  --radius: 10px;
-  --radius-sm: 8px;
+  --radius: 16px;        /* cards, panels, table shells */
+  --radius-sm: 12px;     /* inputs, selects, nav pills, flashes */
+  --radius-btn: 14px;    /* buttons */
+  --radius-pill: 9999px; /* badges / status chips */
   --nav-h: 56px;
-  --fast: 0.15s ease;
+  --fast: 0.18s ease;
 }
 
 /* Dark (default — also what SSR renders before the client applies a stored choice). */
@@ -31,32 +36,51 @@
   --tag-4: #bb9af7;
   --tag-5: #7dcfff;
   --tag-6: #f7768e;
+
+  /* Redesign layer. Each new token defaults to one that already exists, so the
+     dark theme and the two gruvboxes — which never set these — resolve them
+     through their own palette and stay coherent. Only [data-theme="light"]
+     overrides them with the redesign's literal values. */
+  --surface-soft: var(--panel-2);      /* the F8FAFC "soft" background */
+  --nav-active-bg: var(--panel-2);     /* active rail item pill */
+  --nav-active-text: var(--text);
+  --btn-bg: var(--accent-2);           /* primary button rests here … */
+  --btn-bg-hover: var(--accent);       /* … and brightens to here on hover */
+  --btn-shadow: var(--shadow);
+  --badge-blue-bg: var(--panel-2);
+  --badge-blue-text: var(--accent);
+  --badge-gray-bg: var(--panel-2);
+  --badge-gray-text: var(--muted);
+  --badge-amber-bg: var(--panel-2);
+  --badge-amber-text: var(--tag-3);
+  --shadow-sm: var(--shadow);          /* resting card / button shadow */
+  --avatar-bg: var(--accent-2);
+  --menu-shadow: var(--shadow);
 }
 
-/* White — neutral light, deliberately dimmed.
-   Nothing here is pure white: a #ffffff panel is the brightest thing a monitor
-   can emit, and a screen full of it is what makes a light theme tiring to read
-   for any length of time. Everything is stepped down (page 0.81, panels 0.89 of
-   full luminance) while body text stays above 12:1 against both. */
+/* White — the redesign's home theme: a clean, airy, modern light system on a
+   genuinely white page. The palette is the spec's, to the hex. Body text
+   (#1E293B) clears ~13:1 on white; --muted (#94A3B8) is deliberately soft and
+   is used only for metadata, labels and separators, never for reading copy. */
 [data-theme="light"] {
-  --bg: #e6e9ee;
-  --panel: #eff2f6;
-  --panel-2: #dde2e9;
-  --border: #c5cdd7;
-  --text: #262b33;
-  --muted: #576170;
-  /* Two blues rather than one: the deeper carries links and the button's hover,
-     so hovering is visible instead of a no-op (both were #2f6fed before). */
-  --accent: #2456c9;
-  --accent-2: #2f6fed;
-  --danger: #c62828;
-  --ok: #177244;
-  --ring: rgba(36, 86, 201, 0.3);
-  --danger-soft: rgba(198, 40, 40, 0.08);
-  --ok-soft: rgba(23, 114, 68, 0.1);
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 8px 24px rgba(16, 24, 40, 0.06);
-  --row-alt: #e9edf2;
-  --hover: #dfe5ec;
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #1e293b;
+  --muted: #94a3b8;
+  --accent: #4f7cf7;
+  --accent-2: #3b6ae0;
+  --danger: #ef4444;
+  --ok: #15803d;
+  --ring: rgba(79, 124, 247, 0.25);
+  --danger-soft: rgba(239, 68, 68, 0.1);
+  --ok-soft: rgba(22, 163, 74, 0.12);
+  /* Soft, low-spread shadows — the redesign leans on whitespace and a hairline
+     border, with the shadow only hinting at elevation. */
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.05);
+  --row-alt: #f8fafc;
+  --hover: #f1f5f9;
   /* Darkened against the light surfaces: a tag is small text on a 14% tint of
      itself, so these are picked to clear 4.5:1 there, not on white. */
   --tag-1: #2b5fb8;
@@ -65,6 +89,23 @@
   --tag-4: #6b3fa0;
   --tag-5: #10627a;
   --tag-6: #a83246;
+
+  /* Redesign layer — the spec's literal component colours. */
+  --surface-soft: #f8fafc;
+  --nav-active-bg: #eaf1fe;
+  --nav-active-text: #4f7cf7;
+  --btn-bg: #4f7cf7;
+  --btn-bg-hover: #3b6ae0;
+  --btn-shadow: 0 1px 2px rgba(79, 124, 247, 0.25), 0 4px 12px rgba(79, 124, 247, 0.18);
+  --badge-blue-bg: #eaf1fe;
+  --badge-blue-text: #4f7cf7;
+  --badge-gray-bg: #f1f5f9;
+  --badge-gray-text: #64748b;
+  --badge-amber-bg: #fdf3d7;
+  --badge-amber-text: #b7791f;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --avatar-bg: #4f7cf7;
+  --menu-shadow: 0 4px 6px rgba(15, 23, 42, 0.05), 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 
 /* Gruvbox — dark, warm retro palette. */
@@ -135,7 +176,10 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Manrope: a rounded, modern sans, self-hosted (see main.tsx) so it needs no
+     network. The system stack stays behind it for the moment before the
+     variable file is parsed and for anywhere it fails to load. */
+  font-family: "Manrope Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
@@ -143,6 +187,12 @@ body {
   /* Long words / URLs must never push the layout sideways on a phone. */
   overflow-wrap: break-word;
 }
+
+/* Headings carry the weight in a system this quiet — large and bold, with the
+   optical tightening a display size wants. */
+h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 12px; }
+h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 17px; font-weight: 700; }
 
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -195,7 +245,7 @@ a:hover { text-decoration: underline; }
   transition: color var(--fast), background var(--fast);
 }
 .navbar .nav-link:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
-.navbar .nav-link[aria-current="page"] { color: var(--text); background: var(--panel-2); font-weight: 600; }
+.navbar .nav-link[aria-current="page"] { color: var(--nav-active-text); background: var(--nav-active-bg); font-weight: 700; }
 
 .nav-tools { display: flex; align-items: center; gap: 10px; }
 
@@ -226,18 +276,139 @@ a:hover { text-decoration: underline; }
   transition: color var(--fast), background var(--fast);
 }
 .side-links a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
-/* The current section is called out so you always know where you are. */
+/* The current section is called out so you always know where you are — a soft
+   blue pill with blue, bolder text, the redesign's active-state signature. */
 .side-links a[aria-current="page"] {
+  color: var(--nav-active-text);
+  background: var(--nav-active-bg);
+  font-weight: 700;
+}
+.side-links a[aria-current="page"]:hover { color: var(--nav-active-text); background: var(--nav-active-bg); }
+
+/* The account lives at the foot of the rail: an avatar, who you are, and a
+   chevron that opens the menu (theme, log out) upward over the sections. */
+.side-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); position: relative; }
+
+/* The resting card is a button so the whole row is one keyboard/tap target. */
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text);
-  background: var(--panel-2);
-  font-weight: 600;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast), border-color var(--fast);
+}
+.user-card:hover { background: var(--surface-soft); border-color: var(--border); }
+.user-card[aria-expanded="true"] { background: var(--surface-soft); border-color: var(--border); }
+
+/* Initials in a filled circle — no image to load, and it colours itself from
+   the accent so it belongs to whatever theme is on. */
+.avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--avatar-bg);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.user-card .who-block { flex: 1 1 auto; min-width: 0; line-height: 1.25; }
+.user-card .who-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-card .who-role { color: var(--muted); font-size: 12px; }
+.user-card .chevron { flex: 0 0 auto; color: var(--muted); transition: transform var(--fast); }
+.user-card[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+/* The menu — a floating white card that opens upward from the account row. */
+.user-menu {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% - 4px);
+  z-index: 40;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--menu-shadow);
+}
+.user-menu .menu-head { display: flex; align-items: center; gap: 10px; padding: 8px; }
+.user-menu .menu-head .who-block { flex: 1 1 auto; min-width: 0; }
+.user-menu .menu-sep { height: 1px; margin: 6px 4px; background: var(--border); border: none; }
+
+/* Every row in the menu — links, buttons and the label wrapping a control —
+   shares one shape so the list reads as one thing. */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+.menu-item:hover { background: var(--surface-soft); text-decoration: none; color: var(--text); }
+.menu-item .menu-icon { flex: 0 0 auto; width: 18px; text-align: center; color: var(--muted); }
+.menu-item .menu-label { flex: 1 1 auto; }
+.menu-item .menu-value { color: var(--muted); font-size: 13px; }
+.menu-item.danger { color: var(--danger); }
+.menu-item.danger:hover { background: var(--danger-soft); color: var(--danger); }
+.menu-item.danger .menu-icon { color: var(--danger); }
+.menu-item:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* The theme control sits inline in the menu — a compact select on its right. */
+.menu-item .menu-select {
+  width: auto;
+  height: auto;
+  padding: 4px 26px 4px 8px;
+  font-size: 13px;
+  background-color: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
 }
 
-/* Signing out sits at the foot of the rail, away from the sections — it ends
-   the session rather than taking you somewhere, so it is a full-width button
-   in the danger colour instead of another link in the list. */
-.side-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
-.side-foot .btn { width: 100%; }
+/* Floating action button: the primary "create" action, always in reach at the
+   bottom-right. It repeats the New shortcut for anyone who can write. */
+.fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--btn-bg);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--btn-shadow), 0 8px 24px rgba(15, 23, 42, 0.18);
+  transition: background var(--fast), transform var(--fast), box-shadow var(--fast);
+}
+.fab:hover { background: var(--btn-bg-hover); transform: translateY(-2px); text-decoration: none; color: #fff; }
+.fab:active { transform: none; }
 
 /* Hamburger: hidden on desktop, revealed by the media query below. */
 .nav-toggle {
@@ -265,15 +436,16 @@ a:hover { text-decoration: underline; }
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 20px;
+  margin-bottom: 14px;
   color: inherit;
+  box-shadow: var(--shadow-sm);
   transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
 }
 .card:hover {
-  border-color: var(--accent-2);
+  border-color: var(--accent);
   text-decoration: none;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow);
 }
 .card:active { transform: none; }
@@ -355,19 +527,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 16px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--accent-2);
-  background: var(--accent-2);
+  padding: 10px 18px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--btn-bg);
+  background: var(--btn-bg);
   color: white;
   font: inherit;
+  font-weight: 700;
   line-height: 1.3;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--fast), border-color var(--fast), color var(--fast), opacity var(--fast);
+  box-shadow: var(--btn-shadow);
+  transition: background var(--fast), border-color var(--fast), color var(--fast), box-shadow var(--fast), transform var(--fast), opacity var(--fast);
 }
-.btn:hover { background: var(--accent); border-color: var(--accent); text-decoration: none; color: white; }
+.btn:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); text-decoration: none; color: white; }
 .btn:active { transform: translateY(1px); }
+/* Only the filled primary carries the coloured lift. The outline variants below
+   sit flat — a shadow under a transparent button reads as a stray blue glow. */
+.btn.secondary, .btn.danger, .btn.success { box-shadow: none; }
+.btn.danger.armed { box-shadow: var(--shadow-sm); }
 .btn.secondary { background: transparent; color: var(--text); border-color: var(--border); }
 .btn.secondary:hover { background: var(--panel-2); color: var(--text); border-color: var(--accent-2); }
 /* Destructive actions rest quiet and only turn red under the cursor.
@@ -397,7 +575,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .btn.icon { padding: 5px 9px; font-size: 13px; min-width: 30px; }
 /* Disabled must look disabled, not just ignore clicks. */
 .btn:disabled, .btn[disabled] { opacity: 0.55; cursor: not-allowed; transform: none; }
-.btn:disabled:hover, .btn[disabled]:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.btn:disabled:hover, .btn[disabled]:hover { background: var(--btn-bg); border-color: var(--btn-bg); }
 .btn.secondary:disabled:hover { background: transparent; border-color: var(--border); }
 /* Without this the generic disabled:hover repaints it accent-blue mid-logout. */
 .btn.danger:disabled:hover { background: transparent; color: var(--muted); border-color: var(--border); }
@@ -416,13 +594,36 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* A horizontal group of buttons that wraps instead of overflowing. */
 .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
+/* Filled pills, not outlined chips. The base is the neutral grey badge; the
+   semantic variants each swap in their own soft fill + ink pair. No border —
+   the fill carries the shape, and a full pill radius finishes it. */
 .badge {
-  display: inline-block; padding: 2px 8px; border-radius: 999px;
-  font-size: 12px; border: 1px solid var(--border); color: var(--muted);
-  white-space: nowrap;
+  display: inline-block; padding: 3px 11px; border-radius: var(--radius-pill);
+  font-size: 12px; font-weight: 600; border: none; white-space: nowrap;
+  background: var(--badge-gray-bg); color: var(--badge-gray-text);
 }
-.badge.published { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
-.badge.draft { color: var(--muted); }
+.badge.published { color: var(--ok); background: var(--ok-soft); }
+.badge.draft { background: var(--badge-gray-bg); color: var(--badge-gray-text); }
+
+/* A user's account state, as a badge in both directions rather than plain text
+   one way and a badge the other — "Active" in the ok colour, "blocked" in the
+   danger colour, on the soft washes the redesign uses for every status pill. */
+.badge.active { color: var(--ok); background: var(--ok-soft); }
+.badge.blocked { color: var(--danger); background: var(--danger-soft); }
+
+/* Category badges on the document list carry one of the six tag hues, so the
+   eye can group cards by colour before reading a word. Each is its hue as ink
+   on a 14% wash of itself — the tag tokens were chosen to clear 4.5:1 exactly
+   there (see the light themes' notes) — with a stronger edge. `color-mix` makes
+   the wash from the one token, so a new theme only sets --tag-N and both follow.
+   The 1–6 index is derived from the category id in JS, so a category keeps its
+   colour across pages. */
+.badge.cat-1 { color: var(--tag-1); border-color: color-mix(in srgb, var(--tag-1) 45%, transparent); background: color-mix(in srgb, var(--tag-1) 14%, transparent); }
+.badge.cat-2 { color: var(--tag-2); border-color: color-mix(in srgb, var(--tag-2) 45%, transparent); background: color-mix(in srgb, var(--tag-2) 14%, transparent); }
+.badge.cat-3 { color: var(--tag-3); border-color: color-mix(in srgb, var(--tag-3) 45%, transparent); background: color-mix(in srgb, var(--tag-3) 14%, transparent); }
+.badge.cat-4 { color: var(--tag-4); border-color: color-mix(in srgb, var(--tag-4) 45%, transparent); background: color-mix(in srgb, var(--tag-4) 14%, transparent); }
+.badge.cat-5 { color: var(--tag-5); border-color: color-mix(in srgb, var(--tag-5) 45%, transparent); background: color-mix(in srgb, var(--tag-5) 14%, transparent); }
+.badge.cat-6 { color: var(--tag-6); border-color: color-mix(in srgb, var(--tag-6) 45%, transparent); background: color-mix(in srgb, var(--tag-6) 14%, transparent); }
 
 .error { color: var(--danger); margin: 10px 0; }
 .success { color: var(--ok); margin: 10px 0; }
@@ -637,6 +838,13 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-si
   color: var(--text);
   white-space: nowrap;
 }
+/* Coloured by the verb so a scan down the column finds deletions at once:
+   creates read as calm green, deletions as quiet red, permission changes as
+   amber. The monospace slab and its panel background stay put — only the ink
+   moves, which is enough to sort the column by kind without shouting. */
+.log-action.create { color: var(--ok); }
+.log-action.delete { color: var(--danger); }
+.log-action.perm { color: var(--tag-3); }
 
 /* ------------------------------------------------------------ Responsive */
 

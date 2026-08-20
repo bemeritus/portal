@@ -5,7 +5,10 @@
  * CSS variables in `styles/main.css` do the rest) and persisted to
  * `localStorage`. The inline script in `index.html` applies the stored value
  * before first paint, so there is no flash of the wrong theme while the bundle
- * loads; this component keeps it in sync afterwards.
+ * loads; the `useTheme` hook keeps it in sync afterwards.
+ *
+ * The redesign moved the control into the account menu (see `UserMenu`), so the
+ * logic lives in a hook both that menu and the bare `<ThemeSelect>` can share.
  */
 
 import { useEffect, useState } from "react";
@@ -23,7 +26,7 @@ export const THEMES = [
   { value: "gruvbox-light", label: "Gruvbox Light" },
 ] as const;
 
-type ThemeValue = (typeof THEMES)[number]["value"];
+export type ThemeValue = (typeof THEMES)[number]["value"];
 
 const DEFAULT_THEME: ThemeValue = "dark";
 
@@ -32,7 +35,7 @@ const DEFAULT_THEME: ThemeValue = "dark";
  * unrecognised value is expected rather than exceptional — it falls back to
  * the default instead of throwing.
  */
-function parseTheme(value: string | null): ThemeValue {
+export function parseTheme(value: string | null): ThemeValue {
   return THEMES.some((t) => t.value === value) ? (value as ThemeValue) : DEFAULT_THEME;
 }
 
@@ -45,7 +48,8 @@ function readStored(): ThemeValue {
   }
 }
 
-export function ThemeSelect() {
+/** The theme value plus a setter that mirrors it to `<html>` and storage. */
+export function useTheme(): [ThemeValue, (value: ThemeValue) => void] {
   const [theme, setTheme] = useState<ThemeValue>(readStored);
 
   useEffect(() => {
@@ -56,6 +60,12 @@ export function ThemeSelect() {
       // A theme that cannot be remembered still applies for this session.
     }
   }, [theme]);
+
+  return [theme, setTheme];
+}
+
+export function ThemeSelect() {
+  const [theme, setTheme] = useTheme();
 
   return (
     <select

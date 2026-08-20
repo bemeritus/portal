@@ -425,7 +425,7 @@ function UserRow({
           isSelf ? (
             // The server refuses this too; saying so here saves the round-trip
             // and the confusing error.
-            <span className="muted" title="You cannot disable your own account">
+            <span className="badge active" title="You cannot disable your own account">
               Active
             </span>
           ) : (
@@ -438,9 +438,9 @@ function UserRow({
           )
         ) : (
           <span className="actions" style={{ gap: 6 }}>
-            <span className="badge">blocked</span>
+            <span className="badge blocked">blocked</span>
             <button
-              className="btn small secondary"
+              className="btn small success"
               type="button"
               disabled={setActive.isPending}
               onClick={() => setActive.mutate(true)}

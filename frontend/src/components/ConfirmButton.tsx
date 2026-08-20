@@ -43,7 +43,7 @@ export function ConfirmButton({
     <span className="actions" style={{ gap: 6 }}>
       <button
         type="button"
-        className="btn small danger"
+        className="btn small danger armed"
         disabled={pending}
         onClick={() => {
           setArmed(false);

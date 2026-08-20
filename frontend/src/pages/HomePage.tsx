@@ -16,7 +16,7 @@ import { categories as categoriesApi, documents as documentsApi } from "../api/e
 import { useUser } from "../auth/AuthContext";
 import { ErrorFlash } from "../components/Flash";
 import { Empty, Skeletons } from "../components/Loading";
-import { formatDate } from "../format";
+import { categoryTagClass, formatDate } from "../format";
 import { hasAnywhere } from "../permissions";
 
 /** How long to wait after the last keystroke before asking the server. */
@@ -167,7 +167,7 @@ export function HomePage() {
             <Link className="card" key={doc.id} to={`/docs/${doc.id}`}>
               <h3>{doc.title}</h3>
               <div className="meta">
-                <span className="badge">{doc.category_name}</span>
+                <span className={`badge ${categoryTagClass(doc.category_id)}`}>{doc.category_name}</span>
                 <span>{doc.author_username}</span>
                 <span aria-hidden="true">·</span>
                 <span>{formatDate(doc.created_at)}</span>
