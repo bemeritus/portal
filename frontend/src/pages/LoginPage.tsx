@@ -7,6 +7,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -19,6 +20,7 @@ interface LocationState {
 
 export function LoginPage() {
   const { user, loading, login } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,8 +30,8 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    document.title = "Sign in · Knowledge Base";
-  }, []);
+    document.title = t("docTitle", { page: t("login.heading"), app: t("app.name") });
+  }, [t]);
 
   // Where the guard was headed before it sent them here.
   const from = (location.state as LocationState | null)?.from ?? "/";
@@ -70,10 +72,10 @@ export function LoginPage() {
 
   return (
     <div className="center-narrow panel">
-      <h2 style={{ marginTop: 0 }}>Sign in</h2>
-      <p className="muted">Accounts are created by an administrator.</p>
+      <h2 style={{ marginTop: 0 }}>{t("login.heading")}</h2>
+      <p className="muted">{t("login.subtitle")}</p>
       <form onSubmit={(e) => void onSubmit(e)}>
-        <label htmlFor="u">Username</label>
+        <label htmlFor="u">{t("login.username")}</label>
         {/* `type` is not optional: the stylesheet selects `input[type=text]`,
             so an input without one gets none of the field styling and renders
             at the browser's default size next to a correctly sized password
@@ -87,7 +89,7 @@ export function LoginPage() {
           onChange={(e) => setUsername(e.target.value)}
         />
 
-        <label htmlFor="p">Password</label>
+        <label htmlFor="p">{t("login.password")}</label>
         <input
           id="p"
           type="password"
@@ -101,7 +103,7 @@ export function LoginPage() {
         <div style={{ marginTop: 16 }}>
           <button className="btn" type="submit" disabled={busy || incomplete}>
             {busy && <span className="spinner" />}
-            {busy ? "Signing in…" : "Log in"}
+            {busy ? t("login.signingIn") : t("login.logIn")}
           </button>
         </div>
       </form>

@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { audit as auditApi } from "../api/endpoints";
@@ -39,22 +40,23 @@ function actionKind(action: string): string {
 }
 
 const KINDS = [
-  { value: "", label: "Everything" },
-  { value: "user", label: "Users" },
-  { value: "category", label: "Categories" },
-  { value: "document", label: "Documents" },
-  { value: "upload", label: "Uploads" },
+  { value: "", key: "log.kindEverything" },
+  { value: "user", key: "log.kindUsers" },
+  { value: "category", key: "log.kindCategories" },
+  { value: "document", key: "log.kindDocuments" },
+  { value: "upload", key: "log.kindUploads" },
 ] as const;
 
 export function AuditLogPage() {
+  const { t } = useTranslation();
   const [kind, setKind] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(PAGE);
 
   useEffect(() => {
-    document.title = "Change history · Knowledge Base";
-  }, []);
+    document.title = t("docTitle", { page: t("log.heading"), app: t("app.name") });
+  }, [t]);
 
   // One query per pause in typing, not one per keystroke.
   useEffect(() => {
@@ -83,30 +85,27 @@ export function AuditLogPage() {
 
   return (
     <>
-      <h1>Change history</h1>
-      <p className="muted">
-        Every change to users, permissions, categories, documents and uploads. Append-only —
-        nothing here can be edited or deleted.
-      </p>
+      <h1>{t("log.heading")}</h1>
+      <p className="muted">{t("log.intro")}</p>
 
       <div className="panel" style={{ margin: "16px 0" }}>
         <div className="row">
           <div>
-            <label htmlFor="log-search">Search</label>
+            <label htmlFor="log-search">{t("log.search")}</label>
             <input
               id="log-search"
               type="search"
-              placeholder="Who, what, or which target…"
+              placeholder={t("log.searchPlaceholder")}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
           <div>
-            <label htmlFor="log-kind">Kind</label>
+            <label htmlFor="log-kind">{t("log.kind")}</label>
             <select id="log-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
               {KINDS.map((k) => (
                 <option key={k.value} value={k.value}>
-                  {k.label}
+                  {t(k.key)}
                 </option>
               ))}
             </select>
@@ -119,12 +118,8 @@ export function AuditLogPage() {
       {isPending ? (
         <Spinner />
       ) : entries.length === 0 ? (
-        <Empty title="Nothing recorded yet">
-          <p className="muted">
-            {kind || search
-              ? "No entries match those filters."
-              : "Changes will appear here as they happen."}
-          </p>
+        <Empty title={t("log.nothingTitle")}>
+          <p className="muted">{kind || search ? t("log.noMatch") : t("log.willAppear")}</p>
         </Empty>
       ) : (
         <>
@@ -132,11 +127,11 @@ export function AuditLogPage() {
             <table>
               <thead>
                 <tr>
-                  <th>When (UTC)</th>
-                  <th>Who</th>
-                  <th>Action</th>
-                  <th>Target</th>
-                  <th className="wrap">Details</th>
+                  <th>{t("log.thWhen")}</th>
+                  <th>{t("log.thWho")}</th>
+                  <th>{t("log.thAction")}</th>
+                  <th>{t("log.thTarget")}</th>
+                  <th className="wrap">{t("log.thDetails")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,12 +168,12 @@ export function AuditLogPage() {
                 disabled={isFetching}
                 onClick={() => setLimit((l) => Math.min(l + PAGE, MAX))}
               >
-                {isFetching ? "Loading…" : "Load more"}
+                {isFetching ? t("common.loading") : t("common.loadMore")}
               </button>
             )}
             <span className="muted" style={{ fontSize: 13 }}>
-              {entries.length} {entries.length === 1 ? "entry" : "entries"}
-              {limit >= MAX && " (server maximum)"}
+              {t("log.entries", { count: entries.length })}
+              {limit >= MAX && t("log.serverMax")}
             </span>
           </div>
         </>

@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi, users as usersApi } from "../api/endpoints";
@@ -24,10 +25,10 @@ import type { Category, CategoryPermission, User, Uuid } from "../api/types";
 type Matrix = Record<Uuid, CategoryPermission>;
 
 const FLAGS = [
-  { key: "can_read", label: "Read" },
-  { key: "can_write", label: "Write" },
-  { key: "can_edit", label: "Edit" },
-  { key: "can_delete", label: "Delete" },
+  { key: "can_read", labelKey: "perm.read" },
+  { key: "can_write", labelKey: "perm.write" },
+  { key: "can_edit", labelKey: "perm.edit" },
+  { key: "can_delete", labelKey: "perm.delete" },
 ] as const;
 
 type FlagKey = (typeof FLAGS)[number]["key"];
@@ -74,8 +75,10 @@ function PermMatrix({
   onChange: (next: Matrix) => void;
   idPrefix: string;
 }) {
+  const { t } = useTranslation();
+
   if (categories.length === 0) {
-    return <p className="hint">Create a category first — there is nothing to grant yet.</p>;
+    return <p className="hint">{t("perm.createFirst")}</p>;
   }
 
   function toggle(categoryId: Uuid, flag: FlagKey) {
@@ -88,9 +91,9 @@ function PermMatrix({
       <table>
         <thead>
           <tr>
-            <th>Category</th>
+            <th>{t("perm.category")}</th>
             {FLAGS.map((f) => (
-              <th key={f.key}>{f.label}</th>
+              <th key={f.key}>{t(f.labelKey)}</th>
             ))}
           </tr>
         </thead>
@@ -104,7 +107,7 @@ function PermMatrix({
                     <input
                       id={`${idPrefix}-${c.id}-${f.key}`}
                       type="checkbox"
-                      aria-label={`${f.label} in ${c.name}`}
+                      aria-label={t("perm.flagIn", { flag: t(f.labelKey), category: c.name })}
                       checked={matrix[c.id]?.[f.key] ?? false}
                       onChange={() => toggle(c.id, f.key)}
                     />
@@ -122,11 +125,12 @@ function PermMatrix({
 export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const { user: me, refresh } = useAuth();
+  const { t } = useTranslation();
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Users · Knowledge Base";
-  }, []);
+    document.title = t("docTitle", { page: t("users.heading"), app: t("app.name") });
+  }, [t]);
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
@@ -149,33 +153,33 @@ export function AdminUsersPage() {
 
   return (
     <>
-      <h1>Users</h1>
+      <h1>{t("users.heading")}</h1>
 
       <CreateUserForm
         categories={categories}
-        onCreated={(username) => void afterChange(`Created “${username}”.`, false)}
+        onCreated={(username) => void afterChange(t("users.created", { name: username }), false)}
       />
 
       {notice && <Flash kind="ok">{notice}</Flash>}
 
-      <h3 style={{ marginTop: 28 }}>All users</h3>
+      <h3 style={{ marginTop: 28 }}>{t("users.allUsers")}</h3>
 
       {usersQuery.isPending ? (
         <Spinner />
       ) : usersQuery.error ? (
         <ErrorFlash error={errorMessage(usersQuery.error)} />
       ) : usersQuery.data.length === 0 ? (
-        <Empty title="No users" />
+        <Empty title={t("users.none")} />
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Username</th>
-                <th>Role</th>
-                <th className="wrap">Categories</th>
-                <th>Status</th>
-                <th>Reset password</th>
+                <th>{t("users.thUsername")}</th>
+                <th>{t("users.thRole")}</th>
+                <th className="wrap">{t("users.thCategories")}</th>
+                <th>{t("users.thStatus")}</th>
+                <th>{t("users.thResetPassword")}</th>
               </tr>
             </thead>
             <tbody>
@@ -203,6 +207,7 @@ function CreateUserForm({
   categories: Category[];
   onCreated: (username: string) => void;
 }) {
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -257,11 +262,11 @@ function CreateUserForm({
 
   return (
     <div className="panel">
-      <h3 style={{ marginTop: 0 }}>Create user</h3>
+      <h3 style={{ marginTop: 0 }}>{t("users.createUser")}</h3>
       <form onSubmit={onSubmit}>
         <div className="row">
           <div>
-            <label htmlFor="new-username">Username</label>
+            <label htmlFor="new-username">{t("users.username")}</label>
             <input
               id="new-username"
               type="text"
@@ -271,7 +276,7 @@ function CreateUserForm({
             />
           </div>
           <div>
-            <label htmlFor="new-password">Initial password</label>
+            <label htmlFor="new-password">{t("users.initialPassword")}</label>
             <input
               id="new-password"
               type="text"
@@ -279,16 +284,16 @@ function CreateUserForm({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p className="hint">At least 6 characters.</p>
+            <p className="hint">{t("users.atLeast6")}</p>
           </div>
           <div className="grow-0">
             <button
               type="button"
               className="btn secondary"
-              title="Generate a random password"
+              title={t("users.generateTitle")}
               onClick={generatePassword}
             >
-              Generate
+              {t("common.generate")}
             </button>
           </div>
         </div>
@@ -299,21 +304,19 @@ function CreateUserForm({
             checked={isAdmin}
             onChange={(e) => setIsAdmin(e.target.checked)}
           />
-          Administrator (holds every permission in every category)
+          {t("users.isAdminLabel")}
         </label>
 
         {!isAdmin && (
           <div style={{ marginTop: 14 }}>
-            <label>Category permissions</label>
+            <label>{t("users.categoryPermissions")}</label>
             <PermMatrix
               categories={categories}
               matrix={matrix}
               onChange={setMatrix}
               idPrefix="new"
             />
-            <p className="hint">
-              A user with nothing ticked can sign in and see an empty platform.
-            </p>
+            <p className="hint">{t("users.nothingTicked")}</p>
           </div>
         )}
 
@@ -325,7 +328,7 @@ function CreateUserForm({
             type="submit"
             disabled={create.isPending || !username.trim() || password.length < 6}
           >
-            {create.isPending ? "Creating…" : "Create user"}
+            {create.isPending ? t("users.creating") : t("users.createUser")}
           </button>
         </div>
       </form>
@@ -344,6 +347,7 @@ function UserRow({
   isSelf: boolean;
   onChanged: (message: string) => void;
 }) {
+  const { t } = useTranslation();
   const [matrix, setMatrix] = useState<Matrix>(() => matrixFor(categories, user.category_perms));
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -357,7 +361,7 @@ function UserRow({
     mutationFn: () => usersApi.setPermissions(user.id, toGrants(matrix)),
     onSuccess: () => {
       setError(null);
-      onChanged(`Permissions saved for “${user.username}”.`);
+      onChanged(t("users.permsSaved", { name: user.username }));
     },
     onError: (e) => setError(errorMessage(e)),
   });
@@ -366,7 +370,11 @@ function UserRow({
     mutationFn: (active: boolean) => usersApi.setActive(user.id, active),
     onSuccess: (_data, active) => {
       setError(null);
-      onChanged(`“${user.username}” ${active ? "activated" : "blocked"}.`);
+      onChanged(
+        active
+          ? t("users.activated", { name: user.username })
+          : t("users.blockedNotice", { name: user.username }),
+      );
     },
     onError: (e) => setError(errorMessage(e)),
   });
@@ -376,7 +384,7 @@ function UserRow({
     onSuccess: () => {
       setNewPassword("");
       setError(null);
-      onChanged(`Password reset for “${user.username}”.`);
+      onChanged(t("users.passwordReset", { name: user.username }));
     },
     onError: (e) => setError(errorMessage(e)),
   });
@@ -387,18 +395,18 @@ function UserRow({
     <tr>
       <td>
         {user.username}
-        {isSelf && <span className="muted"> (you)</span>}
+        {isSelf && <span className="muted">{t("users.you")}</span>}
       </td>
-      <td>{user.is_admin ? "Admin" : "User"}</td>
+      <td>{user.is_admin ? t("users.roleAdmin") : t("users.roleUser")}</td>
       <td className="wrap">
         {user.is_admin ? (
-          <span className="muted">all</span>
+          <span className="muted">{t("users.all")}</span>
         ) : (
           <details className="cat-perms">
             <summary>
               {grantCount === 0
-                ? "No categories"
-                : `${grantCount} categor${grantCount === 1 ? "y" : "ies"}`}
+                ? t("users.noCategories")
+                : t("users.categories", { count: grantCount })}
             </summary>
             <PermMatrix
               categories={categories}
@@ -413,7 +421,7 @@ function UserRow({
                 disabled={savePermissions.isPending}
                 onClick={() => savePermissions.mutate()}
               >
-                {savePermissions.isPending ? "Saving…" : "Save"}
+                {savePermissions.isPending ? t("common.saving") : t("common.save")}
               </button>
             </div>
           </details>
@@ -425,27 +433,27 @@ function UserRow({
           isSelf ? (
             // The server refuses this too; saying so here saves the round-trip
             // and the confusing error.
-            <span className="badge active" title="You cannot disable your own account">
-              Active
+            <span className="badge active" title={t("users.cannotDisableSelf")}>
+              {t("users.active")}
             </span>
           ) : (
             <ConfirmButton
-              label="Block"
-              confirmLabel="Block"
+              label={t("users.block")}
+              confirmLabel={t("users.block")}
               pending={setActive.isPending}
               onConfirm={() => setActive.mutate(false)}
             />
           )
         ) : (
           <span className="actions" style={{ gap: 6 }}>
-            <span className="badge blocked">blocked</span>
+            <span className="badge blocked">{t("users.blocked")}</span>
             <button
               className="btn small success"
               type="button"
               disabled={setActive.isPending}
               onClick={() => setActive.mutate(true)}
             >
-              Activate
+              {t("users.activate")}
             </button>
           </span>
         )}
@@ -454,8 +462,8 @@ function UserRow({
         <span className="actions">
           <input
             type="text"
-            aria-label={`New password for ${user.username}`}
-            placeholder="New password"
+            aria-label={t("users.newPasswordAria", { name: user.username })}
+            placeholder={t("users.newPasswordPlaceholder")}
             style={{ minWidth: 150 }}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -466,7 +474,7 @@ function UserRow({
             disabled={resetPassword.isPending || newPassword.length < 6}
             onClick={() => resetPassword.mutate()}
           >
-            Reset
+            {t("common.reset")}
           </button>
         </span>
         <p className="hint">{formatDate(user.created_at)}</p>

@@ -1,10 +1,13 @@
 /** The two shapes of "not yet": a spinner, and list placeholders. */
 
-export function Spinner({ label = "Loading…" }: { label?: string }) {
+import { useTranslation } from "react-i18next";
+
+export function Spinner({ label }: { label?: string }) {
+  const { t } = useTranslation();
   return (
     <span className="loading-inline" role="status">
       <span className="spinner" aria-hidden="true" />
-      {label}
+      {label ?? t("common.loading")}
     </span>
   );
 }

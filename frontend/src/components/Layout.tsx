@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
 import { hasAnywhere } from "../permissions";
@@ -17,6 +18,7 @@ import { UserMenu } from "./UserMenu";
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [railOpen, setRailOpen] = useState(false);
@@ -55,35 +57,35 @@ export function Layout() {
           className="nav-toggle"
           aria-expanded={railOpen}
           aria-controls="sections"
-          aria-label="Toggle sections"
+          aria-label={t("nav.toggleSections")}
           onClick={() => setRailOpen((open) => !open)}
         >
           ☰
         </button>
         <Link className="brand" to="/" onClick={() => setRailOpen(false)}>
-          📚 Knowledge Base
+          📚 {t("app.name")}
         </Link>
         <span className="spacer" />
         <div className="nav-tools">
           {canWriteSomewhere && (
             <NavLink className="nav-link" to="/docs/new">
-              New
+              {t("nav.new")}
             </NavLink>
           )}
         </div>
       </nav>
 
       <div className="layout">
-        <aside className={`sidebar${railOpen ? " open" : ""}`} id="sections" aria-label="Sections">
+        <aside className={`sidebar${railOpen ? " open" : ""}`} id="sections" aria-label={t("nav.sections")}>
           <nav className="side-links">
             <NavLink to="/" end>
-              Documents
+              {t("nav.documents")}
             </NavLink>
             {user?.is_admin && (
               <>
-                <NavLink to="/categories">Categories</NavLink>
-                <NavLink to="/admin/users">Users</NavLink>
-                <NavLink to="/admin/logs">Logs</NavLink>
+                <NavLink to="/categories">{t("nav.categories")}</NavLink>
+                <NavLink to="/admin/users">{t("nav.users")}</NavLink>
+                <NavLink to="/admin/logs">{t("nav.logs")}</NavLink>
               </>
             )}
           </nav>
@@ -105,7 +107,7 @@ export function Layout() {
       {/* Floating shortcut to the create flow, for anyone who can write. It
           repeats the bar's "New" link within thumb reach at the bottom-right. */}
       {canWriteSomewhere && (
-        <Link className="fab" to="/docs/new" aria-label="New document" title="New document">
+        <Link className="fab" to="/docs/new" aria-label={t("nav.newDocument")} title={t("nav.newDocument")}>
           +
         </Link>
       )}

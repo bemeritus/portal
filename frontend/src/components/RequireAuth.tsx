@@ -9,6 +9,7 @@
  */
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
 import { Spinner } from "./Loading";
@@ -37,14 +38,15 @@ export function RequireAuth() {
 
 export function RequireAdmin() {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   // Not a redirect: sending a non-admin somewhere else would leave them
   // wondering whether the click registered. This says what happened.
   if (!user?.is_admin) {
     return (
       <>
-        <h1>Not allowed</h1>
-        <p className="muted">This section is for administrators.</p>
+        <h1>{t("authz.notAllowed")}</h1>
+        <p className="muted">{t("authz.adminsOnly")}</p>
       </>
     );
   }

@@ -17,8 +17,14 @@
           if (["dark", "light", "gruvbox", "gruvbox-light"].indexOf(stored) !== -1) {
             document.documentElement.dataset.theme = stored;
           }
+          // Same idea for the language: kept in step with LANGUAGES in
+          // src/i18n/index.ts, applied to <html lang> before the bundle runs.
+          var lang = localStorage.getItem("lang");
+          if (["en", "ru", "uz"].indexOf(lang) !== -1) {
+            document.documentElement.lang = lang;
+          }
         } catch (e) {
-          /* private mode: fall through to the stylesheet's default */
+          /* private mode: fall through to the defaults */
         }
       })();
     </script>

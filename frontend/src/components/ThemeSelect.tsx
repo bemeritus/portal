@@ -7,8 +7,9 @@
  * before first paint, so there is no flash of the wrong theme while the bundle
  * loads; the `useTheme` hook keeps it in sync afterwards.
  *
- * The redesign moved the control into the account menu (see `UserMenu`), so the
- * logic lives in a hook both that menu and the bare `<ThemeSelect>` can share.
+ * The redesign moved the control into the account menu (see `UserMenu`), which
+ * consumes the `useTheme` hook below; the file keeps its name for its import
+ * path even though the old `<ThemeSelect>` dropdown is gone.
  */
 
 import { useEffect, useState } from "react";
@@ -62,23 +63,4 @@ export function useTheme(): [ThemeValue, (value: ThemeValue) => void] {
   }, [theme]);
 
   return [theme, setTheme];
-}
-
-export function ThemeSelect() {
-  const [theme, setTheme] = useTheme();
-
-  return (
-    <select
-      className="theme-select"
-      aria-label="Theme"
-      value={theme}
-      onChange={(e) => setTheme(parseTheme(e.target.value))}
-    >
-      {THEMES.map((t) => (
-        <option key={t.value} value={t.value}>
-          {t.label}
-        </option>
-      ))}
-    </select>
-  );
 }

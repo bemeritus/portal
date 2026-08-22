@@ -10,6 +10,7 @@
 import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { documents as documentsApi } from "../api/endpoints";
@@ -26,6 +27,7 @@ const TOC_THRESHOLD = 4;
 export function DocumentPage() {
   const { id = "" } = useParams();
   const user = useUser();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -35,8 +37,8 @@ export function DocumentPage() {
   });
 
   useEffect(() => {
-    if (doc) document.title = `${doc.title} · Knowledge Base`;
-  }, [doc]);
+    if (doc) document.title = t("docTitle", { page: doc.title, app: t("app.name") });
+  }, [doc, t]);
 
   const remove = useMutation({
     mutationFn: () => documentsApi.remove(id),
@@ -53,7 +55,7 @@ export function DocumentPage() {
     return (
       <>
         <Link className="backlink" to="/">
-          ← Documents
+          {t("doc.back")}
         </Link>
         <ErrorFlash error={errorMessage(error)} />
       </>
@@ -66,7 +68,7 @@ export function DocumentPage() {
   return (
     <>
       <Link className="backlink" to="/">
-        ← Documents
+        {t("doc.back")}
       </Link>
 
       <div
@@ -83,7 +85,7 @@ export function DocumentPage() {
             <span aria-hidden="true">·</span>
             <span>{formatDate(doc.created_at)}</span>
             <span className={`badge ${doc.status === "published" ? "published" : "draft"}`}>
-              {doc.status}
+              {t(`status.${doc.status}`)}
             </span>
           </div>
         </div>
@@ -91,13 +93,13 @@ export function DocumentPage() {
           <div className="actions">
             {canEdit && (
               <Link className="btn secondary small" to={`/docs/${doc.id}/edit`}>
-                Edit
+                {t("common.edit")}
               </Link>
             )}
             {canDelete && (
               <ConfirmButton
-                label="Delete"
-                confirmLabel="Delete for good"
+                label={t("common.delete")}
+                confirmLabel={t("doc.deleteForGood")}
                 pending={remove.isPending}
                 onConfirm={() => remove.mutate()}
               />
@@ -109,12 +111,12 @@ export function DocumentPage() {
       <ErrorFlash error={remove.error ? errorMessage(remove.error) : null} />
 
       {doc.blocks.length === 0 ? (
-        <p className="muted">This document has no questions yet.</p>
+        <p className="muted">{t("doc.noQuestions")}</p>
       ) : (
         <>
           {doc.blocks.length > TOC_THRESHOLD && (
             <details className="toc">
-              <summary>{doc.blocks.length} questions</summary>
+              <summary>{t("doc.questions", { count: doc.blocks.length })}</summary>
               <ol>
                 {doc.blocks.map((block, i) => (
                   <li key={i}>

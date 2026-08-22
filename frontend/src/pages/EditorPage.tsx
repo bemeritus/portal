@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import {
@@ -37,6 +38,7 @@ function newBlock(block: QaBlockInput = { question: "", answer: "" }): EditableB
 export function EditorPage() {
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -46,13 +48,13 @@ export function EditorPage() {
   const [blocks, setBlocks] = useState<EditableBlock[]>(() => [newBlock()]);
   const [error, setError] = useState<string | null>(null);
 
-  const heading = isEdit ? "Edit document" : "New document";
+  const heading = isEdit ? t("editor.editDocument") : t("editor.newDocument");
   const backHref = isEdit ? `/docs/${id}` : "/";
-  const backLabel = isEdit ? "← Back to document" : "← All documents";
+  const backLabel = isEdit ? t("editor.backToDocument") : t("editor.allDocuments");
 
   useEffect(() => {
-    document.title = `${heading} · Knowledge Base`;
-  }, [heading]);
+    document.title = t("docTitle", { page: heading, app: t("app.name") });
+  }, [heading, t]);
 
   // Only the categories the caller may write or edit in (FR-25). Offering the
   // rest would be offering a save the server is going to refuse.
@@ -129,11 +131,11 @@ export function EditorPage() {
   }
 
   const disabledReason = useMemo(() => {
-    if (titleMissing && categoryMissing) return "Add a title and choose a category to save.";
-    if (titleMissing) return "Add a title to save.";
-    if (categoryMissing) return "Choose a category to save.";
+    if (titleMissing && categoryMissing) return t("editor.saveTitleAndCategory");
+    if (titleMissing) return t("editor.saveAddTitle");
+    if (categoryMissing) return t("editor.saveChooseCategory");
     return null;
-  }, [titleMissing, categoryMissing]);
+  }, [titleMissing, categoryMissing, t]);
 
   if (isEdit && draftQuery.isPending) return <Spinner />;
   if (isEdit && draftQuery.error) {
@@ -156,20 +158,20 @@ export function EditorPage() {
 
       <form onSubmit={onSubmit}>
         <div className="panel">
-          <label htmlFor="title">Title</label>
+          <label htmlFor="title">{t("editor.title")}</label>
           <input
             id="title"
             type="text"
-            placeholder="What is this document about?"
+            placeholder={t("editor.titlePlaceholder")}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
 
           <div className="row">
             <div>
-              <label htmlFor="cat">Category</label>
+              <label htmlFor="cat">{t("editor.category")}</label>
               <select id="cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-                <option value="">— choose —</option>
+                <option value="">{t("editor.choose")}</option>
                 {(categoriesQuery.data ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -181,37 +183,33 @@ export function EditorPage() {
                 <ErrorFlash error={errorMessage(categoriesQuery.error)} />
               )}
               {categoriesQuery.data?.length === 0 && (
-                <p className="hint">
-                  You have no categories you can write in. An administrator grants those.
-                </p>
+                <p className="hint">{t("editor.noWritable")}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="status">Status</label>
+              <label htmlFor="status">{t("editor.status")}</label>
               <select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
+                <option value="draft">{t("editor.statusDraft")}</option>
+                <option value="published">{t("editor.statusPublished")}</option>
               </select>
               {/* Says what status actually does. It marks the document; it does
                   not restrict who can open it — see §12.9. */}
-              <p className="hint">
-                A label, not a permission: everyone who can read this category can open the
-                document either way.
-              </p>
+              <p className="hint">{t("editor.statusHint")}</p>
             </div>
           </div>
         </div>
 
         <h3 style={{ marginTop: 24 }}>
-          Q&amp;A blocks
+          {t("editor.qaBlocks")}
           <span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>
             {` (${blocks.length})`}
           </span>
         </h3>
         <p className="muted">
-          Answers accept Markdown. Use the image button in a block to upload a picture and drop
-          the <code>![alt](/uploads/…)</code> snippet straight into it.
+          {t("editor.markdownHint1")}
+          <code>![alt](/uploads/…)</code>
+          {t("editor.markdownHint2")}
         </p>
 
         {blocks.map((block, i) => (
@@ -233,7 +231,7 @@ export function EditorPage() {
           className="btn secondary"
           onClick={() => setBlocks((prev) => [...prev, newBlock()])}
         >
-          + Add block
+          {t("editor.addBlock")}
         </button>
 
         <ErrorFlash error={error} />
@@ -241,10 +239,10 @@ export function EditorPage() {
         <div className="form-bar">
           <button className="btn" type="submit" disabled={busy || titleMissing || categoryMissing}>
             {busy && <span className="spinner" />}
-            {busy ? "Saving…" : "Save"}
+            {busy ? t("common.saving") : t("common.save")}
           </button>
           <Link className="btn secondary" to={backHref}>
-            Cancel
+            {t("common.cancel")}
           </Link>
           {/* Explains a disabled Save instead of leaving it a mystery. */}
           {disabledReason && (
@@ -279,6 +277,7 @@ function BlockEditor({
   onMove,
   onRemove,
 }: BlockEditorProps) {
+  const { t } = useTranslation();
   const fileInput = useRef<HTMLInputElement>(null);
   const answerRef = useRef<HTMLTextAreaElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -312,13 +311,13 @@ function BlockEditor({
   return (
     <div className="block-editor">
       <div className="block-head">
-        <strong>{`Question ${number}`}</strong>
+        <strong>{t("editor.question", { number })}</strong>
         <div className="grow-0">
           <button
             type="button"
             className="btn icon secondary"
-            title="Move up"
-            aria-label="Move this block up"
+            title={t("editor.moveUp")}
+            aria-label={t("editor.moveUpAria")}
             disabled={isFirst}
             onClick={() => onMove(-1)}
           >
@@ -327,8 +326,8 @@ function BlockEditor({
           <button
             type="button"
             className="btn icon secondary"
-            title="Move down"
-            aria-label="Move this block down"
+            title={t("editor.moveDown")}
+            aria-label={t("editor.moveDownAria")}
             disabled={isLast}
             onClick={() => onMove(1)}
           >
@@ -339,35 +338,39 @@ function BlockEditor({
               <button
                 type="button"
                 className="btn small danger"
-                title="A document needs at least one block"
+                title={t("editor.removeDisabledTitle")}
                 disabled
               >
-                Remove
+                {t("common.remove")}
               </button>
             ) : (
               // A block can hold a lot of typing — never drop it on a single
               // stray click.
-              <ConfirmButton label="Remove" confirmLabel="Yes, remove" onConfirm={onRemove} />
+              <ConfirmButton
+                label={t("common.remove")}
+                confirmLabel={t("editor.yesRemove")}
+                onConfirm={onRemove}
+              />
             )}
           </span>
         </div>
       </div>
 
-      <label htmlFor={questionId}>Question</label>
+      <label htmlFor={questionId}>{t("editor.questionLabel")}</label>
       <input
         id={questionId}
         type="text"
-        placeholder="e.g. How do I reset my password?"
+        placeholder={t("editor.questionPlaceholder")}
         value={block.question}
         onChange={(e) => onChange({ question: e.target.value })}
       />
 
-      <label htmlFor={answerId}>Answer (Markdown)</label>
+      <label htmlFor={answerId}>{t("editor.answerLabel")}</label>
       <textarea
         id={answerId}
         ref={answerRef}
         className="md-editor"
-        placeholder="Write the answer here. **Markdown** works."
+        placeholder={t("editor.answerPlaceholder")}
         value={block.answer}
         onChange={(e) => onChange({ answer: e.target.value })}
       />
@@ -392,9 +395,9 @@ function BlockEditor({
           disabled={upload.isPending}
           onClick={() => fileInput.current?.click()}
         >
-          {upload.isPending ? "Uploading…" : "Insert image"}
+          {upload.isPending ? t("editor.uploading") : t("editor.insertImage")}
         </button>
-        <span className="hint">PNG, JPEG, GIF or WebP, up to 5 MB.</span>
+        <span className="hint">{t("editor.uploadHint")}</span>
       </div>
 
       <ErrorFlash error={uploadError} />

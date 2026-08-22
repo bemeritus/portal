@@ -9,6 +9,7 @@
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface ConfirmButtonProps {
   /** Label in the resting state, e.g. "Delete". */
@@ -30,6 +31,7 @@ export function ConfirmButton({
   onConfirm,
 }: ConfirmButtonProps) {
   const [armed, setArmed] = useState(false);
+  const { t } = useTranslation();
 
   if (!armed) {
     return (
@@ -53,7 +55,7 @@ export function ConfirmButton({
         {confirmLabel}
       </button>
       <button type="button" className="btn small secondary" onClick={() => setArmed(false)}>
-        Cancel
+        {t("common.cancel")}
       </button>
     </span>
   );

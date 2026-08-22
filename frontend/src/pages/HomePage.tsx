@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi, documents as documentsApi } from "../api/endpoints";
@@ -31,11 +32,12 @@ export function HomePage() {
 
   const [titleInput, setTitleInput] = useState(titleParam);
   const user = useUser();
+  const { t } = useTranslation();
   const canWrite = hasAnywhere(user, "write");
 
   useEffect(() => {
-    document.title = "Documents · Knowledge Base";
-  }, []);
+    document.title = t("docTitle", { page: t("nav.documents"), app: t("app.name") });
+  }, [t]);
 
   // Someone else changed the URL (back button, a link): follow it.
   useEffect(() => {
@@ -92,10 +94,10 @@ export function HomePage() {
         className="doc-header"
         style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
       >
-        <h1 style={{ flex: 1, minWidth: 0 }}>Documents</h1>
+        <h1 style={{ flex: 1, minWidth: 0 }}>{t("nav.documents")}</h1>
         {canWrite && (
           <Link className="btn" to="/docs/new">
-            + New document
+            {t("home.newDocument")}
           </Link>
         )}
       </div>
@@ -103,19 +105,19 @@ export function HomePage() {
       <div className="panel" style={{ margin: "16px 0" }}>
         <div className="row">
           <div>
-            <label htmlFor="q">Search by title</label>
+            <label htmlFor="q">{t("home.searchByTitle")}</label>
             <input
               id="q"
               type="search"
               value={titleInput}
-              placeholder="Type to filter…"
+              placeholder={t("home.filterPlaceholder")}
               onChange={(e) => setTitleInput(e.target.value)}
             />
           </div>
           <div>
-            <label htmlFor="c">Category</label>
+            <label htmlFor="c">{t("home.category")}</label>
             <select id="c" value={categoryParam} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">All categories</option>
+              <option value="">{t("home.allCategories")}</option>
               {(categoriesQuery.data ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -130,7 +132,7 @@ export function HomePage() {
           {isFiltered && (
             <div className="grow-0">
               <button type="button" className="btn secondary" onClick={clearFilters}>
-                Clear filters
+                {t("common.clearFilters")}
               </button>
             </div>
           )}
@@ -142,11 +144,9 @@ export function HomePage() {
       {documentsQuery.isPending ? (
         <Skeletons />
       ) : documents.length === 0 ? (
-        <Empty title={isFiltered ? "No documents match your filters" : "No documents yet"}>
+        <Empty title={isFiltered ? t("home.noMatchTitle") : t("home.noneTitle")}>
           <p style={{ margin: "0 0 12px" }}>
-            {isFiltered
-              ? "Try a shorter search term, or a different category."
-              : "Documents you are allowed to read will show up here."}
+            {isFiltered ? t("home.tryOther") : t("home.willShow")}
           </p>
           {isFiltered && (
             <button type="button" className="btn secondary" onClick={clearFilters}>
@@ -159,7 +159,7 @@ export function HomePage() {
           {/* aria-live so the count is announced when a filter changes the
               list, which is otherwise a silent update for a screen reader. */}
           <div className="loading-inline" aria-live="polite" style={{ marginBottom: 10 }}>
-            {documents.length === 1 ? "1 document" : `${documents.length} documents`}
+            {t("home.count", { count: documents.length })}
             {documentsQuery.isFetching && <span className="spinner" />}
           </div>
 
@@ -171,7 +171,7 @@ export function HomePage() {
                 <span>{doc.author_username}</span>
                 <span aria-hidden="true">·</span>
                 <span>{formatDate(doc.created_at)}</span>
-                {doc.status === "draft" && <span className="badge draft">draft</span>}
+                {doc.status === "draft" && <span className="badge draft">{t("status.draft")}</span>}
               </div>
             </Link>
           ))}

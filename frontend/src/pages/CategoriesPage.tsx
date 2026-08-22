@@ -8,6 +8,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi } from "../api/endpoints";
@@ -19,6 +20,7 @@ import type { Category } from "../api/types";
 
 export function CategoriesPage() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -27,8 +29,8 @@ export function CategoriesPage() {
   const [editing, setEditing] = useState<Category | null>(null);
 
   useEffect(() => {
-    document.title = "Categories · Knowledge Base";
-  }, []);
+    document.title = t("docTitle", { page: t("categories.heading"), app: t("app.name") });
+  }, [t]);
 
   const list = useQuery({
     queryKey: ["categories"],
@@ -49,7 +51,7 @@ export function CategoriesPage() {
       setName("");
       setDescription("");
       setCreateError(null);
-      setNotice(`Created “${category.name}”.`);
+      setNotice(t("categories.created", { name: category.name }));
       await invalidate();
     },
     onError: (e) => setCreateError(errorMessage(e)),
@@ -64,7 +66,7 @@ export function CategoriesPage() {
     onSuccess: async () => {
       setEditing(null);
       setRowError(null);
-      setNotice("Saved.");
+      setNotice(t("categories.saved"));
       await invalidate();
     },
     onError: (e) => setRowError(errorMessage(e)),
@@ -74,7 +76,7 @@ export function CategoriesPage() {
     mutationFn: (id: string) => categoriesApi.remove(id),
     onSuccess: async () => {
       setRowError(null);
-      setNotice("Category deleted.");
+      setNotice(t("categories.deleted"));
       await invalidate();
     },
     onError: (e) => setRowError(errorMessage(e)),
@@ -88,14 +90,14 @@ export function CategoriesPage() {
 
   return (
     <>
-      <h1>Categories</h1>
+      <h1>{t("categories.heading")}</h1>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>New category</h3>
+        <h3 style={{ marginTop: 0 }}>{t("categories.newCategory")}</h3>
         <form onSubmit={onCreate}>
           <div className="row">
             <div>
-              <label htmlFor="cat-name">Name</label>
+              <label htmlFor="cat-name">{t("categories.name")}</label>
               <input
                 id="cat-name"
                 type="text"
@@ -104,7 +106,7 @@ export function CategoriesPage() {
               />
             </div>
             <div>
-              <label htmlFor="cat-desc">Description (optional)</label>
+              <label htmlFor="cat-desc">{t("categories.descriptionOptional")}</label>
               <input
                 id="cat-desc"
                 type="text"
@@ -114,7 +116,7 @@ export function CategoriesPage() {
             </div>
             <div className="grow-0">
               <button className="btn" type="submit" disabled={create.isPending || !name.trim()}>
-                {create.isPending ? "Adding…" : "Add"}
+                {create.isPending ? t("common.adding") : t("common.add")}
               </button>
             </div>
           </div>
@@ -125,25 +127,25 @@ export function CategoriesPage() {
       {notice && <Flash kind="ok">{notice}</Flash>}
       <ErrorFlash error={rowError} />
 
-      <h3 style={{ marginTop: 28 }}>All categories</h3>
+      <h3 style={{ marginTop: 28 }}>{t("categories.allHeading")}</h3>
 
       {list.isPending ? (
         <Spinner />
       ) : list.error ? (
         <ErrorFlash error={errorMessage(list.error)} />
       ) : list.data.length === 0 ? (
-        <Empty title="No categories yet">
-          <p className="muted">Create one above; documents need a category to live in.</p>
+        <Empty title={t("categories.noneTitle")}>
+          <p className="muted">{t("categories.noneBody")}</p>
         </Empty>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th className="wrap">Description</th>
-                <th>Slug</th>
-                <th>Created</th>
+                <th>{t("categories.thName")}</th>
+                <th className="wrap">{t("categories.thDescription")}</th>
+                <th>{t("categories.thSlug")}</th>
+                <th>{t("categories.thCreated")}</th>
                 <th />
               </tr>
             </thead>
@@ -155,7 +157,7 @@ export function CategoriesPage() {
                       <input
                         type="text"
                         value={editing.name}
-                        aria-label="Category name"
+                        aria-label={t("categories.nameAria")}
                         onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                       />
                     </td>
@@ -163,7 +165,7 @@ export function CategoriesPage() {
                       <input
                         type="text"
                         value={editing.description ?? ""}
-                        aria-label="Category description"
+                        aria-label={t("categories.descAria")}
                         onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                       />
                     </td>
@@ -177,14 +179,14 @@ export function CategoriesPage() {
                           disabled={update.isPending || !editing.name.trim()}
                           onClick={() => update.mutate(editing)}
                         >
-                          Save
+                          {t("common.save")}
                         </button>
                         <button
                           className="btn small secondary"
                           type="button"
                           onClick={() => setEditing(null)}
                         >
-                          Cancel
+                          {t("common.cancel")}
                         </button>
                       </span>
                     </td>
@@ -208,11 +210,11 @@ export function CategoriesPage() {
                             setEditing(category);
                           }}
                         >
-                          Rename
+                          {t("common.rename")}
                         </button>
                         <ConfirmButton
-                          label="Delete"
-                          confirmLabel="Delete"
+                          label={t("common.delete")}
+                          confirmLabel={t("common.delete")}
                           pending={remove.isPending}
                           onConfirm={() => {
                             setNotice(null);
