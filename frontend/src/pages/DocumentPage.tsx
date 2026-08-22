@@ -1,5 +1,5 @@
 /**
- * `/docs/:id` — one document, its Q&A blocks in order (FR-21).
+ * `/templates/docs/:id` — one document, its Q&A blocks in order (FR-21).
  *
  * Answers arrive as HTML the server already rendered and sanitized. That is
  * why `dangerouslySetInnerHTML` is acceptable here and would not be if the
@@ -46,7 +46,7 @@ export function DocumentPage() {
       // The list this document was on is now wrong. Invalidate rather than
       // refetch: the user is leaving for the home page, which will ask.
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
-      navigate("/", { replace: true });
+      navigate("/templates", { replace: true });
     },
   });
 
@@ -54,7 +54,7 @@ export function DocumentPage() {
   if (error) {
     return (
       <>
-        <Link className="backlink" to="/">
+        <Link className="backlink" to="/templates">
           {t("doc.back")}
         </Link>
         <ErrorFlash error={errorMessage(error)} />
@@ -67,7 +67,7 @@ export function DocumentPage() {
 
   return (
     <>
-      <Link className="backlink" to="/">
+      <Link className="backlink" to="/templates">
         {t("doc.back")}
       </Link>
 
@@ -92,7 +92,7 @@ export function DocumentPage() {
         {(canEdit || canDelete) && (
           <div className="actions">
             {canEdit && (
-              <Link className="btn secondary small" to={`/docs/${doc.id}/edit`}>
+              <Link className="btn secondary small" to={`/templates/docs/${doc.id}/edit`}>
                 {t("common.edit")}
               </Link>
             )}

@@ -282,6 +282,17 @@ pub struct LearningResourceBody {
     pub status: String,
 }
 
+/// The raw (markdown) form of a resource, used to populate the editor — the
+/// author-only counterpart to a document's draft. Readers get the rendered
+/// view; only an author fetches the source back.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningResourceDraft {
+    pub id: Uuid,
+    pub title: String,
+    pub body: String,
+    pub status: String,
+}
+
 /// One row of the test list. `question_count` lets the list say how long a test
 /// is without loading its questions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
@@ -340,6 +351,31 @@ pub struct TestQuestionInput {
 pub struct TestOptionInput {
     pub label: String,
     #[serde(default)]
+    pub is_correct: bool,
+}
+
+/// The raw form of a test for its author's editor — the take view plus the
+/// `is_correct` flags it deliberately hides, so the author can see and change
+/// which option is right.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct LearningTestDraft {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub pass_score: Option<i32>,
+    pub questions: Vec<TestQuestionDraft>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TestQuestionDraft {
+    pub prompt: String,
+    pub options: Vec<TestOptionDraft>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TestOptionDraft {
+    pub label: String,
     pub is_correct: bool,
 }
 
@@ -412,6 +448,15 @@ pub struct LabProgressView {
 /// The authoring payload for a lab (raw markdown brief).
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct LearningLabBody {
+    pub title: String,
+    pub brief: String,
+    pub status: String,
+}
+
+/// The raw (markdown) form of a lab, used to populate the editor.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningLabDraft {
+    pub id: Uuid,
     pub title: String,
     pub brief: String,
     pub status: String,

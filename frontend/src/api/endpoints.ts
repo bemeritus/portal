@@ -9,6 +9,9 @@
 
 import { api } from "./client";
 import type {
+  AttemptResult,
+  AttemptRow,
+  AttemptSubmit,
   AuditEntry,
   Category,
   CategoryBody,
@@ -18,6 +21,20 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
+  LabProgressSubmit,
+  LabSubmissionRow,
+  LearningLabBody,
+  LearningLabDraft,
+  LearningLabSummary,
+  LearningLabView,
+  LearningResourceBody,
+  LearningResourceDraft,
+  LearningResourceSummary,
+  LearningResourceView,
+  LearningTestBody,
+  LearningTestDraft,
+  LearningTestSummary,
+  LearningTestView,
   SectionAccess,
   UploadResponse,
   User,
@@ -105,6 +122,68 @@ export const audit = {
       })}`,
       signal,
     ),
+};
+
+// The learning section: resources, tests and labs. Reading needs section
+// access; creating/editing needs the author bit; the results/submissions
+// endpoints are admin-only. The server enforces all of it — these are just the
+// URLs.
+const LEARNING = `${BASE}/learning`;
+
+export const learning = {
+  resources: {
+    list: (signal?: AbortSignal) =>
+      api.get<LearningResourceSummary[]>(`${LEARNING}/resources`, signal),
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningResourceView>(`${LEARNING}/resources/${id}`, signal),
+    /** Raw markdown source, for the editor. Requires the author permission. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningResourceDraft>(`${LEARNING}/resources/${id}/edit`, signal),
+    create: (body: LearningResourceBody) =>
+      api.post<{ id: Uuid }>(`${LEARNING}/resources`, body),
+    update: (id: Uuid, body: LearningResourceBody) =>
+      api.put<void>(`${LEARNING}/resources/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${LEARNING}/resources/${id}`),
+  },
+  tests: {
+    list: (signal?: AbortSignal) => api.get<LearningTestSummary[]>(`${LEARNING}/tests`, signal),
+    /** The take view — questions and options, never which one is correct. */
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningTestView>(`${LEARNING}/tests/${id}`, signal),
+    /** Full test with the correct flags, for the editor. Author only. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningTestDraft>(`${LEARNING}/tests/${id}/edit`, signal),
+    create: (body: LearningTestBody) => api.post<{ id: Uuid }>(`${LEARNING}/tests`, body),
+    update: (id: Uuid, body: LearningTestBody) =>
+      api.put<void>(`${LEARNING}/tests/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${LEARNING}/tests/${id}`),
+    /** Submit answers; the server scores and returns the graded result. */
+    submit: (id: Uuid, body: AttemptSubmit) =>
+      api.post<AttemptResult>(`${LEARNING}/tests/${id}/attempts`, body),
+    /** The caller's own attempts on a test. */
+    myAttempts: (id: Uuid, signal?: AbortSignal) =>
+      api.get<AttemptResult[]>(`${LEARNING}/tests/${id}/attempts`, signal),
+    /** Everyone's attempts — admin only. */
+    results: (id: Uuid, signal?: AbortSignal) =>
+      api.get<AttemptRow[]>(`${LEARNING}/tests/${id}/results`, signal),
+  },
+  labs: {
+    list: (signal?: AbortSignal) => api.get<LearningLabSummary[]>(`${LEARNING}/labs`, signal),
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningLabView>(`${LEARNING}/labs/${id}`, signal),
+    /** Raw markdown source, for the editor. Author only. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningLabDraft>(`${LEARNING}/labs/${id}/edit`, signal),
+    create: (body: LearningLabBody) => api.post<{ id: Uuid }>(`${LEARNING}/labs`, body),
+    update: (id: Uuid, body: LearningLabBody) => api.put<void>(`${LEARNING}/labs/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${LEARNING}/labs/${id}`),
+    /** Advance the caller's own progress on a lab. */
+    saveProgress: (id: Uuid, body: LabProgressSubmit) =>
+      api.put<void>(`${LEARNING}/labs/${id}/progress`, body),
+    /** Everyone's progress — admin only. */
+    submissions: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LabSubmissionRow[]>(`${LEARNING}/labs/${id}/submissions`, signal),
+  },
 };
 
 export const uploads = {

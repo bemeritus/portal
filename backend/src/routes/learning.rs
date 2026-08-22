@@ -30,9 +30,10 @@ use crate::error::{db_reference, internal, ApiError, ApiResult};
 use crate::models::{
     normalize_lab_state, normalize_status, AttemptAnswer, AttemptResult, AttemptRow,
     AttemptSubmit, LabProgressSubmit, LabProgressView, LabSubmissionRow, LearningLabBody,
-    LearningLabSummary, LearningLabView, LearningResourceBody, LearningResourceSummary,
-    LearningResourceView, LearningTestBody, LearningTestSummary, LearningTestView, Section,
-    TestOptionView, TestQuestionView,
+    LearningLabDraft, LearningLabSummary, LearningLabView, LearningResourceBody,
+    LearningResourceDraft, LearningResourceSummary, LearningResourceView, LearningTestBody,
+    LearningTestDraft, LearningTestSummary, LearningTestView, Section, TestOptionDraft,
+    TestOptionView, TestQuestionDraft, TestQuestionView,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -48,6 +49,7 @@ fn resource_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_resources).post(create_resource))
         .route("/{id}", get(get_resource).put(update_resource).delete(remove_resource))
+        .route("/{id}/edit", get(get_resource_draft))
 }
 
 /// List resources: published for everyone in the section, plus drafts for those
@@ -115,6 +117,23 @@ async fn get_resource(
         created_at: row.created_at,
         updated_at: row.updated_at,
     }))
+}
+
+/// The raw source of a resource, for its author's editor.
+async fn get_resource_draft(
+    State(state): State<AppState>,
+    LearningAuthor(_): LearningAuthor,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<LearningResourceDraft>> {
+    let row = sqlx::query_as::<_, LearningResourceDraft>(
+        "SELECT id, title, body, status FROM learning_resources WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| internal("loading a resource draft", e))?
+    .ok_or_else(|| ApiError::NotFound("Resource not found".into()))?;
+    Ok(Json(row))
 }
 
 async fn create_resource(
@@ -229,6 +248,7 @@ fn test_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_tests).post(create_test))
         .route("/{id}", get(get_test).put(update_test).delete(remove_test))
+        .route("/{id}/edit", get(get_test_draft))
         .route("/{id}/attempts", get(my_attempts).post(submit_attempt))
         .route("/{id}/results", get(test_results))
 }
@@ -325,6 +345,69 @@ async fn load_take_questions(state: &AppState, test_id: Uuid) -> ApiResult<Vec<T
             options: by_question.remove(&qid).unwrap_or_default(),
         })
         .collect())
+}
+
+/// The full test for its author's editor — questions, options, and the
+/// `is_correct` flags the take view withholds.
+async fn get_test_draft(
+    State(state): State<AppState>,
+    LearningAuthor(_): LearningAuthor,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<LearningTestDraft>> {
+    let meta: Option<(String, Option<String>, String, Option<i32>)> = sqlx::query_as(
+        "SELECT title, description, status, pass_score FROM learning_tests WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| internal("loading a test draft", e))?;
+    let (title, description, status, pass_score) =
+        meta.ok_or_else(|| ApiError::NotFound("Test not found".into()))?;
+
+    let question_rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, prompt FROM learning_test_questions WHERE test_id = $1 ORDER BY position, id",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("loading test draft questions", e))?;
+
+    let option_rows: Vec<(Uuid, String, bool)> = sqlx::query_as(
+        "SELECT o.question_id, o.label, o.is_correct
+         FROM learning_test_options o
+         JOIN learning_test_questions q ON q.id = o.question_id
+         WHERE q.test_id = $1
+         ORDER BY o.position, o.id",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("loading test draft options", e))?;
+
+    let mut by_question: HashMap<Uuid, Vec<TestOptionDraft>> = HashMap::new();
+    for (question_id, label, is_correct) in option_rows {
+        by_question
+            .entry(question_id)
+            .or_default()
+            .push(TestOptionDraft { label, is_correct });
+    }
+
+    let questions = question_rows
+        .into_iter()
+        .map(|(qid, prompt)| TestQuestionDraft {
+            prompt,
+            options: by_question.remove(&qid).unwrap_or_default(),
+        })
+        .collect();
+
+    Ok(Json(LearningTestDraft {
+        id,
+        title,
+        description,
+        status,
+        pass_score,
+        questions,
+    }))
 }
 
 async fn create_test(
@@ -509,7 +592,6 @@ async fn submit_attempt(
     Path(test_id): Path<Uuid>,
     Json(body): Json<AttemptSubmit>,
 ) -> ApiResult<Json<AttemptResult>> {
-    // Only a published test can be taken; a draft answers 404 as everywhere.
     let row: Option<(String, Option<i32>)> =
         sqlx::query_as("SELECT status, pass_score FROM learning_tests WHERE id = $1")
             .bind(test_id)
@@ -517,7 +599,12 @@ async fn submit_attempt(
             .await
             .map_err(|e| internal("loading a test to submit", e))?;
     let (status, pass_score) = row.ok_or_else(|| ApiError::NotFound("Test not found".into()))?;
-    if status != "published" {
+    // A learner only ever reaches a published test. An author or admin also
+    // sees drafts (get_test returns them), so they must be able to submit
+    // against one too — otherwise a test-drive of an unpublished test opens
+    // fine and then fails on submit with a misleading "not found". This is the
+    // same rule the take view uses, so "can open" and "can submit" agree.
+    if status != "published" && !user.can_author(Section::Learning) {
         return Err(ApiError::NotFound("Test not found".into()));
     }
 
@@ -669,6 +756,7 @@ fn lab_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_labs).post(create_lab))
         .route("/{id}", get(get_lab).put(update_lab).delete(remove_lab))
+        .route("/{id}/edit", get(get_lab_draft))
         .route("/{id}/progress", put(save_progress))
         .route("/{id}/submissions", get(lab_submissions))
 }
@@ -746,6 +834,23 @@ async fn get_lab(
         created_at: row.created_at,
         updated_at: row.updated_at,
     }))
+}
+
+/// The raw source of a lab, for its author's editor.
+async fn get_lab_draft(
+    State(state): State<AppState>,
+    LearningAuthor(_): LearningAuthor,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<LearningLabDraft>> {
+    let row = sqlx::query_as::<_, LearningLabDraft>(
+        "SELECT id, title, brief, status FROM learning_labs WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| internal("loading a lab draft", e))?
+    .ok_or_else(|| ApiError::NotFound("Lab not found".into()))?;
+    Ok(Json(row))
 }
 
 async fn create_lab(

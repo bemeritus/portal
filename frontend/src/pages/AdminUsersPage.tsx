@@ -57,10 +57,15 @@ function SectionPicker({
   state,
   onChange,
   idPrefix,
+  templatesForced = false,
 }: {
   state: SectionState;
   onChange: (next: SectionState) => void;
   idPrefix: string;
+  /** A held category grant implies the templates door, so the box is shown
+      ticked and locked rather than letting the admin contradict what the
+      server will store. */
+  templatesForced?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -69,7 +74,8 @@ function SectionPicker({
         <input
           id={`${idPrefix}-sec-templates`}
           type="checkbox"
-          checked={state.templates}
+          checked={state.templates || templatesForced}
+          disabled={templatesForced}
           onChange={(e) => onChange({ ...state, templates: e.target.checked })}
         />
         {t("users.sectionTemplates")}
@@ -320,7 +326,14 @@ function CreateUserForm({
         // An admin holds everything everywhere, so sending a matrix or section
         // list for one would store rows that can never change an outcome.
         category_perms: isAdmin ? [] : toGrants(matrix),
-        sections: isAdmin ? [] : toSections(sections),
+        // Fold in the templates door a category grant implies, so the payload
+        // matches what the picker shows (and what the server would add anyway).
+        sections: isAdmin
+          ? []
+          : toSections({
+              ...sections,
+              templates: sections.templates || toGrants(matrix).length > 0,
+            }),
       }),
     onSuccess: () => {
       onCreated(username.trim());
@@ -397,7 +410,12 @@ function CreateUserForm({
         {!isAdmin && (
           <div style={{ marginTop: 14 }}>
             <label>{t("users.sectionAccess")}</label>
-            <SectionPicker state={sections} onChange={setSections} idPrefix="new" />
+            <SectionPicker
+              state={sections}
+              onChange={setSections}
+              idPrefix="new"
+              templatesForced={toGrants(matrix).length > 0}
+            />
 
             <label style={{ marginTop: 14, display: "block" }}>
               {t("users.categoryPermissions")}
@@ -455,8 +473,17 @@ function UserRow({
 
   const savePermissions = useMutation({
     // Grants and sections go together: the server writes them in one
-    // transaction and derives the templates door from the grants.
-    mutationFn: () => usersApi.setPermissions(user.id, toGrants(matrix), toSections(sections)),
+    // transaction and derives the templates door from the grants, so we fold
+    // that same implication into the payload here.
+    mutationFn: () =>
+      usersApi.setPermissions(
+        user.id,
+        toGrants(matrix),
+        toSections({
+          ...sections,
+          templates: sections.templates || toGrants(matrix).length > 0,
+        }),
+      ),
     onSuccess: () => {
       setError(null);
       onChanged(t("users.permsSaved", { name: user.username }));
@@ -521,7 +548,12 @@ function UserRow({
             </summary>
             <div style={{ marginTop: 10 }}>
               <label>{t("users.sectionAccess")}</label>
-              <SectionPicker state={sections} onChange={setSections} idPrefix={user.id} />
+              <SectionPicker
+                state={sections}
+                onChange={setSections}
+                idPrefix={user.id}
+                templatesForced={toGrants(matrix).length > 0}
+              />
             </div>
             <label style={{ marginTop: 12, display: "block" }}>
               {t("users.categoryPermissions")}
