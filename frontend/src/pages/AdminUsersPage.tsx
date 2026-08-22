@@ -19,10 +19,93 @@ import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash, Flash } from "../components/Flash";
 import { Empty, Spinner } from "../components/Loading";
 import { formatDate } from "../format";
-import type { Category, CategoryPermission, User, Uuid } from "../api/types";
+import type { Category, CategoryPermission, SectionAccess, User, Uuid } from "../api/types";
 
 /** The matrix as the UI holds it: one entry per category, all four flags. */
 type Matrix = Record<Uuid, CategoryPermission>;
+
+/**
+ * The section boxes as the UI holds them. `learning` gates the author box: you
+ * cannot make a teacher of someone who is not in the section.
+ */
+type SectionState = { templates: boolean; learning: boolean; learningAuthor: boolean };
+
+const EMPTY_SECTIONS: SectionState = {
+  templates: false,
+  learning: false,
+  learningAuthor: false,
+};
+
+function sectionStateFor(sections: SectionAccess[]): SectionState {
+  const learning = sections.find((s) => s.section === "learning");
+  return {
+    templates: sections.some((s) => s.section === "templates"),
+    learning: !!learning,
+    learningAuthor: !!learning?.can_author,
+  };
+}
+
+/** The shape the API wants — only the opened sections, author bit folded in. */
+function toSections(state: SectionState): SectionAccess[] {
+  const out: SectionAccess[] = [];
+  if (state.templates) out.push({ section: "templates", can_author: false });
+  if (state.learning) out.push({ section: "learning", can_author: state.learningAuthor });
+  return out;
+}
+
+function SectionPicker({
+  state,
+  onChange,
+  idPrefix,
+}: {
+  state: SectionState;
+  onChange: (next: SectionState) => void;
+  idPrefix: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="section-picker" style={{ display: "grid", gap: 6 }}>
+      <label className="chk" htmlFor={`${idPrefix}-sec-templates`}>
+        <input
+          id={`${idPrefix}-sec-templates`}
+          type="checkbox"
+          checked={state.templates}
+          onChange={(e) => onChange({ ...state, templates: e.target.checked })}
+        />
+        {t("users.sectionTemplates")}
+      </label>
+      <label className="chk" htmlFor={`${idPrefix}-sec-learning`}>
+        <input
+          id={`${idPrefix}-sec-learning`}
+          type="checkbox"
+          checked={state.learning}
+          onChange={(e) =>
+            // Leaving the section clears the author bit — a teacher with no
+            // section is the kind of dead state the server would drop anyway.
+            onChange({
+              ...state,
+              learning: e.target.checked,
+              learningAuthor: e.target.checked && state.learningAuthor,
+            })
+          }
+        />
+        {t("users.sectionLearning")}
+      </label>
+      {state.learning && (
+        <label className="chk" htmlFor={`${idPrefix}-sec-learning-author`} style={{ marginLeft: 22 }}>
+          <input
+            id={`${idPrefix}-sec-learning-author`}
+            type="checkbox"
+            checked={state.learningAuthor}
+            onChange={(e) => onChange({ ...state, learningAuthor: e.target.checked })}
+          />
+          {t("users.sectionLearningAuthor")}
+        </label>
+      )}
+      <p className="hint">{t("users.sectionsHint")}</p>
+    </div>
+  );
+}
 
 const FLAGS = [
   { key: "can_read", labelKey: "perm.read" },
@@ -177,6 +260,7 @@ export function AdminUsersPage() {
               <tr>
                 <th>{t("users.thUsername")}</th>
                 <th>{t("users.thRole")}</th>
+                <th>{t("users.thSections")}</th>
                 <th className="wrap">{t("users.thCategories")}</th>
                 <th>{t("users.thStatus")}</th>
                 <th>{t("users.thResetPassword")}</th>
@@ -212,6 +296,7 @@ function CreateUserForm({
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [matrix, setMatrix] = useState<Matrix>({});
+  const [sections, setSections] = useState<SectionState>(EMPTY_SECTIONS);
   const [error, setError] = useState<string | null>(null);
 
   // Categories arrive after the first render, and a category created while
@@ -232,9 +317,10 @@ function CreateUserForm({
         username,
         password,
         is_admin: isAdmin,
-        // An admin holds everything everywhere, so sending a matrix for one
-        // would store rows that can never change an outcome.
+        // An admin holds everything everywhere, so sending a matrix or section
+        // list for one would store rows that can never change an outcome.
         category_perms: isAdmin ? [] : toGrants(matrix),
+        sections: isAdmin ? [] : toSections(sections),
       }),
     onSuccess: () => {
       onCreated(username.trim());
@@ -242,6 +328,7 @@ function CreateUserForm({
       setPassword("");
       setIsAdmin(false);
       setMatrix(emptyMatrix(categories));
+      setSections(EMPTY_SECTIONS);
       setError(null);
     },
     onError: (e) => setError(errorMessage(e)),
@@ -309,7 +396,12 @@ function CreateUserForm({
 
         {!isAdmin && (
           <div style={{ marginTop: 14 }}>
-            <label>{t("users.categoryPermissions")}</label>
+            <label>{t("users.sectionAccess")}</label>
+            <SectionPicker state={sections} onChange={setSections} idPrefix="new" />
+
+            <label style={{ marginTop: 14, display: "block" }}>
+              {t("users.categoryPermissions")}
+            </label>
             <PermMatrix
               categories={categories}
               matrix={matrix}
@@ -349,6 +441,7 @@ function UserRow({
 }) {
   const { t } = useTranslation();
   const [matrix, setMatrix] = useState<Matrix>(() => matrixFor(categories, user.category_perms));
+  const [sections, setSections] = useState<SectionState>(() => sectionStateFor(user.sections));
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -356,9 +449,14 @@ function UserRow({
   useEffect(() => {
     setMatrix(matrixFor(categories, user.category_perms));
   }, [categories, user.category_perms]);
+  useEffect(() => {
+    setSections(sectionStateFor(user.sections));
+  }, [user.sections]);
 
   const savePermissions = useMutation({
-    mutationFn: () => usersApi.setPermissions(user.id, toGrants(matrix)),
+    // Grants and sections go together: the server writes them in one
+    // transaction and derives the templates door from the grants.
+    mutationFn: () => usersApi.setPermissions(user.id, toGrants(matrix), toSections(sections)),
     onSuccess: () => {
       setError(null);
       onChanged(t("users.permsSaved", { name: user.username }));
@@ -401,6 +499,19 @@ function UserRow({
       <td className="wrap">
         {user.is_admin ? (
           <span className="muted">{t("users.all")}</span>
+        ) : user.sections.length === 0 ? (
+          <span className="muted">{t("users.noSections")}</span>
+        ) : (
+          user.sections
+            .map((s) =>
+              s.section === "learning" && s.can_author ? `${s.section} (author)` : s.section,
+            )
+            .join(", ")
+        )}
+      </td>
+      <td className="wrap">
+        {user.is_admin ? (
+          <span className="muted">{t("users.all")}</span>
         ) : (
           <details className="cat-perms">
             <summary>
@@ -408,6 +519,13 @@ function UserRow({
                 ? t("users.noCategories")
                 : t("users.categories", { count: grantCount })}
             </summary>
+            <div style={{ marginTop: 10 }}>
+              <label>{t("users.sectionAccess")}</label>
+              <SectionPicker state={sections} onChange={setSections} idPrefix={user.id} />
+            </div>
+            <label style={{ marginTop: 12, display: "block" }}>
+              {t("users.categoryPermissions")}
+            </label>
             <PermMatrix
               categories={categories}
               matrix={matrix}

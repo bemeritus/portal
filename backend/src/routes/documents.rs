@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::audit::{audit_now, audit_tx, Audit};
-use crate::auth::{require_in_category, CurrentUser};
+use crate::auth::{require_in_category, InTemplates};
 use crate::content::render_markdown;
 use crate::db::AppState;
 use crate::error::{db_reference, internal, ApiError, ApiResult};
@@ -55,7 +55,7 @@ pub struct CreatedDocument {
 /// makes SR-9 true for listings and not just for single records.
 async fn list(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
     Query(params): Query<ListParams>,
 ) -> ApiResult<Json<Vec<DocumentSummary>>> {
     let title = params
@@ -91,7 +91,7 @@ async fn list(
 /// FR-21: one document with its blocks, answers rendered to sanitized HTML.
 async fn get_one(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<DocumentWithBlocks>> {
     #[derive(sqlx::FromRow)]
@@ -161,7 +161,7 @@ async fn get_one(
 /// that is what the caller is about to do with it.
 async fn get_draft(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<DocumentDraft>> {
     #[derive(sqlx::FromRow)]
@@ -209,7 +209,7 @@ async fn get_draft(
 /// `WRITE` **in the chosen category**.
 async fn create(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
     Json(body): Json<DocumentBody>,
 ) -> ApiResult<(StatusCode, Json<CreatedDocument>)> {
     require_in_category(&user, Permission::Write, body.category_id)?;
@@ -286,7 +286,7 @@ async fn create(
 /// `EDIT` in the destination (SR-8).
 async fn update(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
     Path(id): Path<Uuid>,
     Json(body): Json<DocumentBody>,
 ) -> ApiResult<StatusCode> {
@@ -415,7 +415,7 @@ async fn update(
 /// Delete a document (blocks cascade). Requires `DELETE` in its category.
 async fn remove(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
     Path(id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     // The title is read before the delete because afterwards there is nowhere

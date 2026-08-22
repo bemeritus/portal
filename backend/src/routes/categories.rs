@@ -12,7 +12,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::audit::{audit_now, Audit};
-use crate::auth::{AdminUser, CurrentUser};
+use crate::auth::{AdminUser, InTemplates};
 use crate::content::{optional_text, slugify};
 use crate::db::AppState;
 use crate::error::{db_conflict, db_reference, internal, ApiError, ApiResult};
@@ -36,7 +36,7 @@ pub struct CategoryBody {
 /// only the ones they hold a grant on.
 async fn list(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
 ) -> ApiResult<Json<Vec<Category>>> {
     let visible = user.accessible_categories();
     Ok(Json(fetch(&state, user.is_admin, &visible).await?))
@@ -46,7 +46,7 @@ async fn list(
 /// editor's picker offers (FR-25).
 async fn list_writable(
     State(state): State<AppState>,
-    CurrentUser(user): CurrentUser,
+    InTemplates(user): InTemplates,
 ) -> ApiResult<Json<Vec<Category>>> {
     let mut writable = user.granted_categories(Permission::Write);
     for id in user.granted_categories(Permission::Edit) {

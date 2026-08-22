@@ -25,6 +25,22 @@ export interface CategoryPermission {
 }
 
 /**
+ * A section — the fixed top layer above categories. A closed set, mirroring the
+ * Rust `Section` enum; a new value here is always a new backend enum variant.
+ */
+export type Section = "templates" | "learning";
+
+/**
+ * One user's access to one section. `can_author` is only meaningful for
+ * `learning` (the server clears it elsewhere) — it is the teacher bit that lets
+ * a non-admin create learning content.
+ */
+export interface SectionAccess {
+  section: Section;
+  can_author: boolean;
+}
+
+/**
  * A user account, minus any secret material.
  *
  * Note what is *not* here: the legacy global `can_*` flags. They grant nothing
@@ -38,6 +54,7 @@ export interface User {
   is_active: boolean;
   created_at: Timestamp;
   category_perms: CategoryPermission[];
+  sections: SectionAccess[];
 }
 
 export interface Category {
@@ -127,4 +144,5 @@ export interface CreateUserBody {
   password: string;
   is_admin: boolean;
   category_perms: CategoryPermission[];
+  sections: SectionAccess[];
 }

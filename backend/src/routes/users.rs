@@ -16,7 +16,7 @@ use crate::audit::{audit_now, audit_tx, Audit};
 use crate::auth::{hash_password, AdminUser};
 use crate::db::AppState;
 use crate::error::{db_conflict, db_reference, internal, ApiError, ApiResult};
-use crate::models::{CategoryPermission, User};
+use crate::models::{CategoryPermission, Section, SectionAccess, User};
 
 /// Shortest password the platform accepts, for creation and for resets alike.
 const MIN_PASSWORD_LEN: usize = 6;
@@ -39,11 +39,20 @@ pub struct CreateUserBody {
     /// an admin gives them a category.
     #[serde(default)]
     category_perms: Vec<CategoryPermission>,
+    /// Sections to open at creation. A category grant implies the `templates`
+    /// section regardless (see [`clean_sections`]), so the two matrices cannot
+    /// disagree into a dead grant.
+    #[serde(default)]
+    sections: Vec<SectionAccess>,
 }
 
 #[derive(Deserialize)]
 pub struct PermissionsBody {
     category_perms: Vec<CategoryPermission>,
+    /// Section access is edited on the same screen as the category matrix, so
+    /// it is set in the same request — one write, one audit entry.
+    #[serde(default)]
+    sections: Vec<SectionAccess>,
 }
 
 #[derive(Deserialize)]
@@ -77,6 +86,89 @@ fn clean_grants(grants: Vec<CategoryPermission>) -> Vec<CategoryPermission> {
         }
     }
     seen
+}
+
+/// Normalize the section list an admin submitted, and close the one gap that
+/// would recreate a dead grant.
+///
+/// Two things happen here. First, `can_author` is cleared for every section but
+/// `learning` — the database forbids it elsewhere, so this turns what would be
+/// a 500 into the harmless truth. Second, if the user holds any category grant
+/// they are given the `templates` section whether or not the box was ticked: a
+/// grant with no door is exactly the dead state this layer exists to prevent,
+/// and the admin UI must not be able to produce it.
+fn clean_sections(
+    sections: Vec<SectionAccess>,
+    category_grants: &[CategoryPermission],
+) -> Vec<SectionAccess> {
+    let mut seen: Vec<SectionAccess> = Vec::new();
+    for s in sections {
+        let can_author = s.can_author && s.section == Section::Learning;
+        match seen.iter_mut().find(|x| x.section == s.section) {
+            Some(existing) => existing.can_author |= can_author,
+            None => seen.push(SectionAccess {
+                section: s.section,
+                can_author,
+            }),
+        }
+    }
+    let has_grant = category_grants.iter().any(|g| !g.is_empty());
+    if has_grant && !seen.iter().any(|s| s.section == Section::Templates) {
+        seen.push(SectionAccess {
+            section: Section::Templates,
+            can_author: false,
+        });
+    }
+    seen
+}
+
+/// Replace a user's section access inside an existing transaction.
+async fn replace_sections(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    granted_by: Uuid,
+    sections: &[SectionAccess],
+) -> ApiResult<()> {
+    sqlx::query("DELETE FROM user_sections WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| internal("clearing a user's section access", e))?;
+
+    for s in sections {
+        sqlx::query(
+            "INSERT INTO user_sections (user_id, section, can_author, granted_by)
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(user_id)
+        .bind(s.section.as_str())
+        .bind(s.can_author)
+        .bind(granted_by)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| internal("granting section access", e))?;
+    }
+    Ok(())
+}
+
+/// Describe section access for the audit log: "templates; learning (author)".
+/// The section names are fixed strings, so — unlike categories — there is
+/// nothing to look up.
+fn describe_sections(sections: &[SectionAccess]) -> String {
+    if sections.is_empty() {
+        return "no sections".to_string();
+    }
+    sections
+        .iter()
+        .map(|s| {
+            if s.can_author {
+                format!("{} (author)", s.section.as_str())
+            } else {
+                s.section.as_str().to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Spell out a set of grants for the audit log: "Onboarding: read, write".
@@ -201,6 +293,26 @@ async fn list(
         }
     }
 
+    // The same fan-out for section access, so the admin matrix arrives with the
+    // section boxes already reflecting reality.
+    let sections: Vec<(Uuid, String, bool)> =
+        sqlx::query_as("SELECT user_id, section, can_author FROM user_sections")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| internal("listing every user's section access", e))?;
+
+    for (user_id, section, can_author) in sections {
+        if let (Some(u), Some(section)) = (
+            users.iter_mut().find(|u| u.id == user_id),
+            Section::from_db(&section),
+        ) {
+            u.sections.push(SectionAccess {
+                section,
+                can_author,
+            });
+        }
+    }
+
     Ok(Json(users))
 }
 
@@ -220,6 +332,7 @@ async fn create(
         )));
     }
     let grants = clean_grants(body.category_perms);
+    let sections = clean_sections(body.sections, &grants);
     let hash =
         hash_password(&body.password).map_err(|e| internal("hashing a new user's password", e))?;
 
@@ -244,8 +357,10 @@ async fn create(
     .map_err(|e| db_conflict("creating a user", e, "That username is already taken"))?;
 
     replace_grants(&mut tx, user_id, admin.id, &grants).await?;
+    replace_sections(&mut tx, user_id, admin.id, &sections).await?;
 
     let granted = describe_grants(&mut tx, &grants).await?;
+    let granted_sections = describe_sections(&sections);
     audit_tx(
         &mut tx,
         &admin,
@@ -255,7 +370,7 @@ async fn create(
             target_id: Some(user_id),
             target_name: &username,
             details: Some(format!(
-                "{}; {granted}",
+                "{}; sections: {granted_sections}; {granted}",
                 if body.is_admin {
                     "administrator"
                 } else {
@@ -282,6 +397,7 @@ async fn set_permissions(
     Json(body): Json<PermissionsBody>,
 ) -> ApiResult<StatusCode> {
     let grants = clean_grants(body.category_perms);
+    let sections = clean_sections(body.sections, &grants);
 
     let mut tx = state
         .pool
@@ -300,8 +416,10 @@ async fn set_permissions(
         username.ok_or_else(|| ApiError::NotFound("That user no longer exists".into()))?;
 
     replace_grants(&mut tx, user_id, admin.id, &grants).await?;
+    replace_sections(&mut tx, user_id, admin.id, &sections).await?;
 
     let granted = describe_grants(&mut tx, &grants).await?;
+    let granted_sections = describe_sections(&sections);
     audit_tx(
         &mut tx,
         &admin,
@@ -310,7 +428,7 @@ async fn set_permissions(
             target_type: "user",
             target_id: Some(user_id),
             target_name: &username,
-            details: Some(granted),
+            details: Some(format!("sections: {granted_sections}; {granted}")),
         },
     )
     .await?;
