@@ -27,6 +27,11 @@ pub struct User {
     #[sqlx(skip)]
     #[serde(default)]
     pub category_perms: Vec<CategoryPermission>,
+    /// The sections this user may enter. Like `category_perms`, loaded by a
+    /// separate query rather than by `FromRow`.
+    #[sqlx(skip)]
+    #[serde(default)]
+    pub sections: Vec<SectionAccess>,
 }
 
 impl User {
@@ -59,6 +64,67 @@ impl User {
             .map(|c| c.category_id)
             .collect()
     }
+
+    /// Whether this user may enter a section — the outer door of the two-level
+    /// model. Admin, or a row in `user_sections`. There is no third term.
+    pub fn in_section(&self, section: Section) -> bool {
+        self.is_admin || self.sections.iter().any(|s| s.section == section)
+    }
+
+    /// Whether this user may author content in a section. Only ever true for
+    /// `Learning` (the database forbids the authoring bit on any other section).
+    pub fn can_author(&self, section: Section) -> bool {
+        self.is_admin
+            || self
+                .sections
+                .iter()
+                .any(|s| s.section == section && s.can_author)
+    }
+}
+
+/// A section — the code-level, fixed top layer above categories (§ sections).
+///
+/// This is deliberately a Rust enum, not a database lookup table: a new section
+/// is always new tables, new endpoints and new UI, so it is always a code
+/// change. Making it data would only invite the impression that a row alone
+/// could add one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Section {
+    Templates,
+    Learning,
+}
+
+impl Section {
+    /// The string stored in `user_sections.section` (must match the CHECK).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Section::Templates => "templates",
+            Section::Learning => "learning",
+        }
+    }
+
+    /// Parse the stored string back, ignoring anything the CHECK would reject.
+    pub fn from_db(value: &str) -> Option<Section> {
+        match value {
+            "templates" => Some(Section::Templates),
+            "learning" => Some(Section::Learning),
+            _ => None,
+        }
+    }
+}
+
+/// One user's access to one section. Doubles as the payload the admin UI sends
+/// when assigning sections, exactly as [`CategoryPermission`] does for grants.
+///
+/// `can_author` is only honored for [`Section::Learning`]; the database rejects
+/// it on any other section, and the admin handler clears it defensively before
+/// it ever gets there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SectionAccess {
+    pub section: Section,
+    #[serde(default)]
+    pub can_author: bool,
 }
 
 /// One user's permissions on one category (§4.2.1, §6.6). Doubles as the
@@ -178,6 +244,251 @@ pub struct AuditEntry {
     pub target_id: Option<Uuid>,
     pub target_name: String,
     pub details: Option<String>,
+}
+
+// --- Learning section -------------------------------------------------------
+//
+// An independent world (no categories, no documents). Content types carry an
+// author; the per-user state types (attempts, lab progress) carry the solver.
+
+/// One row of the resource list.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningResourceSummary {
+    pub id: Uuid,
+    pub title: String,
+    pub status: String,
+    pub author_username: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A resource to read, its markdown body rendered to sanitized HTML server-side.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LearningResourceView {
+    pub id: Uuid,
+    pub title: String,
+    pub status: String,
+    pub author_id: Uuid,
+    pub author_username: String,
+    pub body_html: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// The authoring payload for a resource (raw markdown body).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct LearningResourceBody {
+    pub title: String,
+    pub body: String,
+    pub status: String,
+}
+
+/// The raw (markdown) form of a resource, used to populate the editor — the
+/// author-only counterpart to a document's draft. Readers get the rendered
+/// view; only an author fetches the source back.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningResourceDraft {
+    pub id: Uuid,
+    pub title: String,
+    pub body: String,
+    pub status: String,
+}
+
+/// One row of the test list. `question_count` lets the list say how long a test
+/// is without loading its questions.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningTestSummary {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub author_username: String,
+    pub question_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A test as a taker sees it: questions and options, but **never** which option
+/// is correct — scoring is the server's job (see the migration note).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LearningTestView {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub questions: Vec<TestQuestionView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TestQuestionView {
+    pub id: Uuid,
+    pub prompt: String,
+    pub options: Vec<TestOptionView>,
+}
+
+/// Deliberately no `is_correct` — that field exists only on the server.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TestOptionView {
+    pub id: Uuid,
+    pub label: String,
+}
+
+/// The authoring payload for a whole test, questions and answers included.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct LearningTestBody {
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub pass_score: Option<i32>,
+    pub questions: Vec<TestQuestionInput>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct TestQuestionInput {
+    pub prompt: String,
+    pub options: Vec<TestOptionInput>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct TestOptionInput {
+    pub label: String,
+    #[serde(default)]
+    pub is_correct: bool,
+}
+
+/// The raw form of a test for its author's editor — the take view plus the
+/// `is_correct` flags it deliberately hides, so the author can see and change
+/// which option is right.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct LearningTestDraft {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub pass_score: Option<i32>,
+    pub questions: Vec<TestQuestionDraft>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TestQuestionDraft {
+    pub prompt: String,
+    pub options: Vec<TestOptionDraft>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TestOptionDraft {
+    pub label: String,
+    pub is_correct: bool,
+}
+
+/// A test submission: one chosen option per question (or none).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct AttemptSubmit {
+    pub answers: Vec<AttemptAnswer>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+pub struct AttemptAnswer {
+    pub question_id: Uuid,
+    pub option_id: Option<Uuid>,
+}
+
+/// The graded result of one attempt, returned right after submitting and listed
+/// in the taker's own history.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct AttemptResult {
+    pub id: Uuid,
+    pub score: i32,
+    pub max_score: i32,
+    pub passed: Option<bool>,
+    pub submitted_at: DateTime<Utc>,
+}
+
+/// One line of an admin's view of everyone's attempts on a test.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct AttemptRow {
+    pub username: String,
+    pub score: i32,
+    pub max_score: i32,
+    pub passed: Option<bool>,
+    pub submitted_at: DateTime<Utc>,
+}
+
+/// One row of the lab list, carrying the caller's own state on it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningLabSummary {
+    pub id: Uuid,
+    pub title: String,
+    pub status: String,
+    pub author_username: String,
+    /// The caller's own progress state, or `null` if they have not started.
+    pub my_state: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A lab to work on, its brief rendered, plus the caller's own progress.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LearningLabView {
+    pub id: Uuid,
+    pub title: String,
+    pub status: String,
+    pub brief_html: String,
+    pub author_username: String,
+    pub my_progress: Option<LabProgressView>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// One user's state on one lab, as they see it themselves.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LabProgressView {
+    pub state: String,
+    pub submission: Option<String>,
+    pub grade: Option<i32>,
+}
+
+/// The authoring payload for a lab (raw markdown brief).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct LearningLabBody {
+    pub title: String,
+    pub brief: String,
+    pub status: String,
+}
+
+/// The raw (markdown) form of a lab, used to populate the editor.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LearningLabDraft {
+    pub id: Uuid,
+    pub title: String,
+    pub brief: String,
+    pub status: String,
+}
+
+/// A learner advancing their own lab: the new state and their submission text.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct LabProgressSubmit {
+    pub state: String,
+    pub submission: Option<String>,
+}
+
+/// One line of an admin's view of everyone's progress on a lab.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct LabSubmissionRow {
+    pub username: String,
+    pub state: String,
+    pub submission: Option<String>,
+    pub grade: Option<i32>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A lab progress state a learner may set. `reviewed` is an admin-only verdict,
+/// so a learner's own update cannot claim it; anything unknown falls back to
+/// `in_progress` rather than trusting a crafted value.
+pub fn normalize_lab_state(state: &str) -> String {
+    match state {
+        "not_started" => "not_started",
+        "submitted" => "submitted",
+        _ => "in_progress",
+    }
+    .to_string()
 }
 
 /// Anything not exactly `"published"` is a draft. The editor sends a select's

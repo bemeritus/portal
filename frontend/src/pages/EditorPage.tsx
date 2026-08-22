@@ -1,5 +1,6 @@
 /**
- * `/docs/new` and `/docs/:id/edit` — authoring a Q&A document (FR-11 … FR-15).
+ * `/templates/docs/new` and `/templates/docs/:id/edit` — authoring a Q&A
+ * document (FR-11 … FR-15).
  *
  * Blocks carry a client-side `key` that never goes to the server. React needs
  * a stable identity per row or it reuses the wrong DOM node when blocks are
@@ -49,7 +50,7 @@ export function EditorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const heading = isEdit ? t("editor.editDocument") : t("editor.newDocument");
-  const backHref = isEdit ? `/docs/${id}` : "/";
+  const backHref = isEdit ? `/templates/docs/${id}` : "/templates";
   const backLabel = isEdit ? t("editor.backToDocument") : t("editor.allDocuments");
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export function EditorPage() {
       // Both the list and this document's cached copy are now stale.
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
       await queryClient.invalidateQueries({ queryKey: ["document", savedId] });
-      navigate(`/docs/${savedId}`, { replace: true });
+      navigate(`/templates/docs/${savedId}`, { replace: true });
     },
     onError: (e) => setError(errorMessage(e)),
   });

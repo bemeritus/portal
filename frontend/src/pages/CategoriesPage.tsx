@@ -1,5 +1,5 @@
 /**
- * `/categories` — admin category management (FR-9, FR-24).
+ * `/templates/categories` — admin category management (FR-9, FR-24).
  *
  * Deleting is refused by the server while documents still reference the
  * category; the grants on it cascade away. Both outcomes come back as the

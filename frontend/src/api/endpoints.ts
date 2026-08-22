@@ -9,6 +9,9 @@
 
 import { api } from "./client";
 import type {
+  AttemptResult,
+  AttemptRow,
+  AttemptSubmit,
   AuditEntry,
   Category,
   CategoryBody,
@@ -18,6 +21,21 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
+  LabProgressSubmit,
+  LabSubmissionRow,
+  LearningLabBody,
+  LearningLabDraft,
+  LearningLabSummary,
+  LearningLabView,
+  LearningResourceBody,
+  LearningResourceDraft,
+  LearningResourceSummary,
+  LearningResourceView,
+  LearningTestBody,
+  LearningTestDraft,
+  LearningTestSummary,
+  LearningTestView,
+  SectionAccess,
   UploadResponse,
   User,
   Uuid,
@@ -43,38 +61,49 @@ export const auth = {
   me: (signal?: AbortSignal) => api.get<User>(`${BASE}/auth/me`, signal),
 };
 
+// The templates section owns categories and documents; its routes moved under
+// `/api/templates` when sections were introduced. Everything else on these two
+// objects is unchanged.
+const TEMPLATES = `${BASE}/templates`;
+
 export const categories = {
   /** The categories the caller can see at all. */
-  list: (signal?: AbortSignal) => api.get<Category[]>(`${BASE}/categories`, signal),
+  list: (signal?: AbortSignal) => api.get<Category[]>(`${TEMPLATES}/categories`, signal),
   /** The subset they may write or edit in — what the editor's picker offers. */
-  writable: (signal?: AbortSignal) => api.get<Category[]>(`${BASE}/categories/writable`, signal),
-  create: (body: CategoryBody) => api.post<Category>(`${BASE}/categories`, body),
-  update: (id: Uuid, body: CategoryBody) => api.put<void>(`${BASE}/categories/${id}`, body),
-  remove: (id: Uuid) => api.del<void>(`${BASE}/categories/${id}`),
+  writable: (signal?: AbortSignal) =>
+    api.get<Category[]>(`${TEMPLATES}/categories/writable`, signal),
+  create: (body: CategoryBody) => api.post<Category>(`${TEMPLATES}/categories`, body),
+  update: (id: Uuid, body: CategoryBody) => api.put<void>(`${TEMPLATES}/categories/${id}`, body),
+  remove: (id: Uuid) => api.del<void>(`${TEMPLATES}/categories/${id}`),
 };
 
 export const documents = {
   list: (filters: { title?: string; category?: Uuid }, signal?: AbortSignal) =>
     api.get<DocumentSummary[]>(
-      `${BASE}/documents${query({ title: filters.title, category: filters.category })}`,
+      `${TEMPLATES}/documents${query({ title: filters.title, category: filters.category })}`,
       signal,
     ),
   get: (id: Uuid, signal?: AbortSignal) =>
-    api.get<DocumentWithBlocks>(`${BASE}/documents/${id}`, signal),
+    api.get<DocumentWithBlocks>(`${TEMPLATES}/documents/${id}`, signal),
   /** The same document as raw Markdown, for the editor. Requires EDIT. */
   draft: (id: Uuid, signal?: AbortSignal) =>
-    api.get<DocumentDraft>(`${BASE}/documents/${id}/draft`, signal),
-  create: (body: DocumentBody) => api.post<{ id: Uuid }>(`${BASE}/documents`, body),
-  update: (id: Uuid, body: DocumentBody) => api.put<void>(`${BASE}/documents/${id}`, body),
-  remove: (id: Uuid) => api.del<void>(`${BASE}/documents/${id}`),
+    api.get<DocumentDraft>(`${TEMPLATES}/documents/${id}/draft`, signal),
+  create: (body: DocumentBody) => api.post<{ id: Uuid }>(`${TEMPLATES}/documents`, body),
+  update: (id: Uuid, body: DocumentBody) => api.put<void>(`${TEMPLATES}/documents/${id}`, body),
+  remove: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}`),
 };
 
 export const users = {
   list: (signal?: AbortSignal) => api.get<User[]>(`${BASE}/users`, signal),
   create: (body: CreateUserBody) => api.post<{ id: Uuid }>(`${BASE}/users`, body),
-  /** Replaces the user's grants wholesale — omitted categories lose theirs. */
-  setPermissions: (id: Uuid, category_perms: CategoryPermission[]) =>
-    api.put<void>(`${BASE}/users/${id}/permissions`, { category_perms }),
+  /**
+   * Replaces the user's grants *and* section access wholesale — anything
+   * omitted is dropped. Sent together because they are edited on one screen and
+   * the server writes them in one transaction (and derives the templates door
+   * from the grants, so they must be consistent).
+   */
+  setPermissions: (id: Uuid, category_perms: CategoryPermission[], sections: SectionAccess[]) =>
+    api.put<void>(`${BASE}/users/${id}/permissions`, { category_perms, sections }),
   setActive: (id: Uuid, active: boolean) => api.put<void>(`${BASE}/users/${id}/active`, { active }),
   resetPassword: (id: Uuid, new_password: string) =>
     api.put<void>(`${BASE}/users/${id}/password`, { new_password }),
@@ -93,6 +122,68 @@ export const audit = {
       })}`,
       signal,
     ),
+};
+
+// The learning section: resources, tests and labs. Reading needs section
+// access; creating/editing needs the author bit; the results/submissions
+// endpoints are admin-only. The server enforces all of it — these are just the
+// URLs.
+const LEARNING = `${BASE}/learning`;
+
+export const learning = {
+  resources: {
+    list: (signal?: AbortSignal) =>
+      api.get<LearningResourceSummary[]>(`${LEARNING}/resources`, signal),
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningResourceView>(`${LEARNING}/resources/${id}`, signal),
+    /** Raw markdown source, for the editor. Requires the author permission. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningResourceDraft>(`${LEARNING}/resources/${id}/edit`, signal),
+    create: (body: LearningResourceBody) =>
+      api.post<{ id: Uuid }>(`${LEARNING}/resources`, body),
+    update: (id: Uuid, body: LearningResourceBody) =>
+      api.put<void>(`${LEARNING}/resources/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${LEARNING}/resources/${id}`),
+  },
+  tests: {
+    list: (signal?: AbortSignal) => api.get<LearningTestSummary[]>(`${LEARNING}/tests`, signal),
+    /** The take view — questions and options, never which one is correct. */
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningTestView>(`${LEARNING}/tests/${id}`, signal),
+    /** Full test with the correct flags, for the editor. Author only. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningTestDraft>(`${LEARNING}/tests/${id}/edit`, signal),
+    create: (body: LearningTestBody) => api.post<{ id: Uuid }>(`${LEARNING}/tests`, body),
+    update: (id: Uuid, body: LearningTestBody) =>
+      api.put<void>(`${LEARNING}/tests/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${LEARNING}/tests/${id}`),
+    /** Submit answers; the server scores and returns the graded result. */
+    submit: (id: Uuid, body: AttemptSubmit) =>
+      api.post<AttemptResult>(`${LEARNING}/tests/${id}/attempts`, body),
+    /** The caller's own attempts on a test. */
+    myAttempts: (id: Uuid, signal?: AbortSignal) =>
+      api.get<AttemptResult[]>(`${LEARNING}/tests/${id}/attempts`, signal),
+    /** Everyone's attempts — admin only. */
+    results: (id: Uuid, signal?: AbortSignal) =>
+      api.get<AttemptRow[]>(`${LEARNING}/tests/${id}/results`, signal),
+  },
+  labs: {
+    list: (signal?: AbortSignal) => api.get<LearningLabSummary[]>(`${LEARNING}/labs`, signal),
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningLabView>(`${LEARNING}/labs/${id}`, signal),
+    /** Raw markdown source, for the editor. Author only. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LearningLabDraft>(`${LEARNING}/labs/${id}/edit`, signal),
+    create: (body: LearningLabBody) => api.post<{ id: Uuid }>(`${LEARNING}/labs`, body),
+    update: (id: Uuid, body: LearningLabBody) => api.put<void>(`${LEARNING}/labs/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${LEARNING}/labs/${id}`),
+    /** Advance the caller's own progress on a lab. */
+    saveProgress: (id: Uuid, body: LabProgressSubmit) =>
+      api.put<void>(`${LEARNING}/labs/${id}/progress`, body),
+    /** Everyone's progress — admin only. */
+    submissions: (id: Uuid, signal?: AbortSignal) =>
+      api.get<LabSubmissionRow[]>(`${LEARNING}/labs/${id}/submissions`, signal),
+  },
 };
 
 export const uploads = {

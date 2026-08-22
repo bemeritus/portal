@@ -12,6 +12,8 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
+import { canAuthor, inSection } from "../permissions";
+import type { Section } from "../api/types";
 import { Spinner } from "./Loading";
 
 export function RequireAuth() {
@@ -47,6 +49,44 @@ export function RequireAdmin() {
       <>
         <h1>{t("authz.notAllowed")}</h1>
         <p className="muted">{t("authz.adminsOnly")}</p>
+      </>
+    );
+  }
+
+  return <Outlet />;
+}
+
+/**
+ * The section door on the client. A user without the section sees a sentence,
+ * not a wall of failed requests — the server would refuse every one of them
+ * anyway (SR-9).
+ */
+export function RequireSection({ section }: { section: Section }) {
+  const { user } = useAuth();
+  const { t } = useTranslation();
+
+  if (!inSection(user, section)) {
+    return (
+      <>
+        <h1>{t("authz.notAllowed")}</h1>
+        <p className="muted">{t("authz.noSection")}</p>
+      </>
+    );
+  }
+
+  return <Outlet />;
+}
+
+/** The learning author gate — creating and editing learning content. */
+export function RequireLearningAuthor() {
+  const { user } = useAuth();
+  const { t } = useTranslation();
+
+  if (!canAuthor(user, "learning")) {
+    return (
+      <>
+        <h1>{t("authz.notAllowed")}</h1>
+        <p className="muted">{t("authz.authorsOnly")}</p>
       </>
     );
   }

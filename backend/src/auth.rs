@@ -24,7 +24,7 @@ use uuid::Uuid;
 
 use crate::db::AppState;
 use crate::error::{internal, ApiError, ApiResult};
-use crate::models::{CategoryPermission, Permission, User};
+use crate::models::{CategoryPermission, Permission, Section, SectionAccess, User};
 
 /// Session key under which the authenticated user id is stored.
 pub const SESSION_UID: &str = "uid";
@@ -71,6 +71,30 @@ pub async fn category_perms_for(
     .await
 }
 
+/// The sections one user may enter — the door half of the two-level model.
+pub async fn sections_for(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<SectionAccess>, sqlx::Error> {
+    let rows: Vec<(String, bool)> =
+        sqlx::query_as("SELECT section, can_author FROM user_sections WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(pool)
+            .await?;
+    // A row whose `section` string does not parse can only be one written
+    // before a code change removed that section; drop it rather than fail the
+    // whole load over a value the enum no longer knows.
+    Ok(rows
+        .into_iter()
+        .filter_map(|(section, can_author)| {
+            Section::from_db(&section).map(|section| SectionAccess {
+                section,
+                can_author,
+            })
+        })
+        .collect())
+}
+
 /// The user behind a session id, if they still exist and are still active.
 ///
 /// Read fresh from the database on every request (SR-10), so a revoked grant or
@@ -89,6 +113,9 @@ pub async fn load_user(pool: &PgPool, uid: Uuid) -> ApiResult<Option<User>> {
             u.category_perms = category_perms_for(pool, u.id)
                 .await
                 .map_err(|e| internal("loading the current user's category grants", e))?;
+            u.sections = sections_for(pool, u.id)
+                .await
+                .map_err(|e| internal("loading the current user's section access", e))?;
             Ok(Some(u))
         }
         _ => Ok(None),
@@ -162,6 +189,89 @@ where
             Ok(AdminUser(user))
         } else {
             Err(ApiError::Forbidden("Administrators only".into()))
+        }
+    }
+}
+
+// --- Section doors ----------------------------------------------------------
+//
+// Unlike the category (which the handler can only learn from the request body,
+// so [`require_in_category`] stays an explicit call), a section is fixed per
+// route tree — known before the body runs. That is exactly what an extractor
+// can decide, so these *are* extractors, and nesting a router under one closes
+// its door once instead of asking every handler to remember the check. A
+// handler that also needs the finer category grant still calls
+// `require_in_category` inside; the two-level AND is the extractor AND that
+// call, mirroring how `AdminUser` and `require_in_category` already compose.
+
+/// A user who may enter the `templates` section.
+pub struct InTemplates(pub User);
+
+impl<S> FromRequestParts<S> for InTemplates
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let CurrentUser(user) = CurrentUser::from_request_parts(parts, state).await?;
+        if user.in_section(Section::Templates) {
+            Ok(InTemplates(user))
+        } else {
+            Err(ApiError::Forbidden(
+                "You do not have access to this section".into(),
+            ))
+        }
+    }
+}
+
+/// A user who may enter the `learning` section (read resources, take tests, do
+/// labs). Authoring is a further step — see [`LearningAuthor`].
+pub struct InLearning(pub User);
+
+impl<S> FromRequestParts<S> for InLearning
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let CurrentUser(user) = CurrentUser::from_request_parts(parts, state).await?;
+        if user.in_section(Section::Learning) {
+            Ok(InLearning(user))
+        } else {
+            Err(ApiError::Forbidden(
+                "You do not have access to this section".into(),
+            ))
+        }
+    }
+}
+
+/// A learning user who may *create* resources, tests and labs — the teacher.
+///
+/// This is the learning section's finer grant, the counterpart to a category
+/// grant in templates. It is not a results role: who may *see* an attempt is
+/// decided separately (the solver sees their own, an admin sees all), so a
+/// teacher authors content without gaining any view of other users' scores.
+pub struct LearningAuthor(pub User);
+
+impl<S> FromRequestParts<S> for LearningAuthor
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let CurrentUser(user) = CurrentUser::from_request_parts(parts, state).await?;
+        if user.can_author(Section::Learning) {
+            Ok(LearningAuthor(user))
+        } else {
+            Err(ApiError::Forbidden(
+                "You do not have permission to create learning content".into(),
+            ))
         }
     }
 }

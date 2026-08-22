@@ -96,7 +96,7 @@ export function HomePage() {
       >
         <h1 style={{ flex: 1, minWidth: 0 }}>{t("nav.documents")}</h1>
         {canWrite && (
-          <Link className="btn" to="/docs/new">
+          <Link className="btn" to="/templates/docs/new">
             {t("home.newDocument")}
           </Link>
         )}
@@ -164,7 +164,7 @@ export function HomePage() {
           </div>
 
           {documents.map((doc) => (
-            <Link className="card" key={doc.id} to={`/docs/${doc.id}`}>
+            <Link className="card" key={doc.id} to={`/templates/docs/${doc.id}`}>
               <h3>{doc.title}</h3>
               <div className="meta">
                 <span className={`badge ${categoryTagClass(doc.category_id)}`}>{doc.category_name}</span>

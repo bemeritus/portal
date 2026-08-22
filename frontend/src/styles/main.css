@@ -249,6 +249,26 @@ a:hover { text-decoration: underline; }
 
 .nav-tools { display: flex; align-items: center; gap: 10px; }
 
+/* The section switcher in the top bar: pill tabs sharing the nav-link look, the
+   active one carrying the same soft-blue call-out as the rail. */
+.section-tabs { display: flex; gap: 4px; margin-left: 10px; }
+.section-tab {
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  font-weight: 600;
+  transition: color var(--fast), background var(--fast);
+}
+.section-tab:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
+.section-tab[aria-current="page"] {
+  color: var(--nav-active-text);
+  background: var(--nav-active-bg);
+}
+
+/* Divider between a section's rail links and the cross-section admin group. */
+.side-sep { border: 0; border-top: 1px solid var(--border); margin: 10px 4px; }
+
 /* --------------------------------------------------------------- Sidebar */
 
 /* Sticks under the top bar and scrolls on its own once the list outgrows the

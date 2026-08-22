@@ -148,7 +148,7 @@ export function AuditLogPage() {
                       {entry.target_type === "document" &&
                       entry.target_id &&
                       entry.action !== "document.delete" ? (
-                        <Link to={`/docs/${entry.target_id}`}>{entry.target_name}</Link>
+                        <Link to={`/templates/docs/${entry.target_id}`}>{entry.target_name}</Link>
                       ) : (
                         entry.target_name
                       )}
