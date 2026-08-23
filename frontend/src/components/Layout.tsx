@@ -127,6 +127,7 @@ export function Layout() {
               <>
                 <hr className="side-sep" />
                 <NavLink to="/admin/users">{t("nav.users")}</NavLink>
+                <NavLink to="/admin/analytics">{t("nav.analytics")}</NavLink>
                 <NavLink to="/admin/logs">{t("nav.logs")}</NavLink>
               </>
             )}
@@ -134,7 +135,6 @@ export function Layout() {
           {user && (
             <UserMenu
               username={user.username}
-              isAdmin={user.is_admin}
               loggingOut={loggingOut}
               onLogout={() => void onLogout()}
             />

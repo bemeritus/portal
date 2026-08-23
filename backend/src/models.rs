@@ -183,6 +183,8 @@ pub struct DocumentSummary {
     pub category_name: String,
     pub author_username: String,
     pub created_at: DateTime<Utc>,
+    /// The document's tags, alphabetical. Aggregated in the list query.
+    pub tags: Vec<String>,
 }
 
 /// A single question/answer pair, with the answer pre-rendered to sanitized
@@ -207,6 +209,54 @@ pub struct DocumentWithBlocks {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub blocks: Vec<QaBlockView>,
+    pub tags: Vec<String>,
+    pub view_count: i64,
+    pub helpful_count: i64,
+    pub not_helpful_count: i64,
+    /// This viewer's own vote: `Some(true)` 👍, `Some(false)` 👎, `None` none.
+    pub my_vote: Option<bool>,
+}
+
+/// The tally returned after a reader votes (or clears their vote) on a document.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FeedbackSummary {
+    pub helpful_count: i64,
+    pub not_helpful_count: i64,
+    pub my_vote: Option<bool>,
+}
+
+/// One document as the analytics dashboard ranks it — by reads, or by the
+/// 👎 that mark it as due for a rewrite.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct PopularDoc {
+    pub id: Uuid,
+    pub title: String,
+    pub category_name: String,
+    pub view_count: i64,
+    pub helpful_count: i64,
+    pub not_helpful_count: i64,
+}
+
+/// A search term that has come up empty, and how often — a question the
+/// knowledge base cannot yet answer.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct SearchMiss {
+    pub query: String,
+    pub count: i64,
+    pub last_at: DateTime<Utc>,
+}
+
+/// Everything the admin analytics page shows, in one payload.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AnalyticsOverview {
+    pub total_documents: i64,
+    pub total_views: i64,
+    /// Most-read documents.
+    pub popular: Vec<PopularDoc>,
+    /// Documents readers have marked unhelpful — likeliest to be stale.
+    pub needs_work: Vec<PopularDoc>,
+    /// Recent searches that found nothing, most frequent first.
+    pub search_misses: Vec<SearchMiss>,
 }
 
 /// The raw (markdown) form of a document, used to populate the editor.
@@ -218,6 +268,7 @@ pub struct DocumentDraft {
     pub category_id: Uuid,
     pub author_id: Uuid,
     pub blocks: Vec<QaBlockInput>,
+    pub tags: Vec<String>,
 }
 
 /// A Q&A block as authored (question + raw markdown answer), ordered by array

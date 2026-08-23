@@ -11,6 +11,7 @@ export const uz = {
       categories: "Kategoriyalar",
       users: "Foydalanuvchilar",
       logs: "Jurnal",
+      analytics: "Analitika",
       toggleSections: "Bo'limlarni ochish",
       sections: "Bo'limlar",
       newDocument: "Yangi hujjat",
@@ -27,11 +28,23 @@ export const uz = {
       settings: "Sozlamalar",
       darkMode: "Tungi rejim",
       language: "Til",
-      sendFeedback: "Fikr bildirish",
       signOut: "Chiqish",
       signingOut: "Chiqilmoqda…",
       roleAdmin: "Administrator",
       roleMember: "A'zo",
+    },
+
+    settings: {
+      heading: "Sozlamalar",
+      subtitle: "Ushbu qurilmada sizga tegishli sozlamalar.",
+      appearance: "Ko'rinish",
+      appearanceDesc: "Interfeys mavzusini tanlang.",
+      language: "Til",
+      languageDesc: "Interfeys tili.",
+      themeDark: "Tungi",
+      themeLight: "Kunduzgi",
+      themeGruvbox: "Gruvbox",
+      themeGruvboxLight: "Gruvbox kunduzgi",
     },
 
     common: {
@@ -62,8 +75,8 @@ export const uz = {
 
     home: {
       newDocument: "+ Yangi hujjat",
-      searchByTitle: "Sarlavha bo'yicha qidirish",
-      filterPlaceholder: "Filtrlash uchun yozing…",
+      searchLabel: "Qidirish",
+      filterPlaceholder: "Sarlavha va javoblardan qidirish…",
       category: "Kategoriya",
       allCategories: "Barcha kategoriyalar",
       noMatchTitle: "Filtrlaringizga mos hujjat yo'q",
@@ -80,9 +93,35 @@ export const uz = {
       noQuestions: "Bu hujjatda hali savollar yo'q.",
       questions_one: "{{count}} ta savol",
       questions_other: "{{count}} ta savol",
+      views_one: "{{count}} marta ko'rilgan",
+      views_other: "{{count}} marta ko'rilgan",
+      helpfulQuestion: "Foydali bo'ldimi?",
+      yes: "Ha",
+      no: "Yo'q",
     },
 
     status: { draft: "qoralama", published: "e'lon qilingan" },
+
+    analytics: {
+      heading: "Analitika",
+      subtitle: "Bilimlar bazasidan qanday foydalanilmoqda — ko'rishlar, baholar va bo'shliqlar.",
+      totalDocuments: "Hujjatlar",
+      totalViews: "Jami ko'rishlar",
+      mostViewed: "Eng ko'p ko'rilgan",
+      noViews: "Hali birorta hujjat ochilmagan.",
+      needsWork: "E'tibor talab qiladi",
+      needsWorkHint: "Foydasiz deb belgilangan hujjatlar — eskirgan bo'lishi ehtimoli yuqori.",
+      noNegative: "Birorta hujjatga minus berilmagan. Zo'r.",
+      contentGaps: "Kontentdagi bo'shliqlar",
+      contentGapsHint: "Hech narsa topmagan qidiruvlar — yozilishi kerak bo'lgan maqolalar.",
+      noGaps: "Hozircha har bir qidiruv nimadir topgan.",
+      document: "Hujjat",
+      category: "Kategoriya",
+      views: "Ko'rishlar",
+      query: "So'rov",
+      times: "Marta",
+      lastSearched: "Oxirgi qidiruv",
+    },
 
     categories: {
       heading: "Kategoriyalar",
@@ -199,6 +238,10 @@ export const uz = {
       statusPublished: "E'lon qilingan",
       statusHint:
         "Bu ruxsat emas, belgi: bu kategoriyani o'qiy oladigan har kim hujjatni baribir ocha oladi.",
+      tags: "Teglar",
+      tagsPlaceholder: "Teg qo'shing…",
+      tagsHint: "Qidiruv uchun kategoriyalararo belgilar — qo'shish uchun Enter yoki vergul.",
+      removeTag: "{{tag}} tegini olib tashlash",
       qaBlocks: "Savol–javob bloklari",
       markdownHint1:
         "Javoblar Markdown'ni qabul qiladi. Rasm yuklash uchun blokdagi rasm tugmasini bosing va ",

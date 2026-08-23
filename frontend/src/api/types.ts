@@ -73,6 +73,7 @@ export interface DocumentSummary {
   category_name: string;
   author_username: string;
   created_at: Timestamp;
+  tags: string[];
 }
 
 /** A question with its answer already rendered and sanitized by the server. */
@@ -92,6 +93,41 @@ export interface DocumentWithBlocks {
   created_at: Timestamp;
   updated_at: Timestamp;
   blocks: QaBlockView[];
+  tags: string[];
+  view_count: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  /** This viewer's vote: true 👍, false 👎, null none. */
+  my_vote: boolean | null;
+}
+
+export interface FeedbackSummary {
+  helpful_count: number;
+  not_helpful_count: number;
+  my_vote: boolean | null;
+}
+
+export interface PopularDoc {
+  id: Uuid;
+  title: string;
+  category_name: string;
+  view_count: number;
+  helpful_count: number;
+  not_helpful_count: number;
+}
+
+export interface SearchMiss {
+  query: string;
+  count: number;
+  last_at: Timestamp;
+}
+
+export interface AnalyticsOverview {
+  total_documents: number;
+  total_views: number;
+  popular: PopularDoc[];
+  needs_work: PopularDoc[];
+  search_misses: SearchMiss[];
 }
 
 /** A question with its answer as raw Markdown, for the editor. */
@@ -107,6 +143,7 @@ export interface DocumentDraft {
   category_id: Uuid;
   author_id: Uuid;
   blocks: QaBlockInput[];
+  tags: string[];
 }
 
 export interface AuditEntry {
@@ -132,6 +169,7 @@ export interface DocumentBody {
   category_id: Uuid;
   status: string;
   blocks: QaBlockInput[];
+  tags: string[];
 }
 
 export interface CategoryBody {

@@ -16,12 +16,14 @@ import { RequireAdmin, RequireAuth, RequireLearningAuthor, RequireSection } from
 import { useAuth } from "./auth/AuthContext";
 import { inSection } from "./permissions";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { DocumentPage } from "./pages/DocumentPage";
 import { EditorPage } from "./pages/EditorPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { LearningHomePage } from "./pages/learning/LearningHomePage";
 import { ResourcesPage } from "./pages/learning/ResourcesPage";
 import { ResourcePage } from "./pages/learning/ResourcePage";
@@ -75,6 +77,10 @@ export function App() {
         <Route element={<Layout />}>
           <Route index element={<SectionLanding />} />
 
+          {/* Every signed-in user's own settings — theme and language. Cross-
+              section, so it sits at the top level rather than under a door. */}
+          <Route path="settings" element={<SettingsPage />} />
+
           {/* Templates — the category + Q&A world. */}
           <Route path="templates" element={<RequireSection section="templates" />}>
             <Route index element={<HomePage />} />
@@ -123,6 +129,7 @@ export function App() {
           <Route element={<RequireAdmin />}>
             <Route path="admin/users" element={<AdminUsersPage />} />
             <Route path="admin/logs" element={<AuditLogPage />} />
+            <Route path="admin/analytics" element={<AnalyticsPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

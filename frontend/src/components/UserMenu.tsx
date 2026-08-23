@@ -3,25 +3,25 @@
  *
  * Resting, it is a single card-button — avatar, name, plan, chevron. Pressing
  * it opens a card upward with a profile header, the settings rows (theme as a
- * dark-mode switch, language), and **Log out** in red, matching the product
- * design. Closing is handled the two ways every menu needs: a click outside it,
- * and Escape.
+ * dark-mode switch, language as a themed dropdown), and **Log out** in red,
+ * matching the product design. Closing is handled the two ways every menu
+ * needs: a click outside it, and Escape.
  *
- * Settings, Language and Feedback are presentational for now — there is no
- * settings page, no i18n and no feedback endpoint behind them yet — so they
- * render as the design shows but do not act. The dark-mode switch and Log out
- * are wired to the real theme state and the real sign-out.
+ * **Settings** links to the user's own settings page (`/settings`), where the
+ * same theme and language choices live in full. The quick controls here — the
+ * dark-mode switch and the language dropdown — are wired to the real theme
+ * state and i18n; Log out to the real sign-out.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { LANGUAGES } from "../i18n";
 import { useTheme } from "./ThemeSelect";
 
 interface UserMenuProps {
   username: string;
-  isAdmin: boolean;
   loggingOut: boolean;
   onLogout: () => void;
 }
@@ -64,11 +64,6 @@ const Icons = {
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   ),
-  chat: (
-    <svg {...svgProps}>
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-    </svg>
-  ),
   logout: (
     <svg {...svgProps}>
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -86,17 +81,104 @@ const Icons = {
       <polyline points="18 15 12 9 6 15" />
     </svg>
   ),
+  chevronDown: (
+    <svg {...svgProps} width="16" height="16">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  ),
+  check: (
+    <svg {...svgProps} width="16" height="16">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  ),
 };
 
-export function UserMenu({ username, isAdmin, loggingOut, onLogout }: UserMenuProps) {
+/**
+ * The Language row: a themed dropdown replacing the native `<select>`, so the
+ * open list follows the app's theme (panel, border, accent) instead of the
+ * OS's own menu. Behaves like the account menu — closes on Escape or a click
+ * outside its own subtree — and stops clicks from bubbling up to the parent
+ * menu's outside-click handler.
+ */
+function LangSelect() {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const current = i18n.language.split("-")[0];
+  const active = LANGUAGES.find((l) => l.value === current) ?? LANGUAGES[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="lang-select" ref={rootRef}>
+      <button
+        type="button"
+        className="menu-item"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="menu-icon">{Icons.globe}</span>
+        <span className="menu-label">{t("menu.language")}</span>
+        <span className="lang-current">
+          {active.label}
+          <span className="lang-caret" aria-hidden="true">
+            {Icons.chevronDown}
+          </span>
+        </span>
+      </button>
+
+      {open && (
+        <ul className="lang-list" role="listbox" aria-label={t("menu.language")}>
+          {LANGUAGES.map((l) => {
+            const selected = l.value === current;
+            return (
+              <li key={l.value}>
+                <button
+                  type="button"
+                  className={selected ? "lang-option selected" : "lang-option"}
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    void i18n.changeLanguage(l.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="lang-option-label">{l.label}</span>
+                  {selected && <span className="lang-check">{Icons.check}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function UserMenu({ username, loggingOut, onLogout }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useTheme();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // "Bepul" (free) in the design is the plan line; the app's own account state
-  // is the role, so that is what the sub-line shows.
-  const role = isAdmin ? t("menu.roleAdmin") : t("menu.roleMember");
   const isDark = theme === "dark" || theme === "gruvbox";
 
   useEffect(() => {
@@ -123,7 +205,6 @@ export function UserMenu({ username, isAdmin, loggingOut, onLogout }: UserMenuPr
   const identity = (
     <span className="who-block">
       <span className="who-name">{username}</span>
-      <span className="who-role">{role}</span>
     </span>
   );
 
@@ -140,10 +221,10 @@ export function UserMenu({ username, isAdmin, loggingOut, onLogout }: UserMenuPr
 
           <hr className="menu-sep" />
 
-          <button type="button" className="menu-item" role="menuitem">
+          <Link to="/settings" className="menu-item" role="menuitem" onClick={() => setOpen(false)}>
             <span className="menu-icon">{Icons.settings}</span>
             <span className="menu-label">{t("menu.settings")}</span>
-          </button>
+          </Link>
 
           {/* Dark mode — a real switch over the light/dark themes; off (grey
               track, knob left) whenever a light theme is active. */}
@@ -162,32 +243,12 @@ export function UserMenu({ username, isAdmin, loggingOut, onLogout }: UserMenuPr
             </span>
           </label>
 
-          {/* Language — the value on the right is a borderless select, so the
-              row reads like the design's "Language · English" but actually
-              switches the whole app. */}
-          <label className="menu-item">
-            <span className="menu-icon">{Icons.globe}</span>
-            <span className="menu-label">{t("menu.language")}</span>
-            <select
-              className="menu-lang"
-              aria-label={t("menu.language")}
-              value={i18n.language.split("-")[0]}
-              onChange={(e) => void i18n.changeLanguage(e.target.value)}
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Language — a custom, themed dropdown (see `LangSelect`) so the
+              open list matches the platform's own menus rather than the OS's
+              native select popup. */}
+          <LangSelect />
 
           <hr className="menu-sep" />
-
-          <button type="button" className="menu-item" role="menuitem">
-            <span className="menu-icon">{Icons.chat}</span>
-            <span className="menu-label">{t("menu.sendFeedback")}</span>
-          </button>
 
           <button
             type="button"

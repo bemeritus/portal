@@ -6,6 +6,7 @@
 //! those handlers rather than as a layer here so a request is loaded once, not
 //! once for the door and again for the body.
 
+use axum::routing::get;
 use axum::Router;
 
 use crate::db::AppState;
@@ -16,4 +17,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .nest("/categories", categories::routes())
         .nest("/documents", documents::routes())
+        // The tag vocabulary is document-wide, not per-document, so it sits
+        // beside `/documents` rather than under it.
+        .route("/tags", get(documents::list_tags))
 }

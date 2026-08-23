@@ -353,7 +353,6 @@ a:hover { text-decoration: underline; }
    one line ("adminAdmin") and the ellipsis on the name — which needs a block to
    act on — does nothing. Stacked, the name truncates and the role sits under it. */
 .who-name { display: block; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.who-role { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-card .chevron { flex: 0 0 auto; color: var(--muted); display: inline-flex; }
 
 /* The menu — a floating white card that opens upward from the account row.
@@ -451,25 +450,61 @@ a:hover { text-decoration: underline; }
 .switch input:checked ~ .knob { transform: translateX(20px); }
 .switch input:focus-visible ~ .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* The Language value: a select drawn to read as the muted value text on the
-   right of its row, not as a form field — it keeps the base select's arrow but
-   drops the box, height and focus ring. */
-.menu-lang {
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 2px 20px 2px 6px;
-  font-size: 14px;
+/* The Language row is a custom dropdown so its open list is themed like the
+   app's own menus, not the OS's native select popup. The row reuses `.menu-item`
+   for its trigger; the value + caret sit muted on the right like the design's
+   "Language · English". */
+.lang-select { position: relative; }
+.lang-select .lang-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
   color: var(--muted);
-  background-color: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background-position: right 3px center;
-  cursor: pointer;
+  font-size: 14px;
 }
-.menu-lang:hover { color: var(--text); background-color: var(--surface-soft); }
-.menu-lang:focus { border-color: transparent; box-shadow: none; }
-.menu-lang:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lang-select .menu-item:hover .lang-current { color: var(--text); }
+.lang-select .lang-caret { display: inline-flex; color: var(--muted); }
+
+/* The open list: same panel, border, radius and shadow as `.user-menu`, so it
+   reads as one of the platform's menus. It opens above the row (the account
+   menu itself sits at the bottom of the viewport) and right-aligns to the value. */
+.lang-list {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 50;
+  min-width: 160px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--menu-shadow);
+}
+.lang-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+.lang-option:hover { background: var(--surface-soft); }
+.lang-option .lang-option-label { flex: 1 1 auto; }
+.lang-option .lang-check { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
+.lang-option.selected { color: var(--accent); }
+.lang-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Floating action button: the primary "create" action, always in reach at the
    bottom-right. It repeats the New shortcut for anyone who can write. */
@@ -964,6 +999,177 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-si
   .md-editor { max-height: 50vh; }
   h1 { font-size: 26px; }
 }
+
+/* ------------------------------------------------------- Settings page */
+
+.settings-page { max-width: 640px; }
+.settings-page > .muted { margin-top: -4px; }
+.settings-section { margin-top: 28px; }
+.settings-section h2 { margin: 0 0 4px; font-size: 18px; color: var(--text); }
+.settings-section > .muted { margin: 0 0 14px; font-size: 14px; }
+
+/* A radio group drawn as tiles: each is a bordered card that turns its border
+   and text accent when chosen, like the platform's other selected states. */
+.option-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.option-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 140px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--fast), color var(--fast), background var(--fast);
+}
+.option-tile:hover { border-color: var(--accent); }
+.option-tile.selected { border-color: var(--accent); color: var(--accent); background: var(--surface-soft); }
+.option-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.option-tile .option-name { flex: 1 1 auto; }
+
+/* A little two-tone chip previewing each theme's surface + accent, so the
+   choice is legible without reading the label. Colours are the themes' own. */
+.theme-swatch {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+}
+.theme-swatch--dark { background: linear-gradient(135deg, #171a21 55%, #5b8cff 55%); }
+.theme-swatch--light { background: linear-gradient(135deg, #ffffff 55%, #4f7cf7 55%); }
+.theme-swatch--gruvbox { background: linear-gradient(135deg, #32302f 55%, #83a598 55%); }
+.theme-swatch--gruvbox-light { background: linear-gradient(135deg, #ebdbb2 55%, #076678 55%); }
+
+/* ------------------------------------------------------- Tags */
+
+/* A tag is a small, quiet pill: a soft surface with muted text, distinct from
+   the coloured category badge so the two never read as the same thing. */
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+/* On the document page the chips are links back to the filtered list. */
+a.tag-chip { transition: color var(--fast), border-color var(--fast); }
+a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+
+/* The editor's chip input: the chips and the text field share one bordered box
+   that looks like the other inputs, wrapping to new rows as tags pile up. */
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.tag-input .tag-chip { color: var(--text); background: var(--surface-soft); }
+.tag-input .tag-field {
+  flex: 1 1 120px;
+  width: auto;
+  min-width: 120px;
+  margin: 0;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  height: auto;
+}
+.tag-input .tag-field:focus { outline: none; box-shadow: none; }
+.tag-input:focus-within { border-color: var(--accent); }
+.tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tag-remove:hover { color: var(--danger); background: var(--danger-soft); }
+
+/* ------------------------------------------------------- Feedback */
+
+/* "Was this helpful?" — a quiet strip under the answers. The two thumbs are
+   neutral until pressed, then the active one takes an accent (👍) or danger
+   (👎) tint so the reader's own vote is unmistakable. */
+.feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.feedback-q { color: var(--muted); font-size: 15px; }
+.feedback-buttons { display: flex; gap: 8px; }
+.feedback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color var(--fast), background var(--fast), color var(--fast);
+}
+.feedback-btn:hover { border-color: var(--accent); }
+.feedback-btn:disabled { opacity: 0.6; cursor: default; }
+.feedback-btn.active.up { border-color: var(--accent); color: var(--accent); background: var(--surface-soft); }
+.feedback-btn.active.down { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+.feedback-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.feedback-btn.active .feedback-count { color: inherit; }
+
+/* ------------------------------------------------------- Analytics */
+
+.analytics-section { margin-top: 28px; }
+.analytics-section h2 { margin: 0 0 4px; font-size: 18px; color: var(--text); }
+.analytics-section > .muted { margin: 0 0 12px; font-size: 14px; }
+
+/* Two headline numbers at the top of the page. */
+.stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+.stat-card {
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stat-value { font-size: 28px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-label { color: var(--muted); font-size: 13px; }
+
+/* Right-align the count columns so the numbers line up on their units. */
+.data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Respect the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {

@@ -21,8 +21,9 @@ import { Spinner } from "../components/Loading";
 import { categoryTagClass, formatDate } from "../format";
 import { hasIn } from "../permissions";
 
-/** Above this many questions, offer a jump list rather than a long scroll. */
-const TOC_THRESHOLD = 4;
+/** Above this many questions, offer a jump list rather than a long scroll.
+ * Two, matching the original Leptos view: even a short Q&A doc gets the list. */
+const TOC_THRESHOLD = 2;
 
 export function DocumentPage() {
   const { id = "" } = useParams();
@@ -39,6 +40,18 @@ export function DocumentPage() {
   useEffect(() => {
     if (doc) document.title = t("docTitle", { page: doc.title, app: t("app.name") });
   }, [doc, t]);
+
+  // Voting patches the cached document in place so the counts and the pressed
+  // thumb update without a refetch. Pressing the active thumb again clears it.
+  const vote = useMutation({
+    mutationFn: (next: boolean | null) =>
+      next === null ? documentsApi.clearVote(id) : documentsApi.vote(id, next),
+    onSuccess: (summary) => {
+      queryClient.setQueryData<typeof doc>(["document", id], (prev) =>
+        prev ? { ...prev, ...summary } : prev,
+      );
+    },
+  });
 
   const remove = useMutation({
     mutationFn: () => documentsApi.remove(id),
@@ -84,10 +97,23 @@ export function DocumentPage() {
             <span>{doc.author_username}</span>
             <span aria-hidden="true">·</span>
             <span>{formatDate(doc.created_at)}</span>
+            <span aria-hidden="true">·</span>
+            <span>{t("doc.views", { count: doc.view_count })}</span>
             <span className={`badge ${doc.status === "published" ? "published" : "draft"}`}>
               {t(`status.${doc.status}`)}
             </span>
           </div>
+          {doc.tags.length > 0 && (
+            <div className="tag-row">
+              {doc.tags.map((tag) => (
+                // Each tag links back to the list filtered to it, turning the
+                // label into a way to find everything else wearing it.
+                <Link className="tag-chip" key={tag} to={`/templates?q=${encodeURIComponent(tag)}`}>
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
         {(canEdit || canDelete) && (
           <div className="actions">
@@ -114,8 +140,11 @@ export function DocumentPage() {
         <p className="muted">{t("doc.noQuestions")}</p>
       ) : (
         <>
+          {/* Long docs open with the question list expanded — the blue links
+              jump to each question (smooth scroll + `.qa` scroll-margin). It
+              stays a `<details>` so it can be collapsed, but shows on entry. */}
           {doc.blocks.length > TOC_THRESHOLD && (
-            <details className="toc">
+            <details className="toc" open>
               <summary>{t("doc.questions", { count: doc.blocks.length })}</summary>
               <ol>
                 {doc.blocks.map((block, i) => (
@@ -139,6 +168,35 @@ export function DocumentPage() {
           ))}
         </>
       )}
+
+      {/* Was this helpful? — one vote per reader, pressing the active thumb
+          again clears it. Counts sit beside each thumb so the room's verdict
+          is visible, which is also the signal the analytics page ranks on. */}
+      <div className="feedback">
+        <span className="feedback-q">{t("doc.helpfulQuestion")}</span>
+        <div className="feedback-buttons">
+          <button
+            type="button"
+            className={`feedback-btn${doc.my_vote === true ? " active up" : ""}`}
+            aria-pressed={doc.my_vote === true}
+            disabled={vote.isPending}
+            onClick={() => vote.mutate(doc.my_vote === true ? null : true)}
+          >
+            <span aria-hidden="true">👍</span> {t("doc.yes")}
+            <span className="feedback-count">{doc.helpful_count}</span>
+          </button>
+          <button
+            type="button"
+            className={`feedback-btn${doc.my_vote === false ? " active down" : ""}`}
+            aria-pressed={doc.my_vote === false}
+            disabled={vote.isPending}
+            onClick={() => vote.mutate(doc.my_vote === false ? null : false)}
+          >
+            <span aria-hidden="true">👎</span> {t("doc.no")}
+            <span className="feedback-count">{doc.not_helpful_count}</span>
+          </button>
+        </div>
+      </div>
     </>
   );
 }

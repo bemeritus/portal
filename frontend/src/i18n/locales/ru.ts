@@ -10,6 +10,7 @@ export const ru = {
       categories: "Категории",
       users: "Пользователи",
       logs: "Журнал",
+      analytics: "Аналитика",
       toggleSections: "Показать разделы",
       sections: "Разделы",
       newDocument: "Новый документ",
@@ -26,11 +27,23 @@ export const ru = {
       settings: "Настройки",
       darkMode: "Тёмная тема",
       language: "Язык",
-      sendFeedback: "Оставить отзыв",
       signOut: "Выйти",
       signingOut: "Выход…",
       roleAdmin: "Администратор",
       roleMember: "Участник",
+    },
+
+    settings: {
+      heading: "Настройки",
+      subtitle: "Параметры, применяемые к вам на этом устройстве.",
+      appearance: "Оформление",
+      appearanceDesc: "Выберите тему интерфейса.",
+      language: "Язык",
+      languageDesc: "Язык интерфейса.",
+      themeDark: "Тёмная",
+      themeLight: "Светлая",
+      themeGruvbox: "Gruvbox",
+      themeGruvboxLight: "Gruvbox светлая",
     },
 
     common: {
@@ -61,8 +74,8 @@ export const ru = {
 
     home: {
       newDocument: "+ Новый документ",
-      searchByTitle: "Поиск по названию",
-      filterPlaceholder: "Введите для фильтра…",
+      searchLabel: "Поиск",
+      filterPlaceholder: "Поиск по названиям и ответам…",
       category: "Категория",
       allCategories: "Все категории",
       noMatchTitle: "Нет документов по вашим фильтрам",
@@ -83,9 +96,37 @@ export const ru = {
       questions_few: "{{count}} вопроса",
       questions_many: "{{count}} вопросов",
       questions_other: "{{count}} вопроса",
+      views_one: "{{count}} просмотр",
+      views_few: "{{count}} просмотра",
+      views_many: "{{count}} просмотров",
+      views_other: "{{count}} просмотра",
+      helpfulQuestion: "Это было полезно?",
+      yes: "Да",
+      no: "Нет",
     },
 
     status: { draft: "черновик", published: "опубликован" },
+
+    analytics: {
+      heading: "Аналитика",
+      subtitle: "Как используется база знаний — просмотры, отзывы и пробелы.",
+      totalDocuments: "Документы",
+      totalViews: "Всего просмотров",
+      mostViewed: "Самые просматриваемые",
+      noViews: "Ни один документ ещё не открывали.",
+      needsWork: "Требует внимания",
+      needsWorkHint: "Документы, отмеченные как бесполезные — вероятнее всего устарели.",
+      noNegative: "Ни один документ не получил минус. Отлично.",
+      contentGaps: "Пробелы в контенте",
+      contentGapsHint: "Запросы, ничего не нашедшие — статьи, которые стоит написать.",
+      noGaps: "Пока каждый поиск что-то находил.",
+      document: "Документ",
+      category: "Категория",
+      views: "Просмотры",
+      query: "Запрос",
+      times: "Раз",
+      lastSearched: "Последний поиск",
+    },
 
     categories: {
       heading: "Категории",
@@ -206,6 +247,10 @@ export const ru = {
       statusPublished: "Опубликован",
       statusHint:
         "Метка, а не право: каждый, кто может читать эту категорию, откроет документ в любом случае.",
+      tags: "Теги",
+      tagsPlaceholder: "Добавить тег…",
+      tagsHint: "Межкатегорийные метки для поиска — Enter или запятая, чтобы добавить.",
+      removeTag: "Удалить тег {{tag}}",
       qaBlocks: "Блоки вопрос–ответ",
       markdownHint1:
         "Ответы поддерживают Markdown. Нажмите кнопку изображения в блоке, чтобы загрузить картинку и вставить фрагмент ",

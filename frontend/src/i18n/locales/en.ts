@@ -10,6 +10,7 @@ export const en = {
       categories: "Categories",
       users: "Users",
       logs: "Logs",
+      analytics: "Analytics",
       toggleSections: "Toggle sections",
       sections: "Sections",
       newDocument: "New document",
@@ -26,11 +27,23 @@ export const en = {
       settings: "Settings",
       darkMode: "Dark mode",
       language: "Language",
-      sendFeedback: "Send feedback",
       signOut: "Sign out",
       signingOut: "Signing out…",
       roleAdmin: "Admin",
       roleMember: "Member",
+    },
+
+    settings: {
+      heading: "Settings",
+      subtitle: "Preferences that apply to you on this device.",
+      appearance: "Appearance",
+      appearanceDesc: "Choose the theme for the interface.",
+      language: "Language",
+      languageDesc: "The language of the interface.",
+      themeDark: "Dark",
+      themeLight: "Light",
+      themeGruvbox: "Gruvbox",
+      themeGruvboxLight: "Gruvbox Light",
     },
 
     common: {
@@ -61,8 +74,8 @@ export const en = {
 
     home: {
       newDocument: "+ New document",
-      searchByTitle: "Search by title",
-      filterPlaceholder: "Type to filter…",
+      searchLabel: "Search",
+      filterPlaceholder: "Search titles and answers…",
       category: "Category",
       allCategories: "All categories",
       noMatchTitle: "No documents match your filters",
@@ -79,9 +92,35 @@ export const en = {
       noQuestions: "This document has no questions yet.",
       questions_one: "{{count}} question",
       questions_other: "{{count}} questions",
+      views_one: "{{count}} view",
+      views_other: "{{count}} views",
+      helpfulQuestion: "Was this helpful?",
+      yes: "Yes",
+      no: "No",
     },
 
     status: { draft: "draft", published: "published" },
+
+    analytics: {
+      heading: "Analytics",
+      subtitle: "How the knowledge base is used — reads, feedback and gaps.",
+      totalDocuments: "Documents",
+      totalViews: "Total views",
+      mostViewed: "Most viewed",
+      noViews: "No documents have been opened yet.",
+      needsWork: "Needs attention",
+      needsWorkHint: "Documents readers have marked unhelpful — likeliest to be out of date.",
+      noNegative: "No document has been voted down. Nice.",
+      contentGaps: "Content gaps",
+      contentGapsHint: "Searches that found nothing — the articles worth writing next.",
+      noGaps: "Every search so far has found something.",
+      document: "Document",
+      category: "Category",
+      views: "Views",
+      query: "Search",
+      times: "Times",
+      lastSearched: "Last searched",
+    },
 
     categories: {
       heading: "Categories",
@@ -198,6 +237,10 @@ export const en = {
       statusPublished: "Published",
       statusHint:
         "A label, not a permission: everyone who can read this category can open the document either way.",
+      tags: "Tags",
+      tagsPlaceholder: "Add a tag…",
+      tagsHint: "Cross-category labels for search — press Enter or comma to add.",
+      removeTag: "Remove tag {{tag}}",
       qaBlocks: "Q&A blocks",
       markdownHint1:
         "Answers accept Markdown. Use the image button in a block to upload a picture and drop the ",

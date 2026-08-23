@@ -9,6 +9,7 @@
 
 import { api } from "./client";
 import type {
+  AnalyticsOverview,
   AttemptResult,
   AttemptRow,
   AttemptSubmit,
@@ -21,6 +22,7 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
+  FeedbackSummary,
   LabProgressSubmit,
   LabSubmissionRow,
   LearningLabBody,
@@ -78,9 +80,9 @@ export const categories = {
 };
 
 export const documents = {
-  list: (filters: { title?: string; category?: Uuid }, signal?: AbortSignal) =>
+  list: (filters: { q?: string; category?: Uuid }, signal?: AbortSignal) =>
     api.get<DocumentSummary[]>(
-      `${TEMPLATES}/documents${query({ title: filters.title, category: filters.category })}`,
+      `${TEMPLATES}/documents${query({ q: filters.q, category: filters.category })}`,
       signal,
     ),
   get: (id: Uuid, signal?: AbortSignal) =>
@@ -91,6 +93,21 @@ export const documents = {
   create: (body: DocumentBody) => api.post<{ id: Uuid }>(`${TEMPLATES}/documents`, body),
   update: (id: Uuid, body: DocumentBody) => api.put<void>(`${TEMPLATES}/documents/${id}`, body),
   remove: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}`),
+  /** Vote 👍 (true) / 👎 (false); returns the updated tally. */
+  vote: (id: Uuid, helpful: boolean) =>
+    api.post<FeedbackSummary>(`${TEMPLATES}/documents/${id}/feedback`, { helpful }),
+  /** Clear this reader's vote. */
+  clearVote: (id: Uuid) => api.del<FeedbackSummary>(`${TEMPLATES}/documents/${id}/feedback`),
+};
+
+export const tags = {
+  /** The whole tag vocabulary, alphabetical — for editor suggestions. */
+  list: (signal?: AbortSignal) => api.get<string[]>(`${TEMPLATES}/tags`, signal),
+};
+
+export const analytics = {
+  /** The admin dashboard payload: views, feedback rankings, search gaps. */
+  overview: (signal?: AbortSignal) => api.get<AnalyticsOverview>(`${BASE}/analytics`, signal),
 };
 
 export const users = {

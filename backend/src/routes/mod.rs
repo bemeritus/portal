@@ -12,6 +12,7 @@ use serde::Serialize;
 use crate::db::AppState;
 use crate::error::ApiError;
 
+pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod categories;
@@ -57,6 +58,7 @@ pub fn api(state: &AppState) -> Router<AppState> {
         .nest("/learning", learning::routes())
         .nest("/users", users::routes())
         .nest("/audit", audit::routes())
+        .nest("/analytics", analytics::routes())
         .nest(
             "/upload",
             uploads::routes().layer(DefaultBodyLimit::max(upload_limit)),

@@ -9,7 +9,7 @@
  * `position` from it.
  */
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ import { errorMessage } from "../api/client";
 import {
   categories as categoriesApi,
   documents as documentsApi,
+  tags as tagsApi,
   uploads as uploadsApi,
 } from "../api/endpoints";
 import { ConfirmButton } from "../components/ConfirmButton";
@@ -47,6 +48,7 @@ export function EditorPage() {
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("draft");
   const [blocks, setBlocks] = useState<EditableBlock[]>(() => [newBlock()]);
+  const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const heading = isEdit ? t("editor.editDocument") : t("editor.newDocument");
@@ -78,8 +80,15 @@ export function EditorPage() {
     setTitle(draft.title);
     setCategoryId(draft.category_id);
     setStatus(draft.status);
+    setTags(draft.tags);
     setBlocks(draft.blocks.length > 0 ? draft.blocks.map((b) => newBlock(b)) : [newBlock()]);
   }, [draft]);
+
+  // The whole tag vocabulary, for suggesting existing tags as you type.
+  const tagVocabQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn: ({ signal }) => tagsApi.list(signal),
+  });
 
   const save = useMutation({
     mutationFn: async (body: DocumentBody) => {
@@ -91,9 +100,11 @@ export function EditorPage() {
       return created.id;
     },
     onSuccess: async (savedId) => {
-      // Both the list and this document's cached copy are now stale.
+      // Both the list and this document's cached copy are now stale, and a
+      // brand-new tag has just joined the vocabulary.
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
       await queryClient.invalidateQueries({ queryKey: ["document", savedId] });
+      await queryClient.invalidateQueries({ queryKey: ["tags"] });
       navigate(`/templates/docs/${savedId}`, { replace: true });
     },
     onError: (e) => setError(errorMessage(e)),
@@ -128,6 +139,7 @@ export function EditorPage() {
       status,
       // Strip the client-side key: the server's shape has no room for it.
       blocks: blocks.map(({ question, answer }) => ({ question, answer })),
+      tags,
     });
   }
 
@@ -199,6 +211,10 @@ export function EditorPage() {
               <p className="hint">{t("editor.statusHint")}</p>
             </div>
           </div>
+
+          <label htmlFor="tag-input">{t("editor.tags")}</label>
+          <TagsInput value={tags} onChange={setTags} suggestions={tagVocabQuery.data ?? []} />
+          <p className="hint">{t("editor.tagsHint")}</p>
         </div>
 
         <h3 style={{ marginTop: 24 }}>
@@ -254,6 +270,79 @@ export function EditorPage() {
         </div>
       </form>
     </>
+  );
+}
+
+interface TagsInputProps {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  suggestions: string[];
+}
+
+/**
+ * A chip-list tag editor: type a tag and press Enter or comma to add it,
+ * Backspace on an empty field removes the last one, and each chip has its own
+ * remove button. Tags are normalised to lower-case here too so what the author
+ * sees matches what the server will store (see `normalize_tags`).
+ */
+function TagsInput({ value, onChange, suggestions }: TagsInputProps) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState("");
+
+  function add(raw: string) {
+    const name = raw.trim().toLowerCase();
+    if (name === "" || value.includes(name)) {
+      setDraft("");
+      return;
+    }
+    onChange([...value, name]);
+    setDraft("");
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      add(draft);
+    } else if (e.key === "Backspace" && draft === "" && value.length > 0) {
+      onChange(value.slice(0, -1));
+    }
+  }
+
+  // Only offer tags not already picked.
+  const available = suggestions.filter((s) => !value.includes(s));
+
+  return (
+    <div className="tag-input">
+      {value.map((tag) => (
+        <span className="tag-chip" key={tag}>
+          {tag}
+          <button
+            type="button"
+            className="tag-remove"
+            aria-label={t("editor.removeTag", { tag })}
+            onClick={() => onChange(value.filter((x) => x !== tag))}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        id="tag-input"
+        type="text"
+        className="tag-field"
+        list="tag-suggestions"
+        placeholder={t("editor.tagsPlaceholder")}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={() => add(draft)}
+      />
+      <datalist id="tag-suggestions">
+        {available.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+    </div>
   );
 }
 

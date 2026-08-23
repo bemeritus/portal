@@ -1,10 +1,11 @@
 /**
  * `/` — the document list with its two filters (FR-17 … FR-20).
  *
- * The title filter is debounced: it fires a query per pause, not per
+ * The search filter is debounced: it fires a query per pause, not per
  * keystroke, and each new query cancels the one before it. Without that,
  * typing "postgres" is eight requests racing each other, and the list settles
- * on whichever happens to land last.
+ * on whichever happens to land last. Search now spans the title *and* every
+ * Q&A block body (full-text on the server), not just the title.
  */
 
 import { useEffect, useState } from "react";
@@ -27,10 +28,10 @@ export function HomePage() {
   // The filters live in the URL so a filtered list can be linked and survives
   // a refresh.
   const [params, setParams] = useSearchParams();
-  const titleParam = params.get("title") ?? "";
+  const qParam = params.get("q") ?? "";
   const categoryParam = params.get("category") ?? "";
 
-  const [titleInput, setTitleInput] = useState(titleParam);
+  const [qInput, setQInput] = useState(qParam);
   const user = useUser();
   const { t } = useTranslation();
   const canWrite = hasAnywhere(user, "write");
@@ -41,24 +42,24 @@ export function HomePage() {
 
   // Someone else changed the URL (back button, a link): follow it.
   useEffect(() => {
-    setTitleInput(titleParam);
-  }, [titleParam]);
+    setQInput(qParam);
+  }, [qParam]);
 
   useEffect(() => {
-    if (titleInput === titleParam) return;
+    if (qInput === qParam) return;
     const timer = setTimeout(() => {
       setParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          if (titleInput) next.set("title", titleInput);
-          else next.delete("title");
+          if (qInput) next.set("q", qInput);
+          else next.delete("q");
           return next;
         },
         { replace: true },
       );
     }, TYPING_PAUSE_MS);
     return () => clearTimeout(timer);
-  }, [titleInput, titleParam, setParams]);
+  }, [qInput, qParam, setParams]);
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
@@ -66,12 +67,12 @@ export function HomePage() {
   });
 
   const documentsQuery = useQuery({
-    queryKey: ["documents", titleParam, categoryParam],
+    queryKey: ["documents", qParam, categoryParam],
     queryFn: ({ signal }) =>
-      documentsApi.list({ title: titleParam, category: categoryParam || undefined }, signal),
+      documentsApi.list({ q: qParam, category: categoryParam || undefined }, signal),
   });
 
-  const isFiltered = titleParam !== "" || categoryParam !== "";
+  const isFiltered = qParam !== "" || categoryParam !== "";
   const documents = documentsQuery.data ?? [];
 
   function setCategory(value: string) {
@@ -84,7 +85,7 @@ export function HomePage() {
   }
 
   function clearFilters() {
-    setTitleInput("");
+    setQInput("");
     setParams(new URLSearchParams());
   }
 
@@ -105,13 +106,13 @@ export function HomePage() {
       <div className="panel" style={{ margin: "16px 0" }}>
         <div className="row">
           <div>
-            <label htmlFor="q">{t("home.searchByTitle")}</label>
+            <label htmlFor="q">{t("home.searchLabel")}</label>
             <input
               id="q"
               type="search"
-              value={titleInput}
+              value={qInput}
               placeholder={t("home.filterPlaceholder")}
-              onChange={(e) => setTitleInput(e.target.value)}
+              onChange={(e) => setQInput(e.target.value)}
             />
           </div>
           <div>
@@ -173,6 +174,15 @@ export function HomePage() {
                 <span>{formatDate(doc.created_at)}</span>
                 {doc.status === "draft" && <span className="badge draft">{t("status.draft")}</span>}
               </div>
+              {doc.tags.length > 0 && (
+                <div className="tag-row">
+                  {doc.tags.map((tag) => (
+                    <span className="tag-chip" key={tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </Link>
           ))}
         </>
