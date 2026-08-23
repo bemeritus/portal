@@ -32,7 +32,7 @@ export function ResourcesPage() {
     <>
       <div
         className="doc-header"
-        style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+        style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }}
       >
         <h1 style={{ flex: 1, minWidth: 0 }}>{t("learning.resourcesHeading")}</h1>
         {isAuthor && (

@@ -32,7 +32,7 @@ export function LabsPage() {
     <>
       <div
         className="doc-header"
-        style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+        style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }}
       >
         <h1 style={{ flex: 1, minWidth: 0 }}>{t("learning.labsHeading")}</h1>
         {isAuthor && (
