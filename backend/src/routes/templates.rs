@@ -6,7 +6,7 @@
 //! those handlers rather than as a layer here so a request is loaded once, not
 //! once for the door and again for the body.
 
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 
 use crate::db::AppState;
@@ -20,4 +20,8 @@ pub fn routes() -> Router<AppState> {
         // The tag vocabulary is document-wide, not per-document, so it sits
         // beside `/documents` rather than under it.
         .route("/tags", get(documents::list_tags))
+        // The caller's own bookmarked documents.
+        .route("/bookmarks", get(documents::list_bookmarks))
+        // The editor's live markdown preview, rendered by the one sanitized path.
+        .route("/preview", post(documents::preview_markdown))
 }

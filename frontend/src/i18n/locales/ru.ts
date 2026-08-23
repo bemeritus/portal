@@ -7,6 +7,7 @@ export const ru = {
     nav: {
       new: "Создать",
       documents: "Документы",
+      bookmarks: "Закладки",
       categories: "Категории",
       users: "Пользователи",
       logs: "Журнал",
@@ -103,6 +104,23 @@ export const ru = {
       helpfulQuestion: "Это было полезно?",
       yes: "Да",
       no: "Нет",
+      bookmark: "В закладки",
+      bookmarked: "В закладках",
+    },
+
+    bookmarks: {
+      heading: "Закладки",
+      subtitle: "Документы, которые вы сохранили, чтобы найти снова.",
+      noneTitle: "Пока нет закладок",
+      noneBody: "Откройте документ и нажмите ★, чтобы сохранить его здесь.",
+    },
+
+    command: {
+      title: "Командная палитра",
+      placeholder: "Перейти к странице или искать документы…",
+      pages: "Страницы",
+      documents: "Документы",
+      noResults: "Ничего не найдено.",
     },
 
     status: { draft: "черновик", published: "опубликован" },
@@ -251,6 +269,18 @@ export const ru = {
       tagsPlaceholder: "Добавить тег…",
       tagsHint: "Межкатегорийные метки для поиска — Enter или запятая, чтобы добавить.",
       removeTag: "Удалить тег {{tag}}",
+      bold: "Жирный",
+      italic: "Курсив",
+      heading: "Заголовок",
+      bulletList: "Список",
+      quote: "Цитата",
+      inlineCode: "Код в строке",
+      codeBlock: "Блок кода",
+      link: "Ссылка",
+      linkText: "текст",
+      preview: "Предпросмотр",
+      exitPreview: "Выйти из предпросмотра",
+      previewEmpty: "Пока нечего показать.",
       qaBlocks: "Блоки вопрос–ответ",
       markdownHint1:
         "Ответы поддерживают Markdown. Нажмите кнопку изображения в блоке, чтобы загрузить картинку и вставить фрагмент ",

@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
 import { hasAnywhere, inSection } from "../permissions";
+import { CommandPalette } from "./CommandPalette";
 import { UserMenu } from "./UserMenu";
 
 /** Which section the current URL belongs to. Templates is the default home. */
@@ -32,11 +33,24 @@ export function Layout() {
   const location = useLocation();
   const [railOpen, setRailOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   // A section link on a phone should take you there and get out of the way.
   useEffect(() => {
     setRailOpen(false);
   }, [location.pathname]);
+
+  // ⌘K / Ctrl-K toggles the command palette from anywhere.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const section = sectionOf(location.pathname);
   const hasTemplates = inSection(user, "templates");
@@ -108,6 +122,7 @@ export function Layout() {
                 <NavLink to="/templates" end>
                   {t("nav.documents")}
                 </NavLink>
+                <NavLink to="/templates/bookmarks">{t("nav.bookmarks")}</NavLink>
                 {user?.is_admin && (
                   <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>
                 )}
@@ -156,6 +171,8 @@ export function Layout() {
           +
         </Link>
       )}
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </>
   );
 }

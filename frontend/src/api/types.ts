@@ -99,6 +99,7 @@ export interface DocumentWithBlocks {
   not_helpful_count: number;
   /** This viewer's vote: true 👍, false 👎, null none. */
   my_vote: boolean | null;
+  bookmarked: boolean;
 }
 
 export interface FeedbackSummary {

@@ -8,6 +8,7 @@ export const uz = {
     nav: {
       new: "Yangi",
       documents: "Hujjatlar",
+      bookmarks: "Xatcho'plar",
       categories: "Kategoriyalar",
       users: "Foydalanuvchilar",
       logs: "Jurnal",
@@ -98,6 +99,23 @@ export const uz = {
       helpfulQuestion: "Foydali bo'ldimi?",
       yes: "Ha",
       no: "Yo'q",
+      bookmark: "Saqlash",
+      bookmarked: "Saqlangan",
+    },
+
+    bookmarks: {
+      heading: "Xatcho'plar",
+      subtitle: "Qayta topish uchun saqlab qo'ygan hujjatlaringiz.",
+      noneTitle: "Hali xatcho'plar yo'q",
+      noneBody: "Hujjatni ochib, uni shu yerda saqlash uchun ★ ni bosing.",
+    },
+
+    command: {
+      title: "Buyruq paneli",
+      placeholder: "Sahifaga o'tish yoki hujjat qidirish…",
+      pages: "Sahifalar",
+      documents: "Hujjatlar",
+      noResults: "Hech narsa topilmadi.",
     },
 
     status: { draft: "qoralama", published: "e'lon qilingan" },
@@ -242,6 +260,18 @@ export const uz = {
       tagsPlaceholder: "Teg qo'shing…",
       tagsHint: "Qidiruv uchun kategoriyalararo belgilar — qo'shish uchun Enter yoki vergul.",
       removeTag: "{{tag}} tegini olib tashlash",
+      bold: "Qalin",
+      italic: "Kursiv",
+      heading: "Sarlavha",
+      bulletList: "Ro'yxat",
+      quote: "Iqtibos",
+      inlineCode: "Kod (matn ichida)",
+      codeBlock: "Kod bloki",
+      link: "Havola",
+      linkText: "matn",
+      preview: "Ko'rinish",
+      exitPreview: "Ko'rinishdan chiqish",
+      previewEmpty: "Hozircha ko'rsatadigan narsa yo'q.",
       qaBlocks: "Savol–javob bloklari",
       markdownHint1:
         "Javoblar Markdown'ni qabul qiladi. Rasm yuklash uchun blokdagi rasm tugmasini bosing va ",

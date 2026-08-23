@@ -18,6 +18,7 @@ import { inSection } from "./permissions";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
+import { BookmarksPage } from "./pages/BookmarksPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { DocumentPage } from "./pages/DocumentPage";
 import { EditorPage } from "./pages/EditorPage";
@@ -84,6 +85,7 @@ export function App() {
           {/* Templates — the category + Q&A world. */}
           <Route path="templates" element={<RequireSection section="templates" />}>
             <Route index element={<HomePage />} />
+            <Route path="bookmarks" element={<BookmarksPage />} />
             {/* Before `docs/:id`, or "new" would be read as an id. */}
             <Route path="docs/new" element={<EditorPage />} />
             <Route path="docs/:id" element={<DocumentPage />} />

@@ -28,6 +28,7 @@ pub fn routes() -> Router<AppState> {
         .route("/{id}", get(get_one).put(update).delete(remove))
         .route("/{id}/draft", get(get_draft))
         .route("/{id}/feedback", axum::routing::post(set_feedback).delete(clear_feedback))
+        .route("/{id}/bookmark", axum::routing::post(add_bookmark).delete(remove_bookmark))
 }
 
 #[derive(Deserialize)]
@@ -60,6 +61,16 @@ pub struct CreatedDocument {
 pub struct FeedbackBody {
     /// `true` for 👍, `false` for 👎. Clearing a vote is the DELETE route.
     helpful: bool,
+}
+
+#[derive(Deserialize)]
+pub struct PreviewBody {
+    markdown: String,
+}
+
+#[derive(Serialize)]
+pub struct PreviewResult {
+    html: String,
 }
 
 /// FR-17: the document list, narrowed in SQL to the caller's `READ`
@@ -211,6 +222,15 @@ async fn get_one(
     let (helpful_count, not_helpful_count, my_vote) =
         feedback_summary(&state.pool, id, user.id).await?;
 
+    let bookmarked: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE document_id = $1 AND user_id = $2)",
+    )
+    .bind(id)
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| internal("checking a bookmark", e))?;
+
     Ok(Json(DocumentWithBlocks {
         id: meta.id,
         title: meta.title,
@@ -227,7 +247,86 @@ async fn get_one(
         helpful_count,
         not_helpful_count,
         my_vote,
+        bookmarked,
     }))
+}
+
+/// Bookmark this document for the caller, or remove the bookmark. Requires READ
+/// in the document's category — the same right that let them open it.
+async fn add_bookmark(
+    State(state): State<AppState>,
+    InTemplates(user): InTemplates,
+    Path(id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    let category: Option<Uuid> = sqlx::query_scalar("SELECT category_id FROM documents WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| internal("loading a document to bookmark", e))?;
+    let category = category.ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
+    require_in_category(&user, Permission::Read, category)?;
+
+    sqlx::query(
+        "INSERT INTO bookmarks (user_id, document_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    )
+    .bind(user.id)
+    .bind(id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| internal("adding a bookmark", e))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn remove_bookmark(
+    State(state): State<AppState>,
+    InTemplates(user): InTemplates,
+    Path(id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    sqlx::query("DELETE FROM bookmarks WHERE user_id = $1 AND document_id = $2")
+        .bind(user.id)
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal("removing a bookmark", e))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// The caller's bookmarked documents, newest bookmark first, still narrowed to
+/// the categories they may READ (a bookmark does not outlive lost access).
+pub async fn list_bookmarks(
+    State(state): State<AppState>,
+    InTemplates(user): InTemplates,
+) -> ApiResult<Json<Vec<DocumentSummary>>> {
+    let readable = user.granted_categories(Permission::Read);
+    let docs = sqlx::query_as::<_, DocumentSummary>(
+        "SELECT d.id, d.title, d.status, d.category_id,
+                c.name AS category_name,
+                u.username AS author_username,
+                d.created_at,
+                COALESCE(
+                    ARRAY(
+                        SELECT t.name FROM document_tags dt
+                        JOIN tags t ON t.id = dt.tag_id
+                        WHERE dt.document_id = d.id
+                        ORDER BY t.name
+                    ),
+                    '{}'
+                ) AS tags
+         FROM bookmarks b
+         JOIN documents d ON d.id = b.document_id
+         JOIN categories c ON c.id = d.category_id
+         JOIN users u ON u.id = d.author_id
+         WHERE b.user_id = $1
+           AND ($2::bool OR d.category_id = ANY($3::uuid[]))
+         ORDER BY b.created_at DESC",
+    )
+    .bind(user.id)
+    .bind(user.is_admin)
+    .bind(&readable)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("listing bookmarks", e))?;
+    Ok(Json(docs))
 }
 
 /// Vote 👍/👎 on a document, or change an earlier vote. Requires READ in the
@@ -625,6 +724,19 @@ async fn remove(
     )
     .await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Render a snippet of the author's markdown to the same sanitized HTML the
+/// document view will show — the editor's live preview. Runs through the one
+/// `render_markdown` path so the preview can never diverge from the real render
+/// (or skip the sanitizer). Any signed-in templates user may call it.
+pub async fn preview_markdown(
+    InTemplates(_user): InTemplates,
+    Json(body): Json<PreviewBody>,
+) -> Json<PreviewResult> {
+    Json(PreviewResult {
+        html: render_markdown(&body.markdown),
+    })
 }
 
 /// The whole tag vocabulary, alphabetical — feeds the editor's suggestions.

@@ -7,6 +7,7 @@ export const en = {
     nav: {
       new: "New",
       documents: "Documents",
+      bookmarks: "Bookmarks",
       categories: "Categories",
       users: "Users",
       logs: "Logs",
@@ -97,6 +98,23 @@ export const en = {
       helpfulQuestion: "Was this helpful?",
       yes: "Yes",
       no: "No",
+      bookmark: "Bookmark",
+      bookmarked: "Bookmarked",
+    },
+
+    bookmarks: {
+      heading: "Bookmarks",
+      subtitle: "Documents you saved to find again.",
+      noneTitle: "No bookmarks yet",
+      noneBody: "Open a document and press ★ to keep it here.",
+    },
+
+    command: {
+      title: "Command palette",
+      placeholder: "Jump to a page or search documents…",
+      pages: "Pages",
+      documents: "Documents",
+      noResults: "No matches.",
     },
 
     status: { draft: "draft", published: "published" },
@@ -241,6 +259,18 @@ export const en = {
       tagsPlaceholder: "Add a tag…",
       tagsHint: "Cross-category labels for search — press Enter or comma to add.",
       removeTag: "Remove tag {{tag}}",
+      bold: "Bold",
+      italic: "Italic",
+      heading: "Heading",
+      bulletList: "Bullet list",
+      quote: "Quote",
+      inlineCode: "Inline code",
+      codeBlock: "Code block",
+      link: "Link",
+      linkText: "text",
+      preview: "Preview",
+      exitPreview: "Exit preview",
+      previewEmpty: "Nothing to preview yet.",
       qaBlocks: "Q&A blocks",
       markdownHint1:
         "Answers accept Markdown. Use the image button in a block to upload a picture and drop the ",

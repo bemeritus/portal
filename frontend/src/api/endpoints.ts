@@ -98,11 +98,22 @@ export const documents = {
     api.post<FeedbackSummary>(`${TEMPLATES}/documents/${id}/feedback`, { helpful }),
   /** Clear this reader's vote. */
   clearVote: (id: Uuid) => api.del<FeedbackSummary>(`${TEMPLATES}/documents/${id}/feedback`),
+  /** Bookmark / un-bookmark this document for the current user. */
+  bookmark: (id: Uuid) => api.post<void>(`${TEMPLATES}/documents/${id}/bookmark`),
+  unbookmark: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}/bookmark`),
+  /** Render markdown to the same sanitized HTML the doc view shows — live preview. */
+  preview: (markdown: string) => api.post<{ html: string }>(`${TEMPLATES}/preview`, { markdown }),
 };
 
 export const tags = {
   /** The whole tag vocabulary, alphabetical — for editor suggestions. */
   list: (signal?: AbortSignal) => api.get<string[]>(`${TEMPLATES}/tags`, signal),
+};
+
+export const bookmarks = {
+  /** The current user's bookmarked documents, newest first. */
+  list: (signal?: AbortSignal) =>
+    api.get<DocumentSummary[]>(`${TEMPLATES}/bookmarks`, signal),
 };
 
 export const analytics = {

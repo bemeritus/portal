@@ -395,6 +395,90 @@ function BlockEditor({
     onError: (e) => setUploadError(errorMessage(e)),
   });
 
+  // Live preview: the answer, rendered by the server's one sanitized path, so
+  // it always matches the published document. Debounced, and only asked for
+  // while the preview pane is open.
+  const [showPreview, setShowPreview] = useState(false);
+  const [debouncedAnswer, setDebouncedAnswer] = useState(block.answer);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedAnswer(block.answer), 400);
+    return () => window.clearTimeout(id);
+  }, [block.answer]);
+
+  // In the expanded (fullscreen) preview, Escape returns to the inline editor.
+  useEffect(() => {
+    if (!showPreview) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setShowPreview(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showPreview]);
+  const previewQuery = useQuery({
+    queryKey: ["preview", debouncedAnswer],
+    queryFn: () => documentsApi.preview(debouncedAnswer),
+    enabled: showPreview && debouncedAnswer.trim() !== "",
+  });
+
+  // The toolbar operates on the answer textarea's current selection, then
+  // restores it so a formatting click never loses the caret.
+  function applyToAnswer(
+    transform: (val: string, s: number, e: number) => { value: string; selStart: number; selEnd: number },
+  ) {
+    const ta = answerRef.current;
+    if (!ta) return;
+    const { value, selStart, selEnd } = transform(block.answer, ta.selectionStart, ta.selectionEnd);
+    onChange({ answer: value });
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.selectionStart = selStart;
+      ta.selectionEnd = selEnd;
+    });
+  }
+  const surround = (before: string, after = before) =>
+    applyToAnswer((val, s, e) => {
+      const sel = val.slice(s, e);
+      return {
+        value: val.slice(0, s) + before + sel + after + val.slice(e),
+        selStart: s + before.length,
+        selEnd: sel ? e + before.length : s + before.length,
+      };
+    });
+  const linePrefix = (prefix: string) =>
+    applyToAnswer((val, s, e) => {
+      const lineStart = val.lastIndexOf("\n", s - 1) + 1;
+      const nl = val.indexOf("\n", e);
+      const lineEnd = nl === -1 ? val.length : nl;
+      const target = val.slice(lineStart, lineEnd);
+      const prefixed = target
+        .split("\n")
+        .map((l) => prefix + l)
+        .join("\n");
+      return {
+        value: val.slice(0, lineStart) + prefixed + val.slice(lineEnd),
+        selStart: lineStart,
+        selEnd: lineEnd + (prefixed.length - target.length),
+      };
+    });
+  const insertLink = () =>
+    applyToAnswer((val, s, e) => {
+      const sel = val.slice(s, e) || t("editor.linkText");
+      const snippet = `[${sel}](url)`;
+      const urlStart = s + sel.length + 3;
+      return { value: val.slice(0, s) + snippet + val.slice(e), selStart: urlStart, selEnd: urlStart + 3 };
+    });
+
+  const tools = [
+    { key: "bold", label: "B", title: t("editor.bold"), on: () => surround("**") },
+    { key: "italic", label: "I", title: t("editor.italic"), on: () => surround("*") },
+    { key: "heading", label: "H", title: t("editor.heading"), on: () => linePrefix("## ") },
+    { key: "list", label: "•", title: t("editor.bulletList"), on: () => linePrefix("- ") },
+    { key: "quote", label: "❝", title: t("editor.quote"), on: () => linePrefix("> ") },
+    { key: "code", label: "</>", title: t("editor.inlineCode"), on: () => surround("`") },
+    { key: "codeblock", label: "{ }", title: t("editor.codeBlock"), on: () => surround("```\n", "\n```") },
+    { key: "link", label: "🔗", title: t("editor.link"), on: insertLink },
+  ];
+
   const questionId = `q-${block.key}`;
   const answerId = `a-${block.key}`;
 
@@ -455,15 +539,57 @@ function BlockEditor({
         onChange={(e) => onChange({ question: e.target.value })}
       />
 
-      <label htmlFor={answerId}>{t("editor.answerLabel")}</label>
-      <textarea
-        id={answerId}
-        ref={answerRef}
-        className="md-editor"
-        placeholder={t("editor.answerPlaceholder")}
-        value={block.answer}
-        onChange={(e) => onChange({ answer: e.target.value })}
-      />
+      <div className={`md-region${showPreview ? " fullscreen" : ""}`}>
+        <div className="answer-head">
+          <label htmlFor={answerId}>{t("editor.answerLabel")}</label>
+          <div className="md-toolbar">
+            {tools.map((tool) => (
+              <button
+                key={tool.key}
+                type="button"
+                className="md-tool"
+                title={tool.title}
+                aria-label={tool.title}
+                // Keep the textarea's selection: prevent the button from taking focus.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={tool.on}
+              >
+                {tool.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`md-tool preview-toggle${showPreview ? " active" : ""}`}
+              aria-pressed={showPreview}
+              title={showPreview ? t("editor.exitPreview") : t("editor.preview")}
+              onClick={() => setShowPreview((v) => !v)}
+            >
+              {showPreview ? t("editor.exitPreview") : t("editor.preview")}
+            </button>
+          </div>
+        </div>
+        <div className={showPreview ? "md-split" : undefined}>
+          <textarea
+            id={answerId}
+            ref={answerRef}
+            className="md-editor"
+            placeholder={t("editor.answerPlaceholder")}
+            value={block.answer}
+            onChange={(e) => onChange({ answer: e.target.value })}
+          />
+          {showPreview && (
+            <div className="md-preview">
+              {debouncedAnswer.trim() === "" ? (
+                <p className="muted">{t("editor.previewEmpty")}</p>
+              ) : (
+                // Server-rendered and server-sanitized — the same path the
+                // document view uses, so preview and published never diverge.
+                <div className="a" dangerouslySetInnerHTML={{ __html: previewQuery.data?.html ?? "" }} />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="actions" style={{ marginTop: 8 }}>
         <input

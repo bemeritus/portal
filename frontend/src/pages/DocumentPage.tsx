@@ -53,6 +53,19 @@ export function DocumentPage() {
     },
   });
 
+  // Bookmarking flips the cached document's flag immediately and invalidates
+  // the bookmarks list so it reflects the change on next visit.
+  const bookmark = useMutation({
+    mutationFn: (next: boolean) =>
+      next ? documentsApi.bookmark(id) : documentsApi.unbookmark(id),
+    onSuccess: (_data, next) => {
+      queryClient.setQueryData<typeof doc>(["document", id], (prev) =>
+        prev ? { ...prev, bookmarked: next } : prev,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
+    },
+  });
+
   const remove = useMutation({
     mutationFn: () => documentsApi.remove(id),
     onSuccess: async () => {
@@ -115,23 +128,32 @@ export function DocumentPage() {
             </div>
           )}
         </div>
-        {(canEdit || canDelete) && (
-          <div className="actions">
-            {canEdit && (
-              <Link className="btn secondary small" to={`/templates/docs/${doc.id}/edit`}>
-                {t("common.edit")}
-              </Link>
-            )}
-            {canDelete && (
-              <ConfirmButton
-                label={t("common.delete")}
-                confirmLabel={t("doc.deleteForGood")}
-                pending={remove.isPending}
-                onConfirm={() => remove.mutate()}
-              />
-            )}
-          </div>
-        )}
+        <div className="actions">
+          {/* Every reader can bookmark; edit/delete stay gated on rights. */}
+          <button
+            type="button"
+            className={`btn secondary small bookmark-btn${doc.bookmarked ? " active" : ""}`}
+            aria-pressed={doc.bookmarked}
+            disabled={bookmark.isPending}
+            onClick={() => bookmark.mutate(!doc.bookmarked)}
+          >
+            <span aria-hidden="true">{doc.bookmarked ? "★" : "☆"}</span>
+            {doc.bookmarked ? t("doc.bookmarked") : t("doc.bookmark")}
+          </button>
+          {canEdit && (
+            <Link className="btn secondary small" to={`/templates/docs/${doc.id}/edit`}>
+              {t("common.edit")}
+            </Link>
+          )}
+          {canDelete && (
+            <ConfirmButton
+              label={t("common.delete")}
+              confirmLabel={t("doc.deleteForGood")}
+              pending={remove.isPending}
+              onConfirm={() => remove.mutate()}
+            />
+          )}
+        </div>
       </div>
 
       <ErrorFlash error={remove.error ? errorMessage(remove.error) : null} />

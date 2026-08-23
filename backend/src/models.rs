@@ -215,6 +215,8 @@ pub struct DocumentWithBlocks {
     pub not_helpful_count: i64,
     /// This viewer's own vote: `Some(true)` 👍, `Some(false)` 👎, `None` none.
     pub my_vote: Option<bool>,
+    /// Whether this viewer has bookmarked the document.
+    pub bookmarked: bool,
 }
 
 /// The tally returned after a reader votes (or clears their vote) on a document.
