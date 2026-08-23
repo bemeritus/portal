@@ -12,13 +12,17 @@
  * open/closed state, which is why it lives here and not in either of them.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
 import { hasAnywhere, inSection } from "../permissions";
+import { comboFromEvent, isTypingTarget, SHORTCUTS } from "../shortcuts/registry";
+import { useShortcuts } from "../shortcuts/ShortcutsContext";
 import { CommandPalette } from "./CommandPalette";
+import { ShortcutsHelp } from "./ShortcutsHelp";
+import { useTheme } from "./ThemeSelect";
 import { UserMenu } from "./UserMenu";
 
 /** Which section the current URL belongs to. Templates is the default home. */
@@ -34,23 +38,57 @@ export function Layout() {
   const [railOpen, setRailOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const { bindings } = useShortcuts();
+  const [, setTheme] = useTheme();
 
   // A section link on a phone should take you there and get out of the way.
   useEffect(() => {
     setRailOpen(false);
   }, [location.pathname]);
 
-  // ⌘K / Ctrl-K toggles the command palette from anywhere.
+  // What each shortcut id actually does — the handlers the registry cannot hold
+  // because they need the router, theme and palette state that live here.
+  const handlers = useMemo<Record<string, () => void>>(
+    () => ({
+      commandPalette: () => setPaletteOpen((v) => !v),
+      newDocument: () => {
+        if (hasAnywhere(user, "write")) navigate("/templates/docs/new");
+      },
+      goDocuments: () => navigate("/templates"),
+      goBookmarks: () => navigate("/templates/bookmarks"),
+      goSettings: () => navigate("/settings"),
+      toggleTheme: () => {
+        // Read the live theme off <html>, which every `useTheme` consumer keeps
+        // in sync — Layout's own state could lag a change made from the menu.
+        const current = document.documentElement.dataset.theme;
+        const isDark = current === "dark" || current === "gruvbox";
+        setTheme(isDark ? "light" : "dark");
+      },
+      showHelp: () => setHelpOpen(true),
+    }),
+    [user, navigate, setTheme],
+  );
+
+  // One global key listener drives every shortcut from the user's live bindings.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
+      const combo = comboFromEvent(e);
+      if (!combo) return;
+      for (const def of SHORTCUTS) {
+        if (!bindings[def.id] || bindings[def.id] !== combo) continue;
+        if (!def.allowInInput && isTypingTarget(e.target)) return;
+        const run = handlers[def.id];
+        if (run) {
+          e.preventDefault();
+          run();
+        }
+        return;
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [bindings, handlers]);
 
   const section = sectionOf(location.pathname);
   const hasTemplates = inSection(user, "templates");
@@ -173,6 +211,7 @@ export function Layout() {
       )}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ShortcutsHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }

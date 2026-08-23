@@ -47,6 +47,23 @@ export const ru = {
       themeGruvboxLight: "Gruvbox светлая",
     },
 
+    shortcuts: {
+      title: "Горячие клавиши",
+      desc: "Нажмите на клавишу, чтобы переназначить. Backspace очищает, Escape отменяет.",
+      resetAll: "Сбросить всё",
+      reset: "Сбросить по умолчанию",
+      press: "Нажмите клавишу…",
+      unbound: "Задать",
+      edit: "Изменить клавиши",
+      commandPalette: "Командная палитра",
+      newDocument: "Новый документ",
+      goDocuments: "К документам",
+      goBookmarks: "К закладкам",
+      goSettings: "К настройкам",
+      toggleTheme: "Светлая / тёмная тема",
+      showHelp: "Показать эту справку",
+    },
+
     common: {
       save: "Сохранить",
       saving: "Сохранение…",

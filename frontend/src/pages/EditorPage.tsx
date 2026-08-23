@@ -24,6 +24,7 @@ import {
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash } from "../components/Flash";
 import { Spinner } from "../components/Loading";
+import { Select } from "../components/Select";
 import type { DocumentBody, QaBlockInput } from "../api/types";
 
 /** A block plus the identity React lists need. */
@@ -183,14 +184,16 @@ export function EditorPage() {
           <div className="row">
             <div>
               <label htmlFor="cat">{t("editor.category")}</label>
-              <select id="cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-                <option value="">{t("editor.choose")}</option>
-                {(categoriesQuery.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <Select
+                id="cat"
+                ariaLabel={t("editor.category")}
+                value={categoryId}
+                onChange={setCategoryId}
+                options={[
+                  { value: "", label: t("editor.choose") },
+                  ...(categoriesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
               {/* Explains an empty picker, which otherwise looks broken. */}
               {categoriesQuery.error && (
                 <ErrorFlash error={errorMessage(categoriesQuery.error)} />
@@ -202,10 +205,16 @@ export function EditorPage() {
 
             <div>
               <label htmlFor="status">{t("editor.status")}</label>
-              <select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="draft">{t("editor.statusDraft")}</option>
-                <option value="published">{t("editor.statusPublished")}</option>
-              </select>
+              <Select
+                id="status"
+                ariaLabel={t("editor.status")}
+                value={status}
+                onChange={setStatus}
+                options={[
+                  { value: "draft", label: t("editor.statusDraft") },
+                  { value: "published", label: t("editor.statusPublished") },
+                ]}
+              />
               {/* Says what status actually does. It marks the document; it does
                   not restrict who can open it — see §12.9. */}
               <p className="hint">{t("editor.statusHint")}</p>

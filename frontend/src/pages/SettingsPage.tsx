@@ -9,11 +9,13 @@
  * the one setting — persisted to `localStorage` and reflected on `<html>`.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { LANGUAGES } from "../i18n";
 import { THEMES, useTheme, type ThemeValue } from "../components/ThemeSelect";
+import { comboFromEvent, formatCombo, SHORTCUTS, type ShortcutDef } from "../shortcuts/registry";
+import { useShortcuts } from "../shortcuts/ShortcutsContext";
 
 /** i18n key for each theme's display name, keyed by its stored value. */
 const THEME_LABEL: Record<ThemeValue, string> = {
@@ -83,6 +85,88 @@ export function SettingsPage() {
           })}
         </div>
       </section>
+
+      {/* Keyboard shortcuts — defaults out of the box, each rebindable. */}
+      <KeyboardShortcuts />
+    </div>
+  );
+}
+
+function KeyboardShortcuts() {
+  const { t } = useTranslation();
+  const { resetAll } = useShortcuts();
+
+  return (
+    <section className="settings-section">
+      <div className="section-head-row">
+        <h2>{t("shortcuts.title")}</h2>
+        <button type="button" className="btn secondary small" onClick={resetAll}>
+          {t("shortcuts.resetAll")}
+        </button>
+      </div>
+      <p className="muted">{t("shortcuts.desc")}</p>
+      <div className="shortcut-rows">
+        {SHORTCUTS.map((def) => (
+          <ShortcutRow key={def.id} def={def} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ShortcutRow({ def }: { def: ShortcutDef }) {
+  const { t } = useTranslation();
+  const { bindings, setBinding, resetBinding } = useShortcuts();
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    if (!recording) return;
+    // Capture phase so the recorder wins over the global shortcut handler —
+    // otherwise pressing "D" here would also navigate.
+    function onKey(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") return setRecording(false);
+      if (e.key === "Backspace" || e.key === "Delete") {
+        setBinding(def.id, "");
+        return setRecording(false);
+      }
+      const combo = comboFromEvent(e);
+      if (!combo) return; // a bare modifier — keep waiting for the real key
+      setBinding(def.id, combo);
+      setRecording(false);
+    }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [recording, def.id, setBinding]);
+
+  const combo = bindings[def.id];
+
+  return (
+    <div className="shortcut-row">
+      <span className="shortcut-label">{t(def.labelKey)}</span>
+      <button
+        type="button"
+        className={`shortcut-key${recording ? " recording" : ""}`}
+        onClick={() => setRecording((v) => !v)}
+      >
+        {recording ? (
+          t("shortcuts.press")
+        ) : combo ? (
+          <kbd className="kbd">{formatCombo(combo)}</kbd>
+        ) : (
+          <span className="muted">{t("shortcuts.unbound")}</span>
+        )}
+      </button>
+      <button
+        type="button"
+        className="btn icon secondary"
+        title={t("shortcuts.reset")}
+        aria-label={t("shortcuts.reset")}
+        onClick={() => resetBinding(def.id)}
+      >
+        ↺
+      </button>
     </div>
   );
 }

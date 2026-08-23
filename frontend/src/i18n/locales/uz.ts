@@ -48,6 +48,23 @@ export const uz = {
       themeGruvboxLight: "Gruvbox kunduzgi",
     },
 
+    shortcuts: {
+      title: "Klaviatura yorliqlari",
+      desc: "Qayta belgilash uchun klavishni bosing. Backspace tozalaydi, Escape bekor qiladi.",
+      resetAll: "Hammasini tiklash",
+      reset: "Standartga qaytarish",
+      press: "Klavishni bosing…",
+      unbound: "Belgilash",
+      edit: "Yorliqlarni tahrirlash",
+      commandPalette: "Buyruq paneli",
+      newDocument: "Yangi hujjat",
+      goDocuments: "Hujjatlarga o'tish",
+      goBookmarks: "Xatcho'plarga o'tish",
+      goSettings: "Sozlamalarga o'tish",
+      toggleTheme: "Kunduzgi / tungi rejim",
+      showHelp: "Ushbu yordamni ko'rsatish",
+    },
+
     common: {
       save: "Saqlash",
       saving: "Saqlanmoqda…",

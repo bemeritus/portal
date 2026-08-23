@@ -47,6 +47,23 @@ export const en = {
       themeGruvboxLight: "Gruvbox Light",
     },
 
+    shortcuts: {
+      title: "Keyboard shortcuts",
+      desc: "Click a key to rebind it. Backspace clears it, Escape cancels.",
+      resetAll: "Reset all",
+      reset: "Reset to default",
+      press: "Press a key…",
+      unbound: "Set shortcut",
+      edit: "Edit shortcuts",
+      commandPalette: "Command palette",
+      newDocument: "New document",
+      goDocuments: "Go to documents",
+      goBookmarks: "Go to bookmarks",
+      goSettings: "Go to settings",
+      toggleTheme: "Toggle light / dark",
+      showHelp: "Show this help",
+    },
+
     common: {
       save: "Save",
       saving: "Saving…",

@@ -18,6 +18,7 @@ import { categories as categoriesApi, documents as documentsApi } from "../api/e
 import { useUser } from "../auth/AuthContext";
 import { ErrorFlash } from "../components/Flash";
 import { Empty, Skeletons } from "../components/Loading";
+import { Select } from "../components/Select";
 import { categoryTagClass, formatDate } from "../format";
 import { hasAnywhere } from "../permissions";
 
@@ -117,14 +118,16 @@ export function HomePage() {
           </div>
           <div>
             <label htmlFor="c">{t("home.category")}</label>
-            <select id="c" value={categoryParam} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">{t("home.allCategories")}</option>
-              {(categoriesQuery.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              id="c"
+              ariaLabel={t("home.category")}
+              value={categoryParam}
+              onChange={setCategory}
+              options={[
+                { value: "", label: t("home.allCategories") },
+                ...(categoriesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
             {/* Explains an empty dropdown, which otherwise looks broken. */}
             {categoriesQuery.error && <ErrorFlash error={errorMessage(categoriesQuery.error)} />}
           </div>

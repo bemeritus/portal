@@ -17,6 +17,7 @@ import { useUser } from "../../auth/AuthContext";
 import { ConfirmButton } from "../../components/ConfirmButton";
 import { ErrorFlash, Flash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
+import { Select } from "../../components/Select";
 import { canAuthor } from "../../permissions";
 
 /** The states a learner may set themselves — `reviewed` is an admin verdict. */
@@ -145,13 +146,13 @@ export function LabPage() {
         )}
 
         <label htmlFor="state">{t("learning.thState")}</label>
-        <select id="state" value={state} onChange={(e) => setState(e.target.value)}>
-          {stateOptions.map((s) => (
-            <option key={s} value={s}>
-              {t(`learning.state_${s}`)}
-            </option>
-          ))}
-        </select>
+        <Select
+          id="state"
+          ariaLabel={t("learning.thState")}
+          value={state}
+          onChange={setState}
+          options={stateOptions.map((s) => ({ value: s, label: t(`learning.state_${s}`) }))}
+        />
 
         <label htmlFor="submission" style={{ marginTop: 12, display: "block" }}>
           {t("learning.yourSubmission")}

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { ApiError } from "./api/client";
 import { AuthProvider } from "./auth/AuthContext";
+import { ShortcutsProvider } from "./shortcuts/ShortcutsContext";
 // Initialises i18next before anything renders, so the first paint is already in
 // the stored language.
 import "./i18n";
@@ -41,7 +42,9 @@ createRoot(container).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ShortcutsProvider>
+            <App />
+          </ShortcutsProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

@@ -17,6 +17,7 @@ import { errorMessage } from "../../api/client";
 import { learning } from "../../api/endpoints";
 import { ErrorFlash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
+import { Select } from "../../components/Select";
 import type { LearningTestBody, TestQuestionInput } from "../../api/types";
 
 interface EditableOption {
@@ -181,10 +182,16 @@ export function TestEditorPage() {
           <div className="row">
             <div>
               <label htmlFor="status">{t("learning.status")}</label>
-              <select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="draft">{t("learning.statusDraft")}</option>
-                <option value="published">{t("learning.statusPublished")}</option>
-              </select>
+              <Select
+                id="status"
+                ariaLabel={t("learning.status")}
+                value={status}
+                onChange={setStatus}
+                options={[
+                  { value: "draft", label: t("learning.statusDraft") },
+                  { value: "published", label: t("learning.statusPublished") },
+                ]}
+              />
             </div>
             <div>
               <label htmlFor="pass">{t("learning.passScore")}</label>

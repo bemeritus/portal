@@ -16,6 +16,7 @@ import { errorMessage } from "../api/client";
 import { audit as auditApi } from "../api/endpoints";
 import { ErrorFlash } from "../components/Flash";
 import { Empty, Spinner } from "../components/Loading";
+import { Select } from "../components/Select";
 import { formatUtc } from "../format";
 
 /** One screenful, and how much more "Load more" asks for. */
@@ -102,13 +103,13 @@ export function AuditLogPage() {
           </div>
           <div>
             <label htmlFor="log-kind">{t("log.kind")}</label>
-            <select id="log-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
-              {KINDS.map((k) => (
-                <option key={k.value} value={k.value}>
-                  {t(k.key)}
-                </option>
-              ))}
-            </select>
+            <Select
+              id="log-kind"
+              ariaLabel={t("log.kind")}
+              value={kind}
+              onChange={setKind}
+              options={KINDS.map((k) => ({ value: k.value, label: t(k.key) }))}
+            />
           </div>
         </div>
       </div>

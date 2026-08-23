@@ -9,6 +9,7 @@ import { errorMessage } from "../../api/client";
 import { learning } from "../../api/endpoints";
 import { ErrorFlash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
+import { Select } from "../../components/Select";
 import type { LearningResourceBody } from "../../api/types";
 
 export function ResourceEditorPage() {
@@ -96,10 +97,16 @@ export function ResourceEditorPage() {
           <label htmlFor="status" style={{ marginTop: 12, display: "block" }}>
             {t("learning.status")}
           </label>
-          <select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="draft">{t("learning.statusDraft")}</option>
-            <option value="published">{t("learning.statusPublished")}</option>
-          </select>
+          <Select
+            id="status"
+            ariaLabel={t("learning.status")}
+            value={status}
+            onChange={setStatus}
+            options={[
+              { value: "draft", label: t("learning.statusDraft") },
+              { value: "published", label: t("learning.statusPublished") },
+            ]}
+          />
         </div>
 
         <label htmlFor="body" style={{ marginTop: 16, display: "block" }}>
