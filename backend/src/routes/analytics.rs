@@ -28,18 +28,19 @@ async fn overview(
     State(state): State<AppState>,
     AdminUser(_admin): AdminUser,
 ) -> ApiResult<Json<AnalyticsOverview>> {
-    let total_documents: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM documents")
-        .fetch_one(&state.pool)
-        .await
-        .map_err(|e| internal("counting documents", e))?;
+    // The five figures on this page are independent aggregations over different
+    // tables, so they go out together rather than one after the other. The page
+    // is admin-only and infrequent, but there is no reason to pay five serial
+    // round-trips when one wall-clock's worth of them will do.
+    let total_documents = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM documents")
+        .fetch_one(&state.pool);
 
     // SUM over a bigint column comes back NUMERIC in Postgres; cast it back so
     // it decodes as i64.
-    let total_views: i64 =
-        sqlx::query_scalar("SELECT COALESCE(SUM(view_count), 0)::bigint FROM documents")
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| internal("summing views", e))?;
+    let total_views = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(SUM(view_count), 0)::bigint FROM documents",
+    )
+    .fetch_one(&state.pool);
 
     // The counts join is the same for both rankings; only the ORDER BY and the
     // filter differ, so they share the shape.
@@ -55,9 +56,7 @@ async fn overview(
          LIMIT $1",
     )
     .bind(TOP_N)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| internal("ranking popular documents", e))?;
+    .fetch_all(&state.pool);
 
     let needs_work = sqlx::query_as::<_, PopularDoc>(
         "SELECT d.id, d.title, c.name AS category_name, d.view_count,
@@ -72,9 +71,7 @@ async fn overview(
          LIMIT $1",
     )
     .bind(TOP_N)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| internal("ranking documents needing work", e))?;
+    .fetch_all(&state.pool);
 
     let search_misses = sqlx::query_as::<_, SearchMiss>(
         "SELECT lower(query) AS query, COUNT(*) AS count, MAX(at) AS last_at
@@ -84,9 +81,16 @@ async fn overview(
          LIMIT $1",
     )
     .bind(MISSES_N)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| internal("ranking search misses", e))?;
+    .fetch_all(&state.pool);
+
+    let (total_documents, total_views, popular, needs_work, search_misses) = tokio::try_join!(
+        total_documents,
+        total_views,
+        popular,
+        needs_work,
+        search_misses
+    )
+    .map_err(|e| internal("building the analytics overview", e))?;
 
     Ok(Json(AnalyticsOverview {
         total_documents,

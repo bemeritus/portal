@@ -18,6 +18,7 @@ pub mod auth;
 pub mod categories;
 pub mod documents;
 pub mod learning;
+pub mod projects;
 pub mod templates;
 pub mod uploads;
 pub mod users;
@@ -56,6 +57,7 @@ pub fn api(state: &AppState) -> Router<AppState> {
         .nest("/auth", auth::routes())
         .nest("/templates", templates::routes())
         .nest("/learning", learning::routes())
+        .nest("/projects", projects::routes())
         .nest("/users", users::routes())
         .nest("/audit", audit::routes())
         .nest("/analytics", analytics::routes())

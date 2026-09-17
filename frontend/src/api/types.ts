@@ -28,12 +28,13 @@ export interface CategoryPermission {
  * A section — the fixed top layer above categories. A closed set, mirroring the
  * Rust `Section` enum; a new value here is always a new backend enum variant.
  */
-export type Section = "templates" | "learning";
+export type Section = "templates" | "learning" | "projects";
 
 /**
  * One user's access to one section. `can_author` is only meaningful for
- * `learning` (the server clears it elsewhere) — it is the teacher bit that lets
- * a non-admin create learning content.
+ * `learning` and `projects` (the server clears it elsewhere) — the teacher bit
+ * that lets a non-admin create learning content, and the lead bit that lets one
+ * manage project boards.
  */
 export interface SectionAccess {
   section: Section;
@@ -357,4 +358,85 @@ export interface LabSubmissionRow {
   submission: string | null;
   grade: number | null;
   updated_at: Timestamp;
+}
+
+// --- Projects section -------------------------------------------------------
+// Mirrors the project types in `backend/src/models.rs`. Boards hold ordered
+// columns, columns hold ordered cards; a card's description arrives as
+// server-rendered sanitized HTML for the board, and as raw markdown from the
+// card's edit endpoint.
+
+/** An assignable person — id + name, for the assignee picker. */
+export interface ProjectMember {
+  id: Uuid;
+  username: string;
+}
+
+export interface ProjectBoardSummary {
+  id: Uuid;
+  name: string;
+  description: string | null;
+  card_count: number;
+  created_at: Timestamp;
+}
+
+export interface ProjectCardView {
+  id: Uuid;
+  column_id: Uuid;
+  title: string;
+  description_html: string | null;
+  assignee_id: Uuid | null;
+  assignee_username: string | null;
+  /** ISO date (YYYY-MM-DD), or null. */
+  due_date: string | null;
+  position: number;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface ProjectColumnView {
+  id: Uuid;
+  name: string;
+  position: number;
+  cards: ProjectCardView[];
+}
+
+export interface ProjectBoardView {
+  id: Uuid;
+  name: string;
+  description: string | null;
+  columns: ProjectColumnView[];
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+/** Raw form of a card, for its editor. */
+export interface ProjectCardDraft {
+  id: Uuid;
+  column_id: Uuid;
+  title: string;
+  description: string | null;
+  assignee_id: Uuid | null;
+  due_date: string | null;
+}
+
+export interface ProjectBoardBody {
+  name: string;
+  description: string;
+}
+
+export interface ProjectColumnBody {
+  name: string;
+}
+
+export interface ProjectCardBody {
+  title: string;
+  description: string;
+  assignee_id: Uuid | null;
+  due_date: string | null;
+}
+
+export interface ProjectCardMove {
+  column_id: Uuid;
+  position: number;
 }

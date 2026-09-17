@@ -12,7 +12,12 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "./components/Layout";
-import { RequireAdmin, RequireAuth, RequireLearningAuthor, RequireSection } from "./components/RequireAuth";
+import {
+  RequireAdmin,
+  RequireAuth,
+  RequireLearningAuthor,
+  RequireSection,
+} from "./components/RequireAuth";
 import { useAuth } from "./auth/AuthContext";
 import { inSection } from "./permissions";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
@@ -37,6 +42,8 @@ import { LabsPage } from "./pages/learning/LabsPage";
 import { LabPage } from "./pages/learning/LabPage";
 import { LabEditorPage } from "./pages/learning/LabEditorPage";
 import { LabSubmissionsPage } from "./pages/learning/LabSubmissionsPage";
+import { ProjectsPage } from "./pages/projects/ProjectsPage";
+import { BoardPage } from "./pages/projects/BoardPage";
 import { useTranslation } from "react-i18next";
 
 function NotFound() {
@@ -61,6 +68,7 @@ function SectionLanding() {
   const { t } = useTranslation();
   if (inSection(user, "templates")) return <Navigate to="/templates" replace />;
   if (inSection(user, "learning")) return <Navigate to="/learning" replace />;
+  if (inSection(user, "projects")) return <Navigate to="/projects" replace />;
   return (
     <>
       <h1>{t("authz.noSectionsTitle")}</h1>
@@ -125,6 +133,12 @@ export function App() {
               <Route path="labs/:id/submissions" element={<LabSubmissionsPage />} />
             </Route>
             <Route path="labs/:id" element={<LabPage />} />
+          </Route>
+
+          {/* Projects — Kanban boards. */}
+          <Route path="projects" element={<RequireSection section="projects" />}>
+            <Route index element={<ProjectsPage />} />
+            <Route path="boards/:id" element={<BoardPage />} />
           </Route>
 
           {/* Cross-section admin. */}

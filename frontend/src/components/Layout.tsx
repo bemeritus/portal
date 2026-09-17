@@ -17,6 +17,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
+import type { Section } from "../api/types";
 import { hasAnywhere, inSection } from "../permissions";
 import { comboFromEvent, isTypingTarget, SHORTCUTS } from "../shortcuts/registry";
 import { useShortcuts } from "../shortcuts/ShortcutsContext";
@@ -26,9 +27,18 @@ import { useTheme } from "./ThemeSelect";
 import { UserMenu } from "./UserMenu";
 
 /** Which section the current URL belongs to. Templates is the default home. */
-function sectionOf(pathname: string): "templates" | "learning" {
-  return pathname.startsWith("/learning") ? "learning" : "templates";
+function sectionOf(pathname: string): Section {
+  if (pathname.startsWith("/learning")) return "learning";
+  if (pathname.startsWith("/projects")) return "projects";
+  return "templates";
 }
+
+/** The section switcher's entries, in the fixed home-first order. */
+const SECTION_TABS: { section: Section; to: string; labelKey: string }[] = [
+  { section: "templates", to: "/templates", labelKey: "nav.templates" },
+  { section: "learning", to: "/learning", labelKey: "nav.learning" },
+  { section: "projects", to: "/projects", labelKey: "nav.projects" },
+];
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -91,8 +101,7 @@ export function Layout() {
   }, [bindings, handlers]);
 
   const section = sectionOf(location.pathname);
-  const hasTemplates = inSection(user, "templates");
-  const hasLearning = inSection(user, "learning");
+  const heldTabs = SECTION_TABS.filter((tab) => inSection(user, tab.section));
   // The "New document" shortcut belongs to templates; it has no meaning while
   // the learning rail is showing, where each list carries its own create link.
   const showNewDocument = section === "templates" && hasAnywhere(user, "write");
@@ -127,14 +136,13 @@ export function Layout() {
         {/* The section switcher — only the doors this user holds. Hidden
             entirely for someone with a single section, since there is nothing
             to switch between. */}
-        {hasTemplates && hasLearning && (
+        {heldTabs.length > 1 && (
           <div className="section-tabs" role="tablist" aria-label={t("nav.sections")}>
-            <NavLink className="section-tab" to="/templates">
-              {t("nav.templates")}
-            </NavLink>
-            <NavLink className="section-tab" to="/learning">
-              {t("nav.learning")}
-            </NavLink>
+            {heldTabs.map((tab) => (
+              <NavLink key={tab.section} className="section-tab" to={tab.to}>
+                {t(tab.labelKey)}
+              </NavLink>
+            ))}
           </div>
         )}
 
@@ -155,7 +163,7 @@ export function Layout() {
           aria-label={t("nav.sections")}
         >
           <nav className="side-links">
-            {section === "templates" ? (
+            {section === "templates" && (
               <>
                 <NavLink to="/templates" end>
                   {t("nav.documents")}
@@ -165,7 +173,8 @@ export function Layout() {
                   <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>
                 )}
               </>
-            ) : (
+            )}
+            {section === "learning" && (
               <>
                 <NavLink to="/learning" end>
                   {t("nav.overview")}
@@ -174,6 +183,11 @@ export function Layout() {
                 <NavLink to="/learning/tests">{t("nav.tests")}</NavLink>
                 <NavLink to="/learning/labs">{t("nav.labs")}</NavLink>
               </>
+            )}
+            {section === "projects" && (
+              <NavLink to="/projects" end>
+                {t("nav.boards")}
+              </NavLink>
             )}
 
             {user?.is_admin && (

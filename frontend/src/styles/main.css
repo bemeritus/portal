@@ -1503,3 +1503,142 @@ a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decor
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- Projects: Kanban board ------------------------------------------------ */
+
+.kanban {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.kanban-col {
+  flex: 0 0 288px;
+  width: 288px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* While a card is in flight, columns invite the drop. */
+.kanban-col.droppable { outline: 1px dashed var(--border); outline-offset: -4px; }
+
+.kanban-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kanban-col-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.kanban-col-head .count {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 8px; /* a target even when the column is empty */
+}
+
+.kanban-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.12s ease, transform 0.06s ease;
+}
+.kanban-card:hover { border-color: var(--accent); }
+.kanban-card:active { transform: scale(0.99); }
+.kanban-card.dragging { opacity: 0.4; }
+/* A card being dragged over shows where the drop will land — a top edge. */
+.kanban-card.drop-over { box-shadow: inset 0 3px 0 -1px var(--accent); }
+
+.kanban-card-title { color: var(--text); font-size: 14px; line-height: 1.35; }
+.kanban-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.chip.due { color: var(--text); }
+.chip.due.overdue {
+  background: var(--danger-soft);
+  border-color: transparent;
+  color: var(--danger);
+}
+
+.kanban-add {
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  padding: 8px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.kanban-add:hover { color: var(--accent); border-color: var(--accent); }
+
+.kanban-col.add-col { background: transparent; border-style: dashed; }
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+}
+.icon-btn:hover { color: var(--danger); }
+
+/* --- Modal (card create / edit) -------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 16px 16px;
+  z-index: 50;
+  overflow-y: auto;
+}
+.modal-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  width: 100%;
+  max-width: 520px;
+}

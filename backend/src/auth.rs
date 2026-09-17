@@ -110,12 +110,17 @@ pub async fn load_user(pool: &PgPool, uid: Uuid) -> ApiResult<Option<User>> {
 
     match user {
         Some(mut u) if u.is_active => {
-            u.category_perms = category_perms_for(pool, u.id)
-                .await
-                .map_err(|e| internal("loading the current user's category grants", e))?;
-            u.sections = sections_for(pool, u.id)
-                .await
-                .map_err(|e| internal("loading the current user's section access", e))?;
+            // The grants and the section access are independent of each other
+            // and both keyed only on the user id, so they go out together
+            // rather than one after the other. This runs on every authenticated
+            // request (SR-10), so the round-trip saved here is saved everywhere.
+            let (category_perms, sections) =
+                tokio::try_join!(category_perms_for(pool, u.id), sections_for(pool, u.id))
+                    .map_err(|e| {
+                        internal("loading the current user's grants and section access", e)
+                    })?;
+            u.category_perms = category_perms;
+            u.sections = sections;
             Ok(Some(u))
         }
         _ => Ok(None),
@@ -271,6 +276,55 @@ where
         } else {
             Err(ApiError::Forbidden(
                 "You do not have permission to create learning content".into(),
+            ))
+        }
+    }
+}
+
+/// A user who may enter the `projects` section: see the boards and do the work
+/// on them — create, move, assign and close cards. Managing the board structure
+/// itself is the further [`ProjectManager`] grant.
+pub struct InProjects(pub User);
+
+impl<S> FromRequestParts<S> for InProjects
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let CurrentUser(user) = CurrentUser::from_request_parts(parts, state).await?;
+        if user.in_section(Section::Projects) {
+            Ok(InProjects(user))
+        } else {
+            Err(ApiError::Forbidden(
+                "You do not have access to this section".into(),
+            ))
+        }
+    }
+}
+
+/// A projects user who may *manage boards* — create them, and add, rename or
+/// remove their columns. The project lead, mirroring [`LearningAuthor`]: the
+/// finer authoring grant over the section's structure, above the member who only
+/// works the cards.
+pub struct ProjectManager(pub User);
+
+impl<S> FromRequestParts<S> for ProjectManager
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let CurrentUser(user) = CurrentUser::from_request_parts(parts, state).await?;
+        if user.can_author(Section::Projects) {
+            Ok(ProjectManager(user))
+        } else {
+            Err(ApiError::Forbidden(
+                "You do not have permission to manage project boards".into(),
             ))
         }
     }

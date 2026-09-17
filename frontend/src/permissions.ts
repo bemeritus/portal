@@ -71,8 +71,9 @@ export function inSection(user: User | null, section: Section): boolean {
 
 /**
  * Whether the user may author in a section — mirrors `User::can_author`. Only
- * ever true for `learning`. Decides whether the "New resource/test/lab" actions
- * exist, never whether one is allowed.
+ * ever true for `learning` (create resources/tests/labs) and `projects` (manage
+ * boards and columns). Decides whether those actions are shown, never whether
+ * one is allowed.
  */
 export function canAuthor(user: User | null, section: Section): boolean {
   if (!user) return false;

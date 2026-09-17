@@ -25,23 +25,35 @@ import type { Category, CategoryPermission, SectionAccess, User, Uuid } from "..
 type Matrix = Record<Uuid, CategoryPermission>;
 
 /**
- * The section boxes as the UI holds them. `learning` gates the author box: you
- * cannot make a teacher of someone who is not in the section.
+ * The section boxes as the UI holds them. `learning` gates its author box and
+ * `projects` gates its lead box: you cannot make a teacher or a lead of someone
+ * who is not in the section.
  */
-type SectionState = { templates: boolean; learning: boolean; learningAuthor: boolean };
+type SectionState = {
+  templates: boolean;
+  learning: boolean;
+  learningAuthor: boolean;
+  projects: boolean;
+  projectsLead: boolean;
+};
 
 const EMPTY_SECTIONS: SectionState = {
   templates: false,
   learning: false,
   learningAuthor: false,
+  projects: false,
+  projectsLead: false,
 };
 
 function sectionStateFor(sections: SectionAccess[]): SectionState {
   const learning = sections.find((s) => s.section === "learning");
+  const projects = sections.find((s) => s.section === "projects");
   return {
     templates: sections.some((s) => s.section === "templates"),
     learning: !!learning,
     learningAuthor: !!learning?.can_author,
+    projects: !!projects,
+    projectsLead: !!projects?.can_author,
   };
 }
 
@@ -50,6 +62,7 @@ function toSections(state: SectionState): SectionAccess[] {
   const out: SectionAccess[] = [];
   if (state.templates) out.push({ section: "templates", can_author: false });
   if (state.learning) out.push({ section: "learning", can_author: state.learningAuthor });
+  if (state.projects) out.push({ section: "projects", can_author: state.projectsLead });
   return out;
 }
 
@@ -106,6 +119,33 @@ function SectionPicker({
             onChange={(e) => onChange({ ...state, learningAuthor: e.target.checked })}
           />
           {t("users.sectionLearningAuthor")}
+        </label>
+      )}
+      <label className="chk" htmlFor={`${idPrefix}-sec-projects`}>
+        <input
+          id={`${idPrefix}-sec-projects`}
+          type="checkbox"
+          checked={state.projects}
+          onChange={(e) =>
+            // Leaving the section clears the lead bit, the same way learning does.
+            onChange({
+              ...state,
+              projects: e.target.checked,
+              projectsLead: e.target.checked && state.projectsLead,
+            })
+          }
+        />
+        {t("users.sectionProjects")}
+      </label>
+      {state.projects && (
+        <label className="chk" htmlFor={`${idPrefix}-sec-projects-lead`} style={{ marginLeft: 22 }}>
+          <input
+            id={`${idPrefix}-sec-projects-lead`}
+            type="checkbox"
+            checked={state.projectsLead}
+            onChange={(e) => onChange({ ...state, projectsLead: e.target.checked })}
+          />
+          {t("users.sectionProjectsLead")}
         </label>
       )}
       <p className="hint">{t("users.sectionsHint")}</p>
@@ -377,24 +417,38 @@ function CreateUserForm({
           </div>
           <div>
             <label htmlFor="new-password">{t("users.initialPassword")}</label>
-            <input
-              id="new-password"
-              type="text"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="input-with-action">
+              <input
+                id="new-password"
+                type="text"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn secondary icon-square"
+                title={t("users.generateTitle")}
+                aria-label={t("common.generate")}
+                onClick={generatePassword}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width={18}
+                  height={18}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <path d="M21 3v5h-5" />
+                </svg>
+              </button>
+            </div>
             <p className="hint">{t("users.atLeast6")}</p>
-          </div>
-          <div className="grow-0">
-            <button
-              type="button"
-              className="btn secondary"
-              title={t("users.generateTitle")}
-              onClick={generatePassword}
-            >
-              {t("common.generate")}
-            </button>
           </div>
         </div>
 

@@ -4,7 +4,7 @@
 //! for field. [`User`] deliberately does **not** carry the password hash — the
 //! hash never leaves the server (SR-1).
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -71,8 +71,9 @@ impl User {
         self.is_admin || self.sections.iter().any(|s| s.section == section)
     }
 
-    /// Whether this user may author content in a section. Only ever true for
-    /// `Learning` (the database forbids the authoring bit on any other section).
+    /// Whether this user may author in a section — build learning content, or
+    /// manage a project board's structure. Only ever true for `Learning` and
+    /// `Projects` (the database forbids the authoring bit on any other section).
     pub fn can_author(&self, section: Section) -> bool {
         self.is_admin
             || self
@@ -93,6 +94,7 @@ impl User {
 pub enum Section {
     Templates,
     Learning,
+    Projects,
 }
 
 impl Section {
@@ -101,6 +103,7 @@ impl Section {
         match self {
             Section::Templates => "templates",
             Section::Learning => "learning",
+            Section::Projects => "projects",
         }
     }
 
@@ -109,6 +112,7 @@ impl Section {
         match value {
             "templates" => Some(Section::Templates),
             "learning" => Some(Section::Learning),
+            "projects" => Some(Section::Projects),
             _ => None,
         }
     }
@@ -117,9 +121,9 @@ impl Section {
 /// One user's access to one section. Doubles as the payload the admin UI sends
 /// when assigning sections, exactly as [`CategoryPermission`] does for grants.
 ///
-/// `can_author` is only honored for [`Section::Learning`]; the database rejects
-/// it on any other section, and the admin handler clears it defensively before
-/// it ever gets there.
+/// `can_author` is only honored for [`Section::Learning`] and
+/// [`Section::Projects`]; the database rejects it on any other section, and the
+/// admin handler clears it defensively before it ever gets there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SectionAccess {
     pub section: Section,
@@ -551,4 +555,114 @@ pub fn normalize_status(status: &str) -> String {
         "published" => "published".to_string(),
         _ => "draft".to_string(),
     }
+}
+
+// --- Projects section -------------------------------------------------------
+//
+// A Kanban world: boards hold ordered columns, columns hold ordered cards. Like
+// learning it references nothing in templates. Card descriptions are authored
+// markdown, rendered to sanitized HTML server-side for the board view exactly as
+// a document's answer is; the raw source comes back only from the card's edit
+// endpoint.
+
+/// An assignable person: someone in the projects section (or an admin). Just an
+/// id and a name — enough to populate an assignee picker without exposing the
+/// admin-only full user list to every project member.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct ProjectMember {
+    pub id: Uuid,
+    pub username: String,
+}
+
+/// One row of the board list — enough to show the board and how big it is.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct ProjectBoardSummary {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub card_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A whole board: its columns in order, each carrying its cards in order.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProjectBoardView {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub columns: Vec<ProjectColumnView>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// One column (lane) with the cards that sit in it, top to bottom.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProjectColumnView {
+    pub id: Uuid,
+    pub name: String,
+    pub position: i32,
+    pub cards: Vec<ProjectCardView>,
+}
+
+/// A card as the board shows it: its description already rendered to sanitized
+/// HTML, and the assignee named rather than left as a bare id.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProjectCardView {
+    pub id: Uuid,
+    pub column_id: Uuid,
+    pub title: String,
+    pub description_html: Option<String>,
+    pub assignee_id: Option<Uuid>,
+    pub assignee_username: Option<String>,
+    pub due_date: Option<NaiveDate>,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// The raw (markdown) form of a card, for its editor — the author-only
+/// counterpart to a document's draft.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct ProjectCardDraft {
+    pub id: Uuid,
+    pub column_id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub assignee_id: Option<Uuid>,
+    pub due_date: Option<NaiveDate>,
+}
+
+/// The authoring payload for a board (name + optional description).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ProjectBoardBody {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+/// The authoring payload for a column.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ProjectColumnBody {
+    pub name: String,
+}
+
+/// The payload to create or update a card. `assignee_id`/`due_date` absent means
+/// unassigned / no due date.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ProjectCardBody {
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub assignee_id: Option<Uuid>,
+    #[serde(default)]
+    pub due_date: Option<NaiveDate>,
+}
+
+/// The payload for a drag-and-drop: the card's new column and its new index
+/// (0-based) within that column.
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+pub struct ProjectCardMove {
+    pub column_id: Uuid,
+    pub position: i32,
 }

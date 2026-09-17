@@ -37,6 +37,14 @@ import type {
   LearningTestDraft,
   LearningTestSummary,
   LearningTestView,
+  ProjectBoardBody,
+  ProjectBoardSummary,
+  ProjectBoardView,
+  ProjectCardBody,
+  ProjectCardDraft,
+  ProjectCardMove,
+  ProjectColumnBody,
+  ProjectMember,
   SectionAccess,
   UploadResponse,
   User,
@@ -211,6 +219,47 @@ export const learning = {
     /** Everyone's progress — admin only. */
     submissions: (id: Uuid, signal?: AbortSignal) =>
       api.get<LabSubmissionRow[]>(`${LEARNING}/labs/${id}/submissions`, signal),
+  },
+};
+
+// The projects section: Kanban boards. Membership does the work on cards;
+// managing boards and columns needs the author (lead) bit. The server enforces
+// it all — these are just the URLs.
+const PROJECTS = `${BASE}/projects`;
+
+export const projects = {
+  /** Assignable people — active members of the section, plus admins. */
+  members: (signal?: AbortSignal) => api.get<ProjectMember[]>(`${PROJECTS}/members`, signal),
+  boards: {
+    list: (signal?: AbortSignal) =>
+      api.get<ProjectBoardSummary[]>(`${PROJECTS}/boards`, signal),
+    /** The whole board: columns in order, each with its cards in order. */
+    get: (id: Uuid, signal?: AbortSignal) =>
+      api.get<ProjectBoardView>(`${PROJECTS}/boards/${id}`, signal),
+    create: (body: ProjectBoardBody) => api.post<{ id: Uuid }>(`${PROJECTS}/boards`, body),
+    update: (id: Uuid, body: ProjectBoardBody) =>
+      api.put<void>(`${PROJECTS}/boards/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/boards/${id}`),
+    /** Add a column to the right of a board's existing ones. Lead only. */
+    addColumn: (boardId: Uuid, body: ProjectColumnBody) =>
+      api.post<{ id: Uuid }>(`${PROJECTS}/boards/${boardId}/columns`, body),
+  },
+  columns: {
+    update: (id: Uuid, body: ProjectColumnBody) =>
+      api.put<void>(`${PROJECTS}/columns/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/columns/${id}`),
+    /** Add a card to the bottom of a column. Any member may. */
+    addCard: (columnId: Uuid, body: ProjectCardBody) =>
+      api.post<{ id: Uuid }>(`${PROJECTS}/columns/${columnId}/cards`, body),
+  },
+  cards: {
+    /** Raw form of a card, for the editor. */
+    draft: (id: Uuid, signal?: AbortSignal) =>
+      api.get<ProjectCardDraft>(`${PROJECTS}/cards/${id}`, signal),
+    update: (id: Uuid, body: ProjectCardBody) => api.put<void>(`${PROJECTS}/cards/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/cards/${id}`),
+    /** Drag-and-drop: place the card at an index in a column on the same board. */
+    move: (id: Uuid, body: ProjectCardMove) => api.put<void>(`${PROJECTS}/cards/${id}/move`, body),
   },
 };
 

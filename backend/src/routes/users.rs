@@ -103,7 +103,11 @@ fn clean_sections(
 ) -> Vec<SectionAccess> {
     let mut seen: Vec<SectionAccess> = Vec::new();
     for s in sections {
-        let can_author = s.can_author && s.section == Section::Learning;
+        // The authoring bit is real only for the sections that have one — a
+        // learning teacher, a projects lead. The database rejects it elsewhere,
+        // so clearing it here turns what would be a 500 into the harmless truth.
+        let can_author =
+            s.can_author && matches!(s.section, Section::Learning | Section::Projects);
         match seen.iter_mut().find(|x| x.section == s.section) {
             Some(existing) => existing.can_author |= can_author,
             None => seen.push(SectionAccess {
