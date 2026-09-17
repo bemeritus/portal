@@ -23,6 +23,7 @@ export const ru = {
       labs: "Лабы",
       projects: "Проекты",
       boards: "Доски",
+      myCards: "Мои карточки",
     },
 
     menu: {
@@ -353,6 +354,29 @@ export const ru = {
       deleteCard: "Удалить карточку",
       due: "Срок",
       overdue: "Просрочено",
+      priority: "Приоритет",
+      priorityLevel: {
+        low: "Низкий",
+        medium: "Средний",
+        high: "Высокий",
+        urgent: "Срочно",
+      },
+      labels: "Метки",
+      manageLabels: "Метки",
+      noLabels: "Меток пока нет",
+      newLabel: "Новая метка",
+      labelName: "Название метки",
+      comments: "Комментарии",
+      noComments: "Комментариев пока нет",
+      commentPlaceholder: "Оставьте комментарий…",
+      postComment: "Отправить",
+      formerMember: "Бывший участник",
+      myCards: "Мои карточки",
+      noAssigned: "Вам ничего не назначено",
+      filterText: "Поиск по заголовкам…",
+      filterAllAssignees: "Все исполнители",
+      filterAllPriorities: "Все приоритеты",
+      filterAllLabels: "Все метки",
     },
 
     authz: {

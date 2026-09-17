@@ -24,6 +24,7 @@ export const uz = {
       labs: "Lablar",
       projects: "Loyihalar",
       boards: "Doskalar",
+      myCards: "Mening kartalarim",
     },
 
     menu: {
@@ -344,6 +345,29 @@ export const uz = {
       deleteCard: "Kartani o'chirish",
       due: "Muddat:",
       overdue: "Kechikkan:",
+      priority: "Muhimlik",
+      priorityLevel: {
+        low: "Past",
+        medium: "O'rta",
+        high: "Yuqori",
+        urgent: "Shoshilinch",
+      },
+      labels: "Teglar",
+      manageLabels: "Teglar",
+      noLabels: "Hali teg yo'q",
+      newLabel: "Yangi teg",
+      labelName: "Teg nomi",
+      comments: "Izohlar",
+      noComments: "Hali izoh yo'q",
+      commentPlaceholder: "Izoh qoldiring…",
+      postComment: "Yuborish",
+      formerMember: "Sobiq foydalanuvchi",
+      myCards: "Mening kartalarim",
+      noAssigned: "Sizga karta tayinlanmagan",
+      filterText: "Sarlavha bo'yicha qidirish…",
+      filterAllAssignees: "Barcha mas'ullar",
+      filterAllPriorities: "Barcha muhimliklar",
+      filterAllLabels: "Barcha teglar",
     },
 
     authz: {

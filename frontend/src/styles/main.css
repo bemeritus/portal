@@ -1642,3 +1642,60 @@ a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decor
   width: 100%;
   max-width: 520px;
 }
+
+/* --- Projects phase 2: priority, labels, comments -------------------------- */
+
+/* Per-color token, consumed by dots, swatches, chips and label buttons. */
+.label-gray   { --lc: #8b95a5; }
+.label-red    { --lc: #e5484d; }
+.label-orange { --lc: #f76b15; }
+.label-yellow { --lc: #d9a400; }
+.label-green  { --lc: #30a46c; }
+.label-blue   { --lc: #5b8cff; }
+.label-purple { --lc: #8e4ec6; }
+.label-pink   { --lc: #e93d82; }
+
+/* Priority tints — a card's left edge, and the standalone priority chip. */
+.kanban-card.prio-high { border-left: 3px solid #f76b15; }
+.kanban-card.prio-urgent { border-left: 3px solid #e5484d; }
+
+.prio-chip { border-color: transparent; color: #fff; }
+.prio-chip.prio-low { background: #8b95a5; }
+.prio-chip.prio-medium { background: #5b8cff; }
+.prio-chip.prio-high { background: #f76b15; }
+.prio-chip.prio-urgent { background: #e5484d; }
+
+/* Label dots on a card tile. */
+.kanban-card-labels { display: flex; gap: 4px; margin-bottom: 6px; }
+.label-dot {
+  width: 22px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--lc);
+}
+
+/* Label toggle buttons in the card modal. */
+.label {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--lc);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+}
+.label.on { background: var(--lc); color: #fff; border-color: transparent; }
+.label.off { opacity: 0.75; }
+
+/* Color swatches in the label manager. */
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--lc);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--lc); }

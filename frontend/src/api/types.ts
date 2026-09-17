@@ -372,6 +372,26 @@ export interface ProjectMember {
   username: string;
 }
 
+/** Card priority, lowest to highest. */
+export type ProjectPriority = "low" | "medium" | "high" | "urgent";
+
+/** A label's palette color — a fixed token, mirroring the schema's CHECK. */
+export type LabelColor =
+  | "gray"
+  | "red"
+  | "orange"
+  | "yellow"
+  | "green"
+  | "blue"
+  | "purple"
+  | "pink";
+
+export interface ProjectLabel {
+  id: Uuid;
+  name: string;
+  color: LabelColor;
+}
+
 export interface ProjectBoardSummary {
   id: Uuid;
   name: string;
@@ -389,6 +409,8 @@ export interface ProjectCardView {
   assignee_username: string | null;
   /** ISO date (YYYY-MM-DD), or null. */
   due_date: string | null;
+  priority: ProjectPriority;
+  labels: ProjectLabel[];
   position: number;
   created_at: Timestamp;
   updated_at: Timestamp;
@@ -418,6 +440,28 @@ export interface ProjectCardDraft {
   description: string | null;
   assignee_id: Uuid | null;
   due_date: string | null;
+  priority: ProjectPriority;
+  label_ids: Uuid[];
+}
+
+/** One comment on a card, body already rendered to sanitized HTML. */
+export interface ProjectComment {
+  id: Uuid;
+  author_id: Uuid | null;
+  author_username: string | null;
+  body_html: string;
+  created_at: Timestamp;
+}
+
+/** One of the caller's assigned cards, with where it lives. */
+export interface MyCard {
+  id: Uuid;
+  title: string;
+  board_id: Uuid;
+  board_name: string;
+  column_name: string;
+  priority: ProjectPriority;
+  due_date: string | null;
 }
 
 export interface ProjectBoardBody {
@@ -434,9 +478,20 @@ export interface ProjectCardBody {
   description: string;
   assignee_id: Uuid | null;
   due_date: string | null;
+  priority: ProjectPriority;
+  label_ids: Uuid[];
 }
 
 export interface ProjectCardMove {
   column_id: Uuid;
   position: number;
+}
+
+export interface ProjectLabelBody {
+  name: string;
+  color: LabelColor;
+}
+
+export interface ProjectCommentBody {
+  body: string;
 }

@@ -23,6 +23,7 @@ export const en = {
       labs: "Labs",
       projects: "Projects",
       boards: "Boards",
+      myCards: "My cards",
     },
 
     menu: {
@@ -343,6 +344,29 @@ export const en = {
       deleteCard: "Delete card",
       due: "Due",
       overdue: "Overdue",
+      priority: "Priority",
+      priorityLevel: {
+        low: "Low",
+        medium: "Medium",
+        high: "High",
+        urgent: "Urgent",
+      },
+      labels: "Labels",
+      manageLabels: "Labels",
+      noLabels: "No labels yet",
+      newLabel: "New label",
+      labelName: "Label name",
+      comments: "Comments",
+      noComments: "No comments yet",
+      commentPlaceholder: "Write a comment…",
+      postComment: "Post",
+      formerMember: "Former member",
+      myCards: "My cards",
+      noAssigned: "Nothing assigned to you",
+      filterText: "Search titles…",
+      filterAllAssignees: "All assignees",
+      filterAllPriorities: "All priorities",
+      filterAllLabels: "All labels",
     },
 
     authz: {

@@ -604,6 +604,14 @@ pub struct ProjectColumnView {
     pub cards: Vec<ProjectCardView>,
 }
 
+/// One label as it hangs on a card or sits in a board's vocabulary.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct ProjectLabel {
+    pub id: Uuid,
+    pub name: String,
+    pub color: String,
+}
+
 /// A card as the board shows it: its description already rendered to sanitized
 /// HTML, and the assignee named rather than left as a bare id.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -615,6 +623,8 @@ pub struct ProjectCardView {
     pub assignee_id: Option<Uuid>,
     pub assignee_username: Option<String>,
     pub due_date: Option<NaiveDate>,
+    pub priority: String,
+    pub labels: Vec<ProjectLabel>,
     pub position: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -622,13 +632,38 @@ pub struct ProjectCardView {
 
 /// The raw (markdown) form of a card, for its editor — the author-only
 /// counterpart to a document's draft.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectCardDraft {
     pub id: Uuid,
     pub column_id: Uuid,
     pub title: String,
     pub description: Option<String>,
     pub assignee_id: Option<Uuid>,
+    pub due_date: Option<NaiveDate>,
+    pub priority: String,
+    pub label_ids: Vec<Uuid>,
+}
+
+/// One comment on a card, its markdown body rendered to sanitized HTML.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProjectComment {
+    pub id: Uuid,
+    pub author_id: Option<Uuid>,
+    pub author_username: Option<String>,
+    pub body_html: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// One of the caller's assigned cards, carrying where it lives so the "my cards"
+/// list can link straight to its board.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct MyCard {
+    pub id: Uuid,
+    pub title: String,
+    pub board_id: Uuid,
+    pub board_name: String,
+    pub column_name: String,
+    pub priority: String,
     pub due_date: Option<NaiveDate>,
 }
 
@@ -647,7 +682,8 @@ pub struct ProjectColumnBody {
 }
 
 /// The payload to create or update a card. `assignee_id`/`due_date` absent means
-/// unassigned / no due date.
+/// unassigned / no due date; `priority` defaults to medium; `label_ids` are the
+/// board's labels to attach (any that are not the board's own are ignored).
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct ProjectCardBody {
     pub title: String,
@@ -657,6 +693,14 @@ pub struct ProjectCardBody {
     pub assignee_id: Option<Uuid>,
     #[serde(default)]
     pub due_date: Option<NaiveDate>,
+    #[serde(default = "default_priority")]
+    pub priority: String,
+    #[serde(default)]
+    pub label_ids: Vec<Uuid>,
+}
+
+fn default_priority() -> String {
+    "medium".to_string()
 }
 
 /// The payload for a drag-and-drop: the card's new column and its new index
@@ -665,4 +709,41 @@ pub struct ProjectCardBody {
 pub struct ProjectCardMove {
     pub column_id: Uuid,
     pub position: i32,
+}
+
+/// The authoring payload for a label (name + palette color).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ProjectLabelBody {
+    pub name: String,
+    #[serde(default = "default_color")]
+    pub color: String,
+}
+
+fn default_color() -> String {
+    "gray".to_string()
+}
+
+/// The payload to post a comment (raw markdown body).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ProjectCommentBody {
+    pub body: String,
+}
+
+/// Clamp a priority to the four the schema allows; anything else is `medium`,
+/// the same defensive normalisation `normalize_status` does for documents.
+pub fn normalize_priority(priority: &str) -> String {
+    match priority {
+        "low" | "medium" | "high" | "urgent" => priority,
+        _ => "medium",
+    }
+    .to_string()
+}
+
+/// Clamp a label color to the fixed palette; anything else is `gray`.
+pub fn normalize_color(color: &str) -> String {
+    match color {
+        "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink" => color,
+        _ => "gray",
+    }
+    .to_string()
 }

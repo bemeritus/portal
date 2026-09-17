@@ -1,11 +1,12 @@
 /**
  * `/projects/boards/:id` — one Kanban board.
  *
- * Columns sit left to right, cards top to bottom inside each. Any member drags a
- * card to reorder it or move it between columns (native HTML5 drag-and-drop, no
- * extra dependency); the move is persisted per drop and the board refetched. A
- * lead additionally manages the structure — add or remove columns, delete the
- * board. Card create and edit share one modal.
+ * Columns left to right, cards top to bottom. Any member drags a card to
+ * reorder or move it (native HTML5 drag-and-drop); the move is persisted per
+ * drop and the board refetched. A filter bar narrows the visible cards by text,
+ * assignee, priority and label without touching the server. A lead manages the
+ * structure — columns, labels, and the board itself. Card create and edit share
+ * one modal.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -15,16 +16,22 @@ import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../../api/client";
 import { projects } from "../../api/endpoints";
-import type { ProjectCardView, ProjectColumnView, Uuid } from "../../api/types";
+import type { ProjectCardView, ProjectColumnView, ProjectPriority, Uuid } from "../../api/types";
 import { useUser } from "../../auth/AuthContext";
 import { ConfirmButton } from "../../components/ConfirmButton";
 import { ErrorFlash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
 import { canAuthor } from "../../permissions";
 import { CardModal } from "./CardModal";
+import { LabelsModal } from "./LabelsModal";
 
-/** Which card the modal is on: a new card in a column, or an existing card. */
 type Editing = { mode: "new"; columnId: Uuid } | { mode: "edit"; cardId: Uuid } | null;
+
+type Filter = { text: string; assignee: Uuid | ""; priority: ProjectPriority | ""; label: Uuid | "" };
+
+const EMPTY_FILTER: Filter = { text: "", assignee: "", priority: "", label: "" };
+
+const PRIORITIES: ProjectPriority[] = ["low", "medium", "high", "urgent"];
 
 export function BoardPage() {
   const { id } = useParams<{ id: Uuid }>();
@@ -39,6 +46,8 @@ export function BoardPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [newColumn, setNewColumn] = useState("");
   const [addingColumn, setAddingColumn] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const [filter, setFilter] = useState<Filter>(EMPTY_FILTER);
 
   const boardKey = ["projects", "board", boardId];
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boardKey });
@@ -49,16 +58,18 @@ export function BoardPage() {
   });
   const board = query.data;
 
-  // The assignable set, for the card modal's picker. Loaded once with the board.
   const membersQuery = useQuery({
     queryKey: ["projects", "members"],
     queryFn: ({ signal }) => projects.members(signal),
   });
+  const labelsQuery = useQuery({
+    queryKey: ["projects", "labels", boardId],
+    queryFn: ({ signal }) => projects.boards.labels(boardId, signal),
+  });
+  const labels = useMemo(() => labelsQuery.data ?? [], [labelsQuery.data]);
 
   useEffect(() => {
-    if (board) {
-      document.title = t("docTitle", { page: board.name, app: t("app.name") });
-    }
+    if (board) document.title = t("docTitle", { page: board.name, app: t("app.name") });
   }, [board, t]);
 
   const move = useMutation({
@@ -66,12 +77,10 @@ export function BoardPage() {
       projects.cards.move(args.cardId, { column_id: args.columnId, position: args.position }),
     onSuccess: invalidate,
   });
-
   const removeBoard = useMutation({
     mutationFn: () => projects.boards.remove(boardId),
     onSuccess: () => navigate("/projects", { replace: true }),
   });
-
   const addColumn = useMutation({
     mutationFn: () => projects.boards.addColumn(boardId, { name: newColumn }),
     onSuccess: async () => {
@@ -80,20 +89,27 @@ export function BoardPage() {
       await invalidate();
     },
   });
-
   const removeColumn = useMutation({
     mutationFn: (columnId: Uuid) => projects.columns.remove(columnId),
     onSuccess: invalidate,
   });
 
-  /** Position within a column, excluding the dragged card (the server's rule). */
+  const filterActive = filter.text !== "" || filter.assignee !== "" || filter.priority !== "" || filter.label !== "";
+
+  function matches(card: ProjectCardView): boolean {
+    if (filter.assignee !== "" && card.assignee_id !== filter.assignee) return false;
+    if (filter.priority !== "" && card.priority !== filter.priority) return false;
+    if (filter.label !== "" && !card.labels.some((l) => l.id === filter.label)) return false;
+    if (filter.text !== "" && !card.title.toLowerCase().includes(filter.text.toLowerCase())) return false;
+    return true;
+  }
+
   function dropPosition(column: ProjectColumnView, beforeCardId: Uuid | null): number {
     const rest = column.cards.filter((c) => c.id !== dragging);
     if (beforeCardId === null) return rest.length;
     const idx = rest.findIndex((c) => c.id === beforeCardId);
     return idx < 0 ? rest.length : idx;
   }
-
   function onDropInto(column: ProjectColumnView, beforeCardId: Uuid | null) {
     if (!dragging) return;
     move.mutate({ cardId: dragging, columnId: column.id, position: dropPosition(column, beforeCardId) });
@@ -119,6 +135,11 @@ export function BoardPage() {
       >
         <h1 style={{ flex: 1, minWidth: 0 }}>{board.name}</h1>
         {isLead && (
+          <button className="btn secondary" type="button" onClick={() => setLabelsOpen(true)}>
+            {t("projects.manageLabels")}
+          </button>
+        )}
+        {isLead && (
           <ConfirmButton
             className="btn danger"
             label={t("projects.deleteBoard")}
@@ -128,59 +149,100 @@ export function BoardPage() {
           />
         )}
       </div>
-      {board.description && <p className="muted" style={{ marginBottom: 16 }}>{board.description}</p>}
+      {board.description && <p className="muted" style={{ marginBottom: 12 }}>{board.description}</p>}
+
+      {/* Filter bar — client-side, over the already-loaded board. */}
+      <div className="board-filters" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <input
+          value={filter.text}
+          placeholder={t("projects.filterText")}
+          onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
+          style={{ flex: 1, minWidth: 140 }}
+        />
+        <select value={filter.assignee} onChange={(e) => setFilter((f) => ({ ...f, assignee: e.target.value as Uuid | "" }))}>
+          <option value="">{t("projects.filterAllAssignees")}</option>
+          {(membersQuery.data ?? []).map((m) => (
+            <option key={m.id} value={m.id}>{m.username}</option>
+          ))}
+        </select>
+        <select value={filter.priority} onChange={(e) => setFilter((f) => ({ ...f, priority: e.target.value as ProjectPriority | "" }))}>
+          <option value="">{t("projects.filterAllPriorities")}</option>
+          {PRIORITIES.map((p) => (
+            <option key={p} value={p}>{t(`projects.priorityLevel.${p}`)}</option>
+          ))}
+        </select>
+        {labels.length > 0 && (
+          <select value={filter.label} onChange={(e) => setFilter((f) => ({ ...f, label: e.target.value as Uuid | "" }))}>
+            <option value="">{t("projects.filterAllLabels")}</option>
+            {labels.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        )}
+        {filterActive && (
+          <button className="btn secondary" type="button" onClick={() => setFilter(EMPTY_FILTER)}>
+            {t("common.clearFilters")}
+          </button>
+        )}
+      </div>
 
       <ErrorFlash error={move.error ? errorMessage(move.error) : null} />
 
       <div className="kanban">
-        {board.columns.map((column) => (
-          <section
-            key={column.id}
-            className={`kanban-col${dragging ? " droppable" : ""}`}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              onDropInto(column, null);
-            }}
-          >
-            <header className="kanban-col-head">
-              <h2>
-                {column.name} <span className="count">{column.cards.length}</span>
-              </h2>
-              {isLead && (
-                <ConfirmButton
-                  className="icon-btn"
-                  label="×"
-                  confirmLabel={t("common.confirmDelete")}
-                  pending={removeColumn.isPending}
-                  onConfirm={() => removeColumn.mutate(column.id)}
-                />
-              )}
-            </header>
-
-            <div className="kanban-cards">
-              {column.cards.map((card) => (
-                <CardTile
-                  key={card.id}
-                  card={card}
-                  dimmed={dragging === card.id}
-                  onDragStart={() => setDragging(card.id)}
-                  onDragEnd={() => setDragging(null)}
-                  onDropBefore={() => onDropInto(column, card.id)}
-                  onOpen={() => setEditing({ mode: "edit", cardId: card.id })}
-                />
-              ))}
-            </div>
-
-            <button
-              className="kanban-add"
-              type="button"
-              onClick={() => setEditing({ mode: "new", columnId: column.id })}
+        {board.columns.map((column) => {
+          const visible = column.cards.filter(matches);
+          return (
+            <section
+              key={column.id}
+              className={`kanban-col${dragging ? " droppable" : ""}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                onDropInto(column, null);
+              }}
             >
-              + {t("projects.addCard")}
-            </button>
-          </section>
-        ))}
+              <header className="kanban-col-head">
+                <h2>
+                  {column.name}{" "}
+                  <span className="count">
+                    {filterActive ? `${visible.length}/${column.cards.length}` : column.cards.length}
+                  </span>
+                </h2>
+                {isLead && (
+                  <ConfirmButton
+                    className="icon-btn"
+                    label="×"
+                    confirmLabel={t("common.confirmDelete")}
+                    pending={removeColumn.isPending}
+                    onConfirm={() => removeColumn.mutate(column.id)}
+                  />
+                )}
+              </header>
+
+              <div className="kanban-cards">
+                {visible.map((card) => (
+                  <CardTile
+                    key={card.id}
+                    card={card}
+                    dimmed={dragging === card.id}
+                    onDragStart={() => setDragging(card.id)}
+                    onDragEnd={() => setDragging(null)}
+                    onDropBefore={() => onDropInto(column, card.id)}
+                    onOpen={() => setEditing({ mode: "edit", cardId: card.id })}
+                  />
+                ))}
+              </div>
+
+              <button
+                className="kanban-add"
+                type="button"
+                onClick={() => setEditing({ mode: "new", columnId: column.id })}
+              >
+                + {t("projects.addCard")}
+              </button>
+            </section>
+          );
+        })}
 
         {isLead && (
           <div className="kanban-col add-col">
@@ -219,12 +281,27 @@ export function BoardPage() {
       {editing && (
         <CardModal
           members={membersQuery.data ?? []}
+          labels={labels}
           columnId={editing.mode === "new" ? editing.columnId : undefined}
           cardId={editing.mode === "edit" ? editing.cardId : undefined}
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
             await invalidate();
+          }}
+        />
+      )}
+
+      {labelsOpen && (
+        <LabelsModal
+          boardId={boardId}
+          labels={labels}
+          onClose={() => setLabelsOpen(false)}
+          onChanged={async () => {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ["projects", "labels", boardId] }),
+              invalidate(),
+            ]);
           }}
         />
       )}
@@ -253,7 +330,7 @@ function CardTile({
 
   return (
     <article
-      className={`kanban-card${dimmed ? " dragging" : ""}${over ? " drop-over" : ""}`}
+      className={`kanban-card prio-${card.priority}${dimmed ? " dragging" : ""}${over ? " drop-over" : ""}`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={() => {
@@ -278,8 +355,20 @@ function CardTile({
         if (e.key === "Enter") onOpen();
       }}
     >
+      {card.labels.length > 0 && (
+        <div className="kanban-card-labels">
+          {card.labels.map((l) => (
+            <span key={l.id} className={`label-dot label-${l.color}`} title={l.name} />
+          ))}
+        </div>
+      )}
       <div className="kanban-card-title">{card.title}</div>
       <div className="kanban-card-meta">
+        {card.priority !== "medium" && (
+          <span className={`chip prio-chip prio-${card.priority}`}>
+            {t(`projects.priorityLevel.${card.priority}`)}
+          </span>
+        )}
         {card.assignee_username && <span className="chip">@{card.assignee_username}</span>}
         {card.due_date && (
           <span className={`chip due${overdue ? " overdue" : ""}`}>
@@ -291,7 +380,6 @@ function CardTile({
   );
 }
 
-/** A due date strictly before today (local) is overdue. */
 function isOverdue(due: string | null): boolean {
   if (!due) return false;
   const today = new Date();

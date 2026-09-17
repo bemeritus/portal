@@ -37,6 +37,7 @@ import type {
   LearningTestDraft,
   LearningTestSummary,
   LearningTestView,
+  MyCard,
   ProjectBoardBody,
   ProjectBoardSummary,
   ProjectBoardView,
@@ -44,6 +45,10 @@ import type {
   ProjectCardDraft,
   ProjectCardMove,
   ProjectColumnBody,
+  ProjectComment,
+  ProjectCommentBody,
+  ProjectLabel,
+  ProjectLabelBody,
   ProjectMember,
   SectionAccess,
   UploadResponse,
@@ -230,6 +235,8 @@ const PROJECTS = `${BASE}/projects`;
 export const projects = {
   /** Assignable people — active members of the section, plus admins. */
   members: (signal?: AbortSignal) => api.get<ProjectMember[]>(`${PROJECTS}/members`, signal),
+  /** Every card assigned to the caller, across all boards. */
+  myCards: (signal?: AbortSignal) => api.get<MyCard[]>(`${PROJECTS}/my-cards`, signal),
   boards: {
     list: (signal?: AbortSignal) =>
       api.get<ProjectBoardSummary[]>(`${PROJECTS}/boards`, signal),
@@ -243,6 +250,16 @@ export const projects = {
     /** Add a column to the right of a board's existing ones. Lead only. */
     addColumn: (boardId: Uuid, body: ProjectColumnBody) =>
       api.post<{ id: Uuid }>(`${PROJECTS}/boards/${boardId}/columns`, body),
+    /** The board's label vocabulary. */
+    labels: (boardId: Uuid, signal?: AbortSignal) =>
+      api.get<ProjectLabel[]>(`${PROJECTS}/boards/${boardId}/labels`, signal),
+    /** Create a label on the board. Lead only. */
+    addLabel: (boardId: Uuid, body: ProjectLabelBody) =>
+      api.post<{ id: Uuid }>(`${PROJECTS}/boards/${boardId}/labels`, body),
+  },
+  labels: {
+    update: (id: Uuid, body: ProjectLabelBody) => api.put<void>(`${PROJECTS}/labels/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/labels/${id}`),
   },
   columns: {
     update: (id: Uuid, body: ProjectColumnBody) =>
@@ -260,6 +277,15 @@ export const projects = {
     remove: (id: Uuid) => api.del<void>(`${PROJECTS}/cards/${id}`),
     /** Drag-and-drop: place the card at an index in a column on the same board. */
     move: (id: Uuid, body: ProjectCardMove) => api.put<void>(`${PROJECTS}/cards/${id}/move`, body),
+    /** The card's comment thread, oldest first. */
+    comments: (id: Uuid, signal?: AbortSignal) =>
+      api.get<ProjectComment[]>(`${PROJECTS}/cards/${id}/comments`, signal),
+    comment: (id: Uuid, body: ProjectCommentBody) =>
+      api.post<{ id: Uuid }>(`${PROJECTS}/cards/${id}/comments`, body),
+  },
+  comments: {
+    /** Delete a comment — your own, or any if you are an admin. */
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/comments/${id}`),
   },
 };
 

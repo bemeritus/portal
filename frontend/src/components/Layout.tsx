@@ -185,9 +185,12 @@ export function Layout() {
               </>
             )}
             {section === "projects" && (
-              <NavLink to="/projects" end>
-                {t("nav.boards")}
-              </NavLink>
+              <>
+                <NavLink to="/projects" end>
+                  {t("nav.boards")}
+                </NavLink>
+                <NavLink to="/projects/my-cards">{t("nav.myCards")}</NavLink>
+              </>
             )}
 
             {user?.is_admin && (
