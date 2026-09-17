@@ -74,6 +74,7 @@ export function LabelsModal({
           {labels.map((l) => (
             <div key={l.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
+                type="text"
                 defaultValue={l.name}
                 style={{ flex: 1 }}
                 onBlur={(e) => {
@@ -104,6 +105,7 @@ export function LabelsModal({
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
               id="label-name"
+              type="text"
               value={name}
               placeholder={t("projects.labelName")}
               style={{ flex: 1 }}

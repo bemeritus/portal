@@ -24,6 +24,7 @@ export const ru = {
       projects: "Проекты",
       boards: "Доски",
       myCards: "Мои карточки",
+      calendar: "Календарь",
     },
 
     menu: {
@@ -377,6 +378,13 @@ export const ru = {
       filterAllAssignees: "Все исполнители",
       filterAllPriorities: "Все приоритеты",
       filterAllLabels: "Все метки",
+      checklist: "Чеклист",
+      checklistPlaceholder: "Новый пункт…",
+      attachments: "Вложения",
+      addAttachment: "Прикрепить изображение",
+      wipLimit: "Лимит WIP",
+      calendar: "Календарь",
+      today: "Сегодня",
     },
 
     authz: {

@@ -45,6 +45,7 @@ import { LabSubmissionsPage } from "./pages/learning/LabSubmissionsPage";
 import { ProjectsPage } from "./pages/projects/ProjectsPage";
 import { BoardPage } from "./pages/projects/BoardPage";
 import { MyCardsPage } from "./pages/projects/MyCardsPage";
+import { CalendarPage } from "./pages/projects/CalendarPage";
 import { useTranslation } from "react-i18next";
 
 function NotFound() {
@@ -140,6 +141,7 @@ export function App() {
           <Route path="projects" element={<RequireSection section="projects" />}>
             <Route index element={<ProjectsPage />} />
             <Route path="my-cards" element={<MyCardsPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
             <Route path="boards/:id" element={<BoardPage />} />
           </Route>
 

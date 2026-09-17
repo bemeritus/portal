@@ -400,6 +400,20 @@ export interface ProjectBoardSummary {
   created_at: Timestamp;
 }
 
+export interface ChecklistItem {
+  id: Uuid;
+  text: string;
+  done: boolean;
+  position: number;
+}
+
+export interface CardAttachment {
+  id: Uuid;
+  url: string;
+  name: string;
+  created_at: Timestamp;
+}
+
 export interface ProjectCardView {
   id: Uuid;
   column_id: Uuid;
@@ -411,6 +425,9 @@ export interface ProjectCardView {
   due_date: string | null;
   priority: ProjectPriority;
   labels: ProjectLabel[];
+  checklist_done: number;
+  checklist_total: number;
+  attachment_count: number;
   position: number;
   created_at: Timestamp;
   updated_at: Timestamp;
@@ -420,6 +437,8 @@ export interface ProjectColumnView {
   id: Uuid;
   name: string;
   position: number;
+  /** Advisory WIP cap; null means no cap. */
+  wip_limit: number | null;
   cards: ProjectCardView[];
 }
 
@@ -442,6 +461,18 @@ export interface ProjectCardDraft {
   due_date: string | null;
   priority: ProjectPriority;
   label_ids: Uuid[];
+  checklist: ChecklistItem[];
+  attachments: CardAttachment[];
+}
+
+/** One due-dated card as the calendar lists it. */
+export interface CalendarCard {
+  id: Uuid;
+  title: string;
+  board_id: Uuid;
+  board_name: string;
+  due_date: string;
+  priority: ProjectPriority;
 }
 
 /** One comment on a card, body already rendered to sanitized HTML. */
@@ -470,6 +501,21 @@ export interface ProjectBoardBody {
 }
 
 export interface ProjectColumnBody {
+  name: string;
+  wip_limit: number | null;
+}
+
+export interface ChecklistItemBody {
+  text: string;
+}
+
+export interface ChecklistUpdate {
+  text: string;
+  done: boolean;
+}
+
+export interface AttachmentBody {
+  url: string;
   name: string;
 }
 

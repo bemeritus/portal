@@ -29,16 +29,18 @@ use crate::content::{optional_text, render_markdown};
 use crate::db::AppState;
 use crate::error::{db_reference, internal, ApiError, ApiResult};
 use crate::models::{
-    normalize_color, normalize_priority, MyCard, ProjectBoardBody, ProjectBoardSummary,
-    ProjectBoardView, ProjectCardBody, ProjectCardDraft, ProjectCardMove, ProjectCardView,
-    ProjectColumnBody, ProjectColumnView, ProjectComment, ProjectCommentBody, ProjectLabel,
-    ProjectLabelBody, ProjectMember,
+    normalize_color, normalize_priority, AttachmentBody, CalendarCard, CardAttachment,
+    ChecklistItem, ChecklistItemBody, ChecklistUpdate, MyCard, ProjectBoardBody,
+    ProjectBoardSummary, ProjectBoardView, ProjectCardBody, ProjectCardDraft, ProjectCardMove,
+    ProjectCardView, ProjectColumnBody, ProjectColumnView, ProjectComment, ProjectCommentBody,
+    ProjectLabel, ProjectLabelBody, ProjectMember,
 };
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/members", get(list_members))
         .route("/my-cards", get(my_cards))
+        .route("/calendar", get(calendar))
         .route("/boards", get(list_boards).post(create_board))
         .route("/boards/{id}", get(get_board).put(update_board).delete(remove_board))
         .route("/boards/{id}/columns", post(create_column))
@@ -50,6 +52,10 @@ pub fn routes() -> Router<AppState> {
         .route("/cards/{id}/move", put(move_card))
         .route("/cards/{id}/comments", get(list_comments).post(create_comment))
         .route("/comments/{id}", axum::routing::delete(remove_comment))
+        .route("/cards/{id}/checklist", post(add_checklist_item))
+        .route("/checklist/{id}", put(update_checklist_item).delete(remove_checklist_item))
+        .route("/cards/{id}/attachments", post(add_attachment))
+        .route("/attachments/{id}", axum::routing::delete(remove_attachment))
 }
 
 #[derive(Serialize)]
@@ -136,8 +142,8 @@ async fn get_board(
     .map_err(|e| internal("loading a project board", e))?
     .ok_or_else(|| ApiError::NotFound("Board not found".into()))?;
 
-    let column_rows: Vec<(Uuid, String, i32)> = sqlx::query_as(
-        "SELECT id, name, position FROM project_columns
+    let column_rows: Vec<(Uuid, String, i32, Option<i32>)> = sqlx::query_as(
+        "SELECT id, name, position, wip_limit FROM project_columns
          WHERE board_id = $1 ORDER BY position, created_at",
     )
     .bind(board_id)
@@ -204,28 +210,74 @@ async fn get_board(
             .collect()
     };
 
+    // Checklist progress per card (done / total) in one grouped query.
+    let checklist_rows: Vec<(Uuid, i64, i64)> = sqlx::query_as(
+        "SELECT ci.card_id,
+                COUNT(*) FILTER (WHERE ci.done) AS done,
+                COUNT(*) AS total
+         FROM project_card_checklist_items ci
+         JOIN project_cards c ON c.id = ci.card_id
+         JOIN project_columns col ON col.id = c.column_id
+         WHERE col.board_id = $1
+         GROUP BY ci.card_id",
+    )
+    .bind(board_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("counting a board's checklist items", e))?;
+
+    // Attachment counts per card, same shape.
+    let attachment_rows: Vec<(Uuid, i64)> = sqlx::query_as(
+        "SELECT a.card_id, COUNT(*)
+         FROM project_card_attachments a
+         JOIN project_cards c ON c.id = a.card_id
+         JOIN project_columns col ON col.id = c.column_id
+         WHERE col.board_id = $1
+         GROUP BY a.card_id",
+    )
+    .bind(board_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("counting a board's attachments", e))?;
+
     let columns = column_rows
         .into_iter()
-        .map(|(id, name, position)| ProjectColumnView {
+        .map(|(id, name, position, wip_limit)| ProjectColumnView {
             id,
             name,
             position,
+            wip_limit,
             cards: card_rows
                 .iter()
                 .filter(|c| c.column_id == id)
-                .map(|c| ProjectCardView {
-                    id: c.id,
-                    column_id: c.column_id,
-                    title: c.title.clone(),
-                    description_html: c.description.as_deref().map(render_markdown),
-                    assignee_id: c.assignee_id,
-                    assignee_username: c.assignee_username.clone(),
-                    due_date: c.due_date,
-                    priority: c.priority.clone(),
-                    labels: labels_of(c.id),
-                    position: c.position,
-                    created_at: c.created_at,
-                    updated_at: c.updated_at,
+                .map(|c| {
+                    let (checklist_done, checklist_total) = checklist_rows
+                        .iter()
+                        .find(|(cid, ..)| *cid == c.id)
+                        .map(|(_, done, total)| (*done, *total))
+                        .unwrap_or((0, 0));
+                    let attachment_count = attachment_rows
+                        .iter()
+                        .find(|(cid, _)| *cid == c.id)
+                        .map(|(_, n)| *n)
+                        .unwrap_or(0);
+                    ProjectCardView {
+                        id: c.id,
+                        column_id: c.column_id,
+                        title: c.title.clone(),
+                        description_html: c.description.as_deref().map(render_markdown),
+                        assignee_id: c.assignee_id,
+                        assignee_username: c.assignee_username.clone(),
+                        due_date: c.due_date,
+                        priority: c.priority.clone(),
+                        labels: labels_of(c.id),
+                        checklist_done,
+                        checklist_total,
+                        attachment_count,
+                        position: c.position,
+                        created_at: c.created_at,
+                        updated_at: c.updated_at,
+                    }
                 })
                 .collect(),
         })
@@ -355,6 +407,7 @@ async fn create_column(
     Json(body): Json<ProjectColumnBody>,
 ) -> ApiResult<(StatusCode, Json<CreatedId>)> {
     let name = require_name(&body.name, "Column name")?;
+    let wip = body.wip_limit.filter(|n| *n >= 0);
 
     // The board must exist, and the new column goes after the last one. The
     // subquery for the next position races another add on the same board, but
@@ -369,14 +422,16 @@ async fn create_column(
     let board_name = board_name.ok_or_else(|| ApiError::NotFound("Board not found".into()))?;
 
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO project_columns (board_id, name, position)
+        "INSERT INTO project_columns (board_id, name, position, wip_limit)
          VALUES ($1, $2,
                  (SELECT COALESCE(MAX(position) + 1, 0)
-                    FROM project_columns WHERE board_id = $1))
+                    FROM project_columns WHERE board_id = $1),
+                 $3)
          RETURNING id",
     )
     .bind(board_id)
     .bind(&name)
+    .bind(wip)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| internal("creating a project column", e))?;
@@ -404,10 +459,12 @@ async fn update_column(
     Json(body): Json<ProjectColumnBody>,
 ) -> ApiResult<StatusCode> {
     let name = require_name(&body.name, "Column name")?;
+    let wip = body.wip_limit.filter(|n| *n >= 0);
 
-    let updated = sqlx::query("UPDATE project_columns SET name = $2 WHERE id = $1")
+    let updated = sqlx::query("UPDATE project_columns SET name = $2, wip_limit = $3 WHERE id = $1")
         .bind(column_id)
         .bind(&name)
+        .bind(wip)
         .execute(&state.pool)
         .await
         .map_err(|e| internal("updating a project column", e))?;
@@ -603,6 +660,24 @@ async fn get_card_draft(
             .await
             .map_err(|e| internal("loading a card's labels", e))?;
 
+    let checklist = sqlx::query_as::<_, ChecklistItem>(
+        "SELECT id, text, done, position FROM project_card_checklist_items
+         WHERE card_id = $1 ORDER BY position, id",
+    )
+    .bind(card_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("loading a card's checklist", e))?;
+
+    let attachments = sqlx::query_as::<_, CardAttachment>(
+        "SELECT id, url, name, created_at FROM project_card_attachments
+         WHERE card_id = $1 ORDER BY created_at",
+    )
+    .bind(card_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("loading a card's attachments", e))?;
+
     Ok(Json(ProjectCardDraft {
         id: row.id,
         column_id: row.column_id,
@@ -612,6 +687,8 @@ async fn get_card_draft(
         due_date: row.due_date,
         priority: row.priority,
         label_ids,
+        checklist,
+        attachments,
     }))
 }
 
@@ -1090,5 +1167,149 @@ async fn my_cards(
     .fetch_all(&state.pool)
     .await
     .map_err(|e| internal("listing the caller's assigned cards", e))?;
+    Ok(Json(cards))
+}
+
+// --- Checklists -------------------------------------------------------------
+
+/// Add a checklist item to the bottom of a card's list. Any member may.
+async fn add_checklist_item(
+    State(state): State<AppState>,
+    InProjects(_user): InProjects,
+    Path(card_id): Path<Uuid>,
+    Json(body): Json<ChecklistItemBody>,
+) -> ApiResult<(StatusCode, Json<CreatedId>)> {
+    let text = body.text.trim();
+    if text.is_empty() {
+        return Err(ApiError::BadRequest("A checklist item cannot be empty".into()));
+    }
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO project_card_checklist_items (card_id, text, position)
+         VALUES ($1, $2,
+                 (SELECT COALESCE(MAX(position) + 1, 0)
+                    FROM project_card_checklist_items WHERE card_id = $1))
+         RETURNING id",
+    )
+    .bind(card_id)
+    .bind(text)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| db_reference("adding a checklist item", e, "That card no longer exists."))?;
+    Ok((StatusCode::CREATED, Json(CreatedId { id })))
+}
+
+/// Rename a checklist item and/or tick it. The common case — checking a box — is
+/// this same call with the text unchanged.
+async fn update_checklist_item(
+    State(state): State<AppState>,
+    InProjects(_user): InProjects,
+    Path(item_id): Path<Uuid>,
+    Json(body): Json<ChecklistUpdate>,
+) -> ApiResult<StatusCode> {
+    let text = body.text.trim();
+    if text.is_empty() {
+        return Err(ApiError::BadRequest("A checklist item cannot be empty".into()));
+    }
+    let updated = sqlx::query(
+        "UPDATE project_card_checklist_items SET text = $2, done = $3 WHERE id = $1",
+    )
+    .bind(item_id)
+    .bind(text)
+    .bind(body.done)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| internal("updating a checklist item", e))?;
+    if updated.rows_affected() == 0 {
+        return Err(ApiError::NotFound("Checklist item not found".into()));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn remove_checklist_item(
+    State(state): State<AppState>,
+    InProjects(_user): InProjects,
+    Path(item_id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    let deleted = sqlx::query("DELETE FROM project_card_checklist_items WHERE id = $1")
+        .bind(item_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal("deleting a checklist item", e))?;
+    if deleted.rows_affected() == 0 {
+        return Err(ApiError::NotFound("Checklist item not found".into()));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Attachments ------------------------------------------------------------
+
+/// Pin an already-uploaded image to a card. The image itself goes up through the
+/// shared `/api/upload` endpoint (which enforces the SR-5 image whitelist); this
+/// only records the url it returned against the card, so nothing here trusts a
+/// path the client made up beyond storing it for display.
+async fn add_attachment(
+    State(state): State<AppState>,
+    InProjects(_user): InProjects,
+    Path(card_id): Path<Uuid>,
+    Json(body): Json<AttachmentBody>,
+) -> ApiResult<(StatusCode, Json<CreatedId>)> {
+    let url = body.url.trim();
+    let name = body.name.trim();
+    // The url must be an upload path this server issued, not an arbitrary link —
+    // an attachment is a pointer at our own storage, not an open redirect.
+    if !url.starts_with("/uploads/") {
+        return Err(ApiError::BadRequest("That is not a valid upload".into()));
+    }
+    let name = if name.is_empty() { "attachment" } else { name };
+
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO project_card_attachments (card_id, url, name, uploaded_by)
+         VALUES ($1, $2, $3, $4) RETURNING id",
+    )
+    .bind(card_id)
+    .bind(url)
+    .bind(name)
+    .bind(_user.id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| db_reference("attaching an image", e, "That card no longer exists."))?;
+    Ok((StatusCode::CREATED, Json(CreatedId { id })))
+}
+
+async fn remove_attachment(
+    State(state): State<AppState>,
+    InProjects(_user): InProjects,
+    Path(attachment_id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    let deleted = sqlx::query("DELETE FROM project_card_attachments WHERE id = $1")
+        .bind(attachment_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal("removing an attachment", e))?;
+    if deleted.rows_affected() == 0 {
+        return Err(ApiError::NotFound("Attachment not found".into()));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Calendar ---------------------------------------------------------------
+
+/// Every due-dated card across all boards — what the calendar view lays out on a
+/// month grid. Undated cards have no place on a calendar, so they are left out.
+async fn calendar(
+    State(state): State<AppState>,
+    InProjects(_user): InProjects,
+) -> ApiResult<Json<Vec<CalendarCard>>> {
+    let cards = sqlx::query_as::<_, CalendarCard>(
+        "SELECT c.id, c.title, b.id AS board_id, b.name AS board_name, c.due_date, c.priority
+         FROM project_cards c
+         JOIN project_columns col ON col.id = c.column_id
+         JOIN project_boards b ON b.id = col.board_id
+         WHERE c.due_date IS NOT NULL
+         ORDER BY c.due_date",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal("listing calendar cards", e))?;
     Ok(Json(cards))
 }

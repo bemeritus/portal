@@ -21,6 +21,7 @@ import { useUser } from "../../auth/AuthContext";
 import { ConfirmButton } from "../../components/ConfirmButton";
 import { ErrorFlash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
+import { Select } from "../../components/Select";
 import { canAuthor } from "../../permissions";
 import { CardModal } from "./CardModal";
 import { LabelsModal } from "./LabelsModal";
@@ -48,6 +49,7 @@ export function BoardPage() {
   const [addingColumn, setAddingColumn] = useState(false);
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>(EMPTY_FILTER);
+  const [editCol, setEditCol] = useState<{ id: Uuid; name: string; wip: string } | null>(null);
 
   const boardKey = ["projects", "board", boardId];
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boardKey });
@@ -82,7 +84,7 @@ export function BoardPage() {
     onSuccess: () => navigate("/projects", { replace: true }),
   });
   const addColumn = useMutation({
-    mutationFn: () => projects.boards.addColumn(boardId, { name: newColumn }),
+    mutationFn: () => projects.boards.addColumn(boardId, { name: newColumn, wip_limit: null }),
     onSuccess: async () => {
       setNewColumn("");
       setAddingColumn(false);
@@ -92,6 +94,17 @@ export function BoardPage() {
   const removeColumn = useMutation({
     mutationFn: (columnId: Uuid) => projects.columns.remove(columnId),
     onSuccess: invalidate,
+  });
+  const updateColumn = useMutation({
+    mutationFn: (args: { id: Uuid; name: string; wip: string }) =>
+      projects.columns.update(args.id, {
+        name: args.name,
+        wip_limit: args.wip.trim() === "" ? null : Number(args.wip),
+      }),
+    onSuccess: async () => {
+      setEditCol(null);
+      await invalidate();
+    },
   });
 
   const filterActive = filter.text !== "" || filter.assignee !== "" || filter.priority !== "" || filter.label !== "";
@@ -151,39 +164,70 @@ export function BoardPage() {
       </div>
       {board.description && <p className="muted" style={{ marginBottom: 12 }}>{board.description}</p>}
 
-      {/* Filter bar — client-side, over the already-loaded board. */}
-      <div className="board-filters" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <input
-          value={filter.text}
-          placeholder={t("projects.filterText")}
-          onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
-          style={{ flex: 1, minWidth: 140 }}
-        />
-        <select value={filter.assignee} onChange={(e) => setFilter((f) => ({ ...f, assignee: e.target.value as Uuid | "" }))}>
-          <option value="">{t("projects.filterAllAssignees")}</option>
-          {(membersQuery.data ?? []).map((m) => (
-            <option key={m.id} value={m.id}>{m.username}</option>
-          ))}
-        </select>
-        <select value={filter.priority} onChange={(e) => setFilter((f) => ({ ...f, priority: e.target.value as ProjectPriority | "" }))}>
-          <option value="">{t("projects.filterAllPriorities")}</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>{t(`projects.priorityLevel.${p}`)}</option>
-          ))}
-        </select>
-        {labels.length > 0 && (
-          <select value={filter.label} onChange={(e) => setFilter((f) => ({ ...f, label: e.target.value as Uuid | "" }))}>
-            <option value="">{t("projects.filterAllLabels")}</option>
-            {labels.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-        )}
-        {filterActive && (
-          <button className="btn secondary" type="button" onClick={() => setFilter(EMPTY_FILTER)}>
-            {t("common.clearFilters")}
-          </button>
-        )}
+      {/* Filter bar — the same panel/row shell the documents list uses, so the
+          two sections read as one platform. Filtering is client-side, over the
+          already-loaded board. */}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="row">
+          <div>
+            <label htmlFor="board-q">{t("home.searchLabel")}</label>
+            <input
+              id="board-q"
+              type="search"
+              value={filter.text}
+              placeholder={t("projects.filterText")}
+              onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label htmlFor="board-assignee">{t("projects.assignee")}</label>
+            <Select
+              id="board-assignee"
+              ariaLabel={t("projects.assignee")}
+              value={filter.assignee}
+              onChange={(v) => setFilter((f) => ({ ...f, assignee: v as Uuid | "" }))}
+              options={[
+                { value: "", label: t("projects.filterAllAssignees") },
+                ...(membersQuery.data ?? []).map((m) => ({ value: m.id, label: m.username })),
+              ]}
+            />
+          </div>
+          <div>
+            <label htmlFor="board-priority">{t("projects.priority")}</label>
+            <Select
+              id="board-priority"
+              ariaLabel={t("projects.priority")}
+              value={filter.priority}
+              onChange={(v) => setFilter((f) => ({ ...f, priority: v as ProjectPriority | "" }))}
+              options={[
+                { value: "", label: t("projects.filterAllPriorities") },
+                ...PRIORITIES.map((p) => ({ value: p, label: t(`projects.priorityLevel.${p}`) })),
+              ]}
+            />
+          </div>
+          {labels.length > 0 && (
+            <div>
+              <label htmlFor="board-label">{t("projects.labels")}</label>
+              <Select
+                id="board-label"
+                ariaLabel={t("projects.labels")}
+                value={filter.label}
+                onChange={(v) => setFilter((f) => ({ ...f, label: v as Uuid | "" }))}
+                options={[
+                  { value: "", label: t("projects.filterAllLabels") },
+                  ...labels.map((l) => ({ value: l.id, label: l.name })),
+                ]}
+              />
+            </div>
+          )}
+          {filterActive && (
+            <div className="grow-0">
+              <button type="button" className="btn secondary" onClick={() => setFilter(EMPTY_FILTER)}>
+                {t("common.clearFilters")}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <ErrorFlash error={move.error ? errorMessage(move.error) : null} />
@@ -201,23 +245,78 @@ export function BoardPage() {
                 onDropInto(column, null);
               }}
             >
-              <header className="kanban-col-head">
-                <h2>
-                  {column.name}{" "}
-                  <span className="count">
-                    {filterActive ? `${visible.length}/${column.cards.length}` : column.cards.length}
-                  </span>
-                </h2>
-                {isLead && (
-                  <ConfirmButton
-                    className="icon-btn"
-                    label="×"
-                    confirmLabel={t("common.confirmDelete")}
-                    pending={removeColumn.isPending}
-                    onConfirm={() => removeColumn.mutate(column.id)}
+              {editCol?.id === column.id ? (
+                <form
+                  className="kanban-col-head"
+                  style={{ display: "grid", gap: 6 }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editCol.name.trim()) updateColumn.mutate(editCol);
+                  }}
+                >
+                  <input
+                    type="text"
+                    autoFocus
+                    value={editCol.name}
+                    onChange={(e) => setEditCol({ ...editCol, name: e.target.value })}
                   />
-                )}
-              </header>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editCol.wip}
+                    placeholder={t("projects.wipLimit")}
+                    onChange={(e) => setEditCol({ ...editCol, wip: e.target.value })}
+                  />
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="btn" type="submit" disabled={!editCol.name.trim() || updateColumn.isPending}>
+                      {t("common.save")}
+                    </button>
+                    <button className="btn secondary" type="button" onClick={() => setEditCol(null)}>
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <header className="kanban-col-head">
+                  <h2>
+                    {column.name}{" "}
+                    <span
+                      className={`count${
+                        column.wip_limit !== null && column.cards.length > column.wip_limit ? " over-wip" : ""
+                      }`}
+                    >
+                      {filterActive ? `${visible.length}/` : ""}
+                      {column.cards.length}
+                      {column.wip_limit !== null ? ` / ${column.wip_limit}` : ""}
+                    </span>
+                  </h2>
+                  {isLead && (
+                    <span style={{ display: "flex", gap: 2 }}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title={t("common.edit")}
+                        onClick={() =>
+                          setEditCol({
+                            id: column.id,
+                            name: column.name,
+                            wip: column.wip_limit === null ? "" : String(column.wip_limit),
+                          })
+                        }
+                      >
+                        ⚙
+                      </button>
+                      <ConfirmButton
+                        className="icon-btn"
+                        label="×"
+                        confirmLabel={t("common.confirmDelete")}
+                        pending={removeColumn.isPending}
+                        onConfirm={() => removeColumn.mutate(column.id)}
+                      />
+                    </span>
+                  )}
+                </header>
+              )}
 
               <div className="kanban-cards">
                 {visible.map((card) => (
@@ -255,6 +354,7 @@ export function BoardPage() {
                 }}
               >
                 <input
+                  type="text"
                   autoFocus
                   value={newColumn}
                   placeholder={t("projects.columnName")}
@@ -280,6 +380,7 @@ export function BoardPage() {
 
       {editing && (
         <CardModal
+          boardId={boardId}
           members={membersQuery.data ?? []}
           labels={labels}
           columnId={editing.mode === "new" ? editing.columnId : undefined}
@@ -358,26 +459,57 @@ function CardTile({
       {card.labels.length > 0 && (
         <div className="kanban-card-labels">
           {card.labels.map((l) => (
-            <span key={l.id} className={`label-dot label-${l.color}`} title={l.name} />
+            <span key={l.id} className={`label-pill label-${l.color}`}>
+              {l.name}
+            </span>
           ))}
         </div>
       )}
       <div className="kanban-card-title">{card.title}</div>
-      <div className="kanban-card-meta">
-        {card.priority !== "medium" && (
-          <span className={`chip prio-chip prio-${card.priority}`}>
-            {t(`projects.priorityLevel.${card.priority}`)}
+      <div className="kanban-card-foot">
+        <div className="kanban-card-meta">
+          <span className={`prio-ind prio-${card.priority}`} title={t(`projects.priorityLevel.${card.priority}`)}>
+            {PRIORITY_GLYPH[card.priority]}
           </span>
-        )}
-        {card.assignee_username && <span className="chip">@{card.assignee_username}</span>}
-        {card.due_date && (
-          <span className={`chip due${overdue ? " overdue" : ""}`}>
-            {overdue ? t("projects.overdue") : t("projects.due")} {card.due_date}
+          {card.due_date && (
+            <span className={`meta-bit${overdue ? " overdue" : ""}`}>
+              📅 {formatShortDate(card.due_date)}
+            </span>
+          )}
+          {card.checklist_total > 0 && (
+            <span className={`meta-bit${card.checklist_done === card.checklist_total ? " done" : ""}`}>
+              ☑ {card.checklist_done}/{card.checklist_total}
+            </span>
+          )}
+          {card.attachment_count > 0 && <span className="meta-bit">📎 {card.attachment_count}</span>}
+        </div>
+        {card.assignee_username && (
+          <span className="avatar" title={card.assignee_username}>
+            {initials(card.assignee_username)}
           </span>
         )}
       </div>
     </article>
   );
+}
+
+/** A Jira-style priority glyph. Medium is the quiet baseline. */
+const PRIORITY_GLYPH: Record<ProjectPriority, string> = {
+  low: "↓",
+  medium: "=",
+  high: "↑",
+  urgent: "⇈",
+};
+
+/** First one or two letters of a username, for the assignee avatar. */
+function initials(name: string): string {
+  return name.slice(0, 2).toUpperCase();
+}
+
+/** A short "12 Feb" style date for the compact card footer. */
+function formatShortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 function isOverdue(due: string | null): boolean {

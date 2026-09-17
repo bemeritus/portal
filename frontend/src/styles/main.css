@@ -579,7 +579,8 @@ a:hover { text-decoration: underline; }
 label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 14px; }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 
-input[type=text], input[type=password], input[type=search], input[type=file], select, textarea {
+input[type=text], input[type=password], input[type=search], input[type=file],
+input[type=date], input[type=number], select, textarea {
   width: 100%;
   padding: 10px 12px;
   background: var(--panel-2);
@@ -595,7 +596,8 @@ input[type=text], input[type=password], input[type=search], input[type=file], se
    row of them can align its fields at the bottom or its labels at the top, but
    never both. 46px is what the input already computes to (24 + 2×10 padding +
    2×1 border), so this pins the select to the input rather than moving either. */
-input[type=text], input[type=password], input[type=search], select {
+input[type=text], input[type=password], input[type=search],
+input[type=date], input[type=number], select {
   height: 46px;
 }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 0.8; }
@@ -1504,79 +1506,191 @@ a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decor
   }
 }
 
-/* --- Projects: Kanban board ------------------------------------------------ */
+/* --- Projects: Kanban board (GitHub Projects / Jira flavour) --------------- */
+/*
+ * A denser, more neutral board than the platform's card style: columns are
+ * quiet lanes with a light fill, cards are flat and compact, and colour is used
+ * only where it carries meaning — a label, a priority, an overdue date. Radii
+ * and spacing are tighter than the rest of the app on purpose, so a wall of
+ * cards reads as a work surface rather than a list of documents.
+ */
 
 .kanban {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
   overflow-x: auto;
   padding-bottom: 12px;
 }
 
 .kanban-col {
-  flex: 0 0 288px;
-  width: 288px;
+  flex: 0 0 274px;
+  width: 274px;
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
+  border-radius: 8px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
-
-/* While a card is in flight, columns invite the drop. */
-.kanban-col.droppable { outline: 1px dashed var(--border); outline-offset: -4px; }
+.kanban-col.droppable { outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: -3px; }
 
 .kanban-col-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  padding: 2px 4px;
 }
 .kanban-col-head h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
+/* Count as a small rounded badge, GitHub-style. */
 .kanban-col-head .count {
   color: var(--muted);
-  font-weight: 400;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 0 7px;
+  line-height: 18px;
+}
+.kanban-col-head .count.over-wip {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .kanban-cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 8px; /* a target even when the column is empty */
+  gap: 6px;
+  min-height: 8px;
 }
 
 .kanban-card {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  border-radius: 6px;
+  padding: 8px 10px;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.12s ease, transform 0.06s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.kanban-card:hover { border-color: var(--accent); }
-.kanban-card:active { transform: scale(0.99); }
+.kanban-card:hover { border-color: var(--muted); box-shadow: var(--shadow-sm); }
 .kanban-card.dragging { opacity: 0.4; }
-/* A card being dragged over shows where the drop will land — a top edge. */
 .kanban-card.drop-over { box-shadow: inset 0 3px 0 -1px var(--accent); }
 
-.kanban-card-title { color: var(--text); font-size: 14px; line-height: 1.35; }
-.kanban-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+.kanban-card-title {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
+/* Labels — a row of small tinted pills across the top of the card. */
+.kanban-card-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.label-pill {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--lc) 16%, transparent);
+  color: var(--lc);
+  border: 1px solid color-mix(in srgb, var(--lc) 30%, transparent);
+}
+
+/* Card footer — meta on the left, assignee avatar on the right. */
+.kanban-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.meta-bit { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 2px; }
+.meta-bit.overdue { color: var(--danger); font-weight: 600; }
+.meta-bit.done { color: #2f9e6a; }
+
+/* Priority indicator — a small square glyph, coloured by level; medium is quiet. */
+.prio-ind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.prio-ind.prio-low { color: #6b7280; background: color-mix(in srgb, #6b7280 14%, transparent); }
+.prio-ind.prio-medium { color: var(--muted); }
+.prio-ind.prio-high { color: #d9730d; background: color-mix(in srgb, #f76b15 16%, transparent); }
+.prio-ind.prio-urgent { color: #e5484d; background: var(--danger-soft); }
+
+/* Assignee avatar — initials in a small coloured circle. */
+.avatar {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-2);
+}
+
+.kanban-add {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.kanban-add:hover { color: var(--text); background: color-mix(in srgb, var(--muted) 12%, transparent); }
+
+.kanban-col.add-col { background: transparent; border-style: dashed; }
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 6px;
+}
+.icon-btn:hover { color: var(--text); }
+
+/* The plain chip is still used by the my-cards / calendar lists. */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -1588,37 +1702,13 @@ a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decor
   color: var(--muted);
 }
 .chip.due { color: var(--text); }
-.chip.due.overdue {
-  background: var(--danger-soft);
-  border-color: transparent;
-  color: var(--danger);
-}
-
-.kanban-add {
-  background: transparent;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  padding: 8px;
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.kanban-add:hover { color: var(--accent); border-color: var(--accent); }
-
-.kanban-col.add-col { background: transparent; border-style: dashed; }
-
-.icon-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 4px;
-  border-radius: var(--radius-sm);
-}
-.icon-btn:hover { color: var(--danger); }
+.chip.due.overdue { background: var(--danger-soft); border-color: transparent; color: var(--danger); }
+.chip.done { color: #2f9e6a; border-color: #2f9e6a; }
+.chip.prio-chip { border-color: transparent; color: #fff; }
+.chip.prio-chip.prio-low { background: #6b7280; }
+.chip.prio-chip.prio-medium { background: var(--accent); }
+.chip.prio-chip.prio-high { background: #d9730d; }
+.chip.prio-chip.prio-urgent { background: #e5484d; }
 
 /* --- Modal (card create / edit) -------------------------------------------- */
 
@@ -1655,25 +1745,6 @@ a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decor
 .label-purple { --lc: #8e4ec6; }
 .label-pink   { --lc: #e93d82; }
 
-/* Priority tints — a card's left edge, and the standalone priority chip. */
-.kanban-card.prio-high { border-left: 3px solid #f76b15; }
-.kanban-card.prio-urgent { border-left: 3px solid #e5484d; }
-
-.prio-chip { border-color: transparent; color: #fff; }
-.prio-chip.prio-low { background: #8b95a5; }
-.prio-chip.prio-medium { background: #5b8cff; }
-.prio-chip.prio-high { background: #f76b15; }
-.prio-chip.prio-urgent { background: #e5484d; }
-
-/* Label dots on a card tile. */
-.kanban-card-labels { display: flex; gap: 4px; margin-bottom: 6px; }
-.label-dot {
-  width: 22px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--lc);
-}
-
 /* Label toggle buttons in the card modal. */
 .label {
   font: inherit;
@@ -1699,3 +1770,81 @@ a.tag-chip:hover { color: var(--accent); border-color: var(--accent); text-decor
   padding: 0;
 }
 .swatch.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--lc); }
+
+/* --- Projects phase 3: WIP, attachments, calendar -------------------------- */
+
+/* A column past its WIP cap draws the count in the danger color. */
+.count.over-wip { color: var(--danger); font-weight: 600; }
+
+/* A fully-checked checklist badge reads as done. */
+.chip.done { color: #30a46c; border-color: #30a46c; }
+
+/* Attachment thumbnails in the card modal. */
+.attach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.attach {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+.attach img { display: block; width: 100%; height: 72px; object-fit: cover; }
+.attach-foot { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 6px; }
+.attach-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Month calendar. */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cal-weekday {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding-bottom: 4px;
+}
+.cal-cell {
+  min-height: 92px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--bg);
+}
+.cal-cell.empty { border: none; background: transparent; }
+.cal-cell.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-day { font-size: 12px; color: var(--muted); }
+.cal-card {
+  display: block;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  border-left: 3px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-card:hover { border-color: var(--accent); color: var(--accent); }
+.cal-card.prio-high { border-left-color: #f76b15; }
+.cal-card.prio-urgent { border-left-color: #e5484d; }
+
+@media (max-width: 640px) {
+  .cal-cell { min-height: 64px; }
+  .cal-card { font-size: 11px; }
+}

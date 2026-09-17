@@ -37,6 +37,10 @@ import type {
   LearningTestDraft,
   LearningTestSummary,
   LearningTestView,
+  AttachmentBody,
+  CalendarCard,
+  ChecklistItemBody,
+  ChecklistUpdate,
   MyCard,
   ProjectBoardBody,
   ProjectBoardSummary,
@@ -237,6 +241,8 @@ export const projects = {
   members: (signal?: AbortSignal) => api.get<ProjectMember[]>(`${PROJECTS}/members`, signal),
   /** Every card assigned to the caller, across all boards. */
   myCards: (signal?: AbortSignal) => api.get<MyCard[]>(`${PROJECTS}/my-cards`, signal),
+  /** Every due-dated card, across all boards — for the calendar view. */
+  calendar: (signal?: AbortSignal) => api.get<CalendarCard[]>(`${PROJECTS}/calendar`, signal),
   boards: {
     list: (signal?: AbortSignal) =>
       api.get<ProjectBoardSummary[]>(`${PROJECTS}/boards`, signal),
@@ -282,10 +288,24 @@ export const projects = {
       api.get<ProjectComment[]>(`${PROJECTS}/cards/${id}/comments`, signal),
     comment: (id: Uuid, body: ProjectCommentBody) =>
       api.post<{ id: Uuid }>(`${PROJECTS}/cards/${id}/comments`, body),
+    /** Add a checklist item to the card. */
+    addChecklistItem: (id: Uuid, body: ChecklistItemBody) =>
+      api.post<{ id: Uuid }>(`${PROJECTS}/cards/${id}/checklist`, body),
+    /** Pin an already-uploaded image (its /uploads/… url) to the card. */
+    addAttachment: (id: Uuid, body: AttachmentBody) =>
+      api.post<{ id: Uuid }>(`${PROJECTS}/cards/${id}/attachments`, body),
   },
   comments: {
     /** Delete a comment — your own, or any if you are an admin. */
     remove: (id: Uuid) => api.del<void>(`${PROJECTS}/comments/${id}`),
+  },
+  checklist: {
+    /** Rename an item and/or tick it (checking a box is this call). */
+    update: (id: Uuid, body: ChecklistUpdate) => api.put<void>(`${PROJECTS}/checklist/${id}`, body),
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/checklist/${id}`),
+  },
+  attachments: {
+    remove: (id: Uuid) => api.del<void>(`${PROJECTS}/attachments/${id}`),
   },
 };
 

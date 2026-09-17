@@ -24,6 +24,7 @@ export const en = {
       projects: "Projects",
       boards: "Boards",
       myCards: "My cards",
+      calendar: "Calendar",
     },
 
     menu: {
@@ -367,6 +368,13 @@ export const en = {
       filterAllAssignees: "All assignees",
       filterAllPriorities: "All priorities",
       filterAllLabels: "All labels",
+      checklist: "Checklist",
+      checklistPlaceholder: "New item…",
+      attachments: "Attachments",
+      addAttachment: "Attach image",
+      wipLimit: "WIP limit",
+      calendar: "Calendar",
+      today: "Today",
     },
 
     authz: {

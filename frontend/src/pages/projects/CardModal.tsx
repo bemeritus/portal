@@ -10,8 +10,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../../api/client";
-import { projects } from "../../api/endpoints";
+import { projects, uploads } from "../../api/endpoints";
 import type {
+  CardAttachment,
+  ChecklistItem,
   ProjectCardBody,
   ProjectLabel,
   ProjectMember,
@@ -21,11 +23,13 @@ import type {
 import { useUser } from "../../auth/AuthContext";
 import { ConfirmButton } from "../../components/ConfirmButton";
 import { ErrorFlash } from "../../components/Flash";
+import { Select } from "../../components/Select";
 import { formatDate } from "../../format";
 
 const PRIORITIES: ProjectPriority[] = ["low", "medium", "high", "urgent"];
 
 export function CardModal({
+  boardId,
   members,
   labels,
   columnId,
@@ -33,6 +37,7 @@ export function CardModal({
   onClose,
   onSaved,
 }: {
+  boardId: Uuid;
   members: ProjectMember[];
   labels: ProjectLabel[];
   columnId?: Uuid;
@@ -41,7 +46,17 @@ export function CardModal({
   onSaved: () => void | Promise<void>;
 }) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const isEdit = cardId !== undefined;
+
+  // Checklist and attachment edits change both the modal's draft and the board's
+  // tile badges, so both are refreshed after each.
+  const refreshCard = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["projects", "card", cardId] }),
+      queryClient.invalidateQueries({ queryKey: ["projects", "board", boardId] }),
+    ]);
+  };
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -127,6 +142,7 @@ export function CardModal({
           <label htmlFor="card-title">{t("projects.cardTitle")}</label>
           <input
             id="card-title"
+            type="text"
             value={title}
             autoFocus
             onChange={(e) => setTitle(e.target.value)}
@@ -145,32 +161,26 @@ export function CardModal({
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ display: "grid", gap: 6, flex: 1, minWidth: 140 }}>
               <label htmlFor="card-assignee">{t("projects.assignee")}</label>
-              <select
+              <Select
                 id="card-assignee"
+                ariaLabel={t("projects.assignee")}
                 value={assignee}
-                onChange={(e) => setAssignee(e.target.value as Uuid | "")}
-              >
-                <option value="">{t("projects.unassigned")}</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.username}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setAssignee(v as Uuid | "")}
+                options={[
+                  { value: "", label: t("projects.unassigned") },
+                  ...members.map((m) => ({ value: m.id, label: m.username })),
+                ]}
+              />
             </div>
             <div style={{ display: "grid", gap: 6, flex: 1, minWidth: 120 }}>
               <label htmlFor="card-priority">{t("projects.priority")}</label>
-              <select
+              <Select
                 id="card-priority"
+                ariaLabel={t("projects.priority")}
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as ProjectPriority)}
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {t(`projects.priorityLevel.${p}`)}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setPriority(v as ProjectPriority)}
+                options={PRIORITIES.map((p) => ({ value: p, label: t(`projects.priorityLevel.${p}`) }))}
+              />
             </div>
             <div style={{ display: "grid", gap: 6, flex: 1, minWidth: 140 }}>
               <label htmlFor="card-due">{t("projects.dueDate")}</label>
@@ -230,7 +240,21 @@ export function CardModal({
           </div>
         </form>
 
-        {isEdit && <Comments cardId={cardId as Uuid} />}
+        {isEdit && (
+          <>
+            <Checklist
+              cardId={cardId as Uuid}
+              items={draft.data?.checklist ?? []}
+              onChanged={refreshCard}
+            />
+            <Attachments
+              cardId={cardId as Uuid}
+              items={draft.data?.attachments ?? []}
+              onChanged={refreshCard}
+            />
+            <Comments cardId={cardId as Uuid} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -316,6 +340,145 @@ function Comments({ cardId }: { cardId: Uuid }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** A card's checklist — add items, tick them off, delete. Progress is n/total. */
+function Checklist({
+  cardId,
+  items,
+  onChanged,
+}: {
+  cardId: Uuid;
+  items: ChecklistItem[];
+  onChanged: () => void | Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [text, setText] = useState("");
+
+  const add = useMutation({
+    mutationFn: () => projects.cards.addChecklistItem(cardId, { text }),
+    onSuccess: async () => {
+      setText("");
+      await onChanged();
+    },
+  });
+  const toggle = useMutation({
+    mutationFn: (item: ChecklistItem) =>
+      projects.checklist.update(item.id, { text: item.text, done: !item.done }),
+    onSuccess: onChanged,
+  });
+  const remove = useMutation({
+    mutationFn: (id: Uuid) => projects.checklist.remove(id),
+    onSuccess: onChanged,
+  });
+
+  const done = items.filter((i) => i.done).length;
+
+  return (
+    <div className="checklist" style={{ marginTop: 18, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+      <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>
+        {t("projects.checklist")}{" "}
+        {items.length > 0 && <span className="muted" style={{ fontWeight: 400 }}>{done}/{items.length}</span>}
+      </h3>
+
+      {items.map((item) => (
+        <div key={item.id} className="chk-row" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+          <input type="checkbox" checked={item.done} onChange={() => toggle.mutate(item)} />
+          <span style={{ flex: 1, textDecoration: item.done ? "line-through" : "none", opacity: item.done ? 0.6 : 1 }}>
+            {item.text}
+          </span>
+          <button type="button" className="icon-btn" style={{ fontSize: 14 }} title={t("common.delete")} onClick={() => remove.mutate(item.id)}>
+            ×
+          </button>
+        </div>
+      ))}
+
+      <form
+        style={{ display: "flex", gap: 8, marginTop: 8 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (text.trim()) add.mutate();
+        }}
+      >
+        <input
+          type="text"
+          value={text}
+          placeholder={t("projects.checklistPlaceholder")}
+          style={{ flex: 1 }}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button className="btn secondary" type="submit" disabled={!text.trim() || add.isPending}>
+          {t("common.add")}
+        </button>
+      </form>
+      <ErrorFlash error={add.error ? errorMessage(add.error) : null} />
+    </div>
+  );
+}
+
+/** A card's image attachments — upload through the shared endpoint, then pin. */
+function Attachments({
+  cardId,
+  items,
+  onChanged,
+}: {
+  cardId: Uuid;
+  items: CardAttachment[];
+  onChanged: () => void | Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const attach = useMutation({
+    mutationFn: (file: File) =>
+      uploads.image(file).then((r) => projects.cards.addAttachment(cardId, { url: r.url, name: file.name })),
+    onSuccess: onChanged,
+    onError: (e) => setUploadError(errorMessage(e)),
+  });
+  const remove = useMutation({
+    mutationFn: (id: Uuid) => projects.attachments.remove(id),
+    onSuccess: onChanged,
+  });
+
+  return (
+    <div className="attachments" style={{ marginTop: 18, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+      <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>{t("projects.attachments")}</h3>
+
+      {items.length > 0 && (
+        <div className="attach-grid">
+          {items.map((a) => (
+            <div key={a.id} className="attach">
+              <a href={a.url} target="_blank" rel="noreferrer">
+                <img src={a.url} alt={a.name} />
+              </a>
+              <div className="attach-foot">
+                <span className="attach-name" title={a.name}>{a.name}</span>
+                <button type="button" className="icon-btn" title={t("common.delete")} onClick={() => remove.mutate(a.id)}>
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <label className="btn secondary" style={{ marginTop: 8, display: "inline-block", cursor: "pointer" }}>
+        {attach.isPending ? t("common.saving") : t("projects.addAttachment")}
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            setUploadError(null);
+            if (file) attach.mutate(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <ErrorFlash error={uploadError} />
     </div>
   );
 }

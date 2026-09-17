@@ -25,6 +25,7 @@ export const uz = {
       projects: "Loyihalar",
       boards: "Doskalar",
       myCards: "Mening kartalarim",
+      calendar: "Kalendar",
     },
 
     menu: {
@@ -368,6 +369,13 @@ export const uz = {
       filterAllAssignees: "Barcha mas'ullar",
       filterAllPriorities: "Barcha muhimliklar",
       filterAllLabels: "Barcha teglar",
+      checklist: "Nazorat ro'yxati",
+      checklistPlaceholder: "Yangi element…",
+      attachments: "Ilovalar",
+      addAttachment: "Rasm biriktirish",
+      wipLimit: "WIP limit",
+      calendar: "Kalendar",
+      today: "Bugun",
     },
 
     authz: {

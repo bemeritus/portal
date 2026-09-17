@@ -601,6 +601,8 @@ pub struct ProjectColumnView {
     pub id: Uuid,
     pub name: String,
     pub position: i32,
+    /// Advisory work-in-progress cap; `null` means no cap.
+    pub wip_limit: Option<i32>,
     pub cards: Vec<ProjectCardView>,
 }
 
@@ -612,8 +614,28 @@ pub struct ProjectLabel {
     pub color: String,
 }
 
+/// One checklist item (subtask) under a card.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct ChecklistItem {
+    pub id: Uuid,
+    pub text: String,
+    pub done: bool,
+    pub position: i32,
+}
+
+/// One image attached to a card.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct CardAttachment {
+    pub id: Uuid,
+    pub url: String,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+}
+
 /// A card as the board shows it: its description already rendered to sanitized
-/// HTML, and the assignee named rather than left as a bare id.
+/// HTML, and the assignee named rather than left as a bare id. Checklist and
+/// attachment *counts* ride along for the tile badges; the items themselves come
+/// with the card's edit form.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectCardView {
     pub id: Uuid,
@@ -625,13 +647,17 @@ pub struct ProjectCardView {
     pub due_date: Option<NaiveDate>,
     pub priority: String,
     pub labels: Vec<ProjectLabel>,
+    pub checklist_done: i64,
+    pub checklist_total: i64,
+    pub attachment_count: i64,
     pub position: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 /// The raw (markdown) form of a card, for its editor — the author-only
-/// counterpart to a document's draft.
+/// counterpart to a document's draft. Carries its checklist and attachments in
+/// full (the board view only counts them).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectCardDraft {
     pub id: Uuid,
@@ -642,6 +668,8 @@ pub struct ProjectCardDraft {
     pub due_date: Option<NaiveDate>,
     pub priority: String,
     pub label_ids: Vec<Uuid>,
+    pub checklist: Vec<ChecklistItem>,
+    pub attachments: Vec<CardAttachment>,
 }
 
 /// One comment on a card, its markdown body rendered to sanitized HTML.
@@ -675,10 +703,12 @@ pub struct ProjectBoardBody {
     pub description: String,
 }
 
-/// The authoring payload for a column.
+/// The authoring payload for a column. `wip_limit` absent (or null) means no cap.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct ProjectColumnBody {
     pub name: String,
+    #[serde(default)]
+    pub wip_limit: Option<i32>,
 }
 
 /// The payload to create or update a card. `assignee_id`/`due_date` absent means
@@ -727,6 +757,37 @@ fn default_color() -> String {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct ProjectCommentBody {
     pub body: String,
+}
+
+/// The payload to add a checklist item to a card.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ChecklistItemBody {
+    pub text: String,
+}
+
+/// The payload to update a checklist item — rename it, tick it, or both.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct ChecklistUpdate {
+    pub text: String,
+    pub done: bool,
+}
+
+/// The payload to pin an already-uploaded image to a card.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct AttachmentBody {
+    pub url: String,
+    pub name: String,
+}
+
+/// One due-dated card as the calendar lists it, with where it lives.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct CalendarCard {
+    pub id: Uuid,
+    pub title: String,
+    pub board_id: Uuid,
+    pub board_name: String,
+    pub due_date: NaiveDate,
+    pub priority: String,
 }
 
 /// Clamp a priority to the four the schema allows; anything else is `medium`,

@@ -71,6 +71,7 @@ export function ProjectsPage() {
           <label htmlFor="board-name">{t("projects.boardName")}</label>
           <input
             id="board-name"
+            type="text"
             value={name}
             autoFocus
             onChange={(e) => setName(e.target.value)}

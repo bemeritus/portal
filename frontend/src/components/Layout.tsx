@@ -190,6 +190,7 @@ export function Layout() {
                   {t("nav.boards")}
                 </NavLink>
                 <NavLink to="/projects/my-cards">{t("nav.myCards")}</NavLink>
+                <NavLink to="/projects/calendar">{t("nav.calendar")}</NavLink>
               </>
             )}
 
