@@ -12,7 +12,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
-import { canAuthor, inSection } from "../permissions";
+import { inSection } from "../permissions";
 import type { Section } from "../api/types";
 import { Spinner } from "./Loading";
 
@@ -70,23 +70,6 @@ export function RequireSection({ section }: { section: Section }) {
       <>
         <h1>{t("authz.notAllowed")}</h1>
         <p className="muted">{t("authz.noSection")}</p>
-      </>
-    );
-  }
-
-  return <Outlet />;
-}
-
-/** The learning author gate — creating and editing learning content. */
-export function RequireLearningAuthor() {
-  const { user } = useAuth();
-  const { t } = useTranslation();
-
-  if (!canAuthor(user, "learning")) {
-    return (
-      <>
-        <h1>{t("authz.notAllowed")}</h1>
-        <p className="muted">{t("authz.authorsOnly")}</p>
       </>
     );
   }

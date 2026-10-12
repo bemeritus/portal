@@ -1,12 +1,10 @@
 /**
  * The chrome every page except `/login` sits inside (§8).
  *
- * A top bar with the brand, the section switcher, the theme switcher and the
- * signed-in username; a left rail whose links follow the section you are in.
- * The switcher only shows the sections the user can actually enter, and the
- * rail's contents change with the current section — templates has documents and
- * categories, learning has resources, tests and labs. Admin links are
- * cross-section and sit in their own group at the foot.
+ * A top bar with the brand, the theme switcher and the signed-in username; a
+ * left rail with the templates links (documents, bookmarks, and categories for
+ * an admin). Admin links are cross-section and sit in their own group at the
+ * foot.
  *
  * Below 760px the rail collapses behind the bar's ☰ toggle — the two share one
  * open/closed state, which is why it lives here and not in either of them.
@@ -26,18 +24,9 @@ import { ShortcutsHelp } from "./ShortcutsHelp";
 import { useTheme } from "./ThemeSelect";
 import { UserMenu } from "./UserMenu";
 
-/** Which section the current URL belongs to. Templates is the default home. */
-function sectionOf(pathname: string): Section {
-  if (pathname.startsWith("/learning")) return "learning";
-  if (pathname.startsWith("/projects")) return "projects";
-  return "templates";
-}
-
-/** The section switcher's entries, in the fixed home-first order. */
+/** The section switcher's entries. Only templates remains. */
 const SECTION_TABS: { section: Section; to: string; labelKey: string }[] = [
   { section: "templates", to: "/templates", labelKey: "nav.templates" },
-  { section: "learning", to: "/learning", labelKey: "nav.learning" },
-  { section: "projects", to: "/projects", labelKey: "nav.projects" },
 ];
 
 export function Layout() {
@@ -100,11 +89,8 @@ export function Layout() {
     return () => document.removeEventListener("keydown", onKey);
   }, [bindings, handlers]);
 
-  const section = sectionOf(location.pathname);
   const heldTabs = SECTION_TABS.filter((tab) => inSection(user, tab.section));
-  // The "New document" shortcut belongs to templates; it has no meaning while
-  // the learning rail is showing, where each list carries its own create link.
-  const showNewDocument = section === "templates" && hasAnywhere(user, "write");
+  const showNewDocument = hasAnywhere(user, "write");
 
   async function onLogout() {
     setLoggingOut(true);
@@ -163,35 +149,12 @@ export function Layout() {
           aria-label={t("nav.sections")}
         >
           <nav className="side-links">
-            {section === "templates" && (
-              <>
-                <NavLink to="/templates" end>
-                  {t("nav.documents")}
-                </NavLink>
-                <NavLink to="/templates/bookmarks">{t("nav.bookmarks")}</NavLink>
-                {user?.is_admin && (
-                  <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>
-                )}
-              </>
-            )}
-            {section === "learning" && (
-              <>
-                <NavLink to="/learning" end>
-                  {t("nav.overview")}
-                </NavLink>
-                <NavLink to="/learning/resources">{t("nav.resources")}</NavLink>
-                <NavLink to="/learning/tests">{t("nav.tests")}</NavLink>
-                <NavLink to="/learning/labs">{t("nav.labs")}</NavLink>
-              </>
-            )}
-            {section === "projects" && (
-              <>
-                <NavLink to="/projects" end>
-                  {t("nav.boards")}
-                </NavLink>
-                <NavLink to="/projects/my-cards">{t("nav.myCards")}</NavLink>
-                <NavLink to="/projects/calendar">{t("nav.calendar")}</NavLink>
-              </>
+            <NavLink to="/templates" end>
+              {t("nav.documents")}
+            </NavLink>
+            <NavLink to="/templates/bookmarks">{t("nav.bookmarks")}</NavLink>
+            {user?.is_admin && (
+              <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>
             )}
 
             {user?.is_admin && (

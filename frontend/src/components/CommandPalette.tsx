@@ -78,12 +78,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         items.push({ key: "categories", label: t("nav.categories"), to: "/templates/categories" });
       }
     }
-    if (inSection(user, "learning")) {
-      items.push({ key: "learning", label: t("nav.overview"), to: "/learning" });
-      items.push({ key: "resources", label: t("nav.resources"), to: "/learning/resources" });
-      items.push({ key: "tests", label: t("nav.tests"), to: "/learning/tests" });
-      items.push({ key: "labs", label: t("nav.labs"), to: "/learning/labs" });
-    }
     items.push({ key: "settings", label: t("menu.settings"), to: "/settings" });
     if (user?.is_admin) {
       items.push({ key: "users", label: t("nav.users"), to: "/admin/users" });

@@ -91,29 +91,24 @@ fn clean_grants(grants: Vec<CategoryPermission>) -> Vec<CategoryPermission> {
 /// Normalize the section list an admin submitted, and close the one gap that
 /// would recreate a dead grant.
 ///
-/// Two things happen here. First, `can_author` is cleared for every section but
-/// `learning` — the database forbids it elsewhere, so this turns what would be
-/// a 500 into the harmless truth. Second, if the user holds any category grant
-/// they are given the `templates` section whether or not the box was ticked: a
-/// grant with no door is exactly the dead state this layer exists to prevent,
-/// and the admin UI must not be able to produce it.
+/// Two things happen here. First, `can_author` is cleared everywhere: the only
+/// section left is `templates`, whose write access comes from category grants,
+/// and the database rejects the authoring bit on it — so clearing it here turns
+/// what would be a 500 into the harmless truth. Second, if the user holds any
+/// category grant they are given the `templates` section whether or not the box
+/// was ticked: a grant with no door is exactly the dead state this layer exists
+/// to prevent, and the admin UI must not be able to produce it.
 fn clean_sections(
     sections: Vec<SectionAccess>,
     category_grants: &[CategoryPermission],
 ) -> Vec<SectionAccess> {
     let mut seen: Vec<SectionAccess> = Vec::new();
     for s in sections {
-        // The authoring bit is real only for the sections that have one — a
-        // learning teacher, a projects lead. The database rejects it elsewhere,
-        // so clearing it here turns what would be a 500 into the harmless truth.
-        let can_author =
-            s.can_author && matches!(s.section, Section::Learning | Section::Projects);
-        match seen.iter_mut().find(|x| x.section == s.section) {
-            Some(existing) => existing.can_author |= can_author,
-            None => seen.push(SectionAccess {
+        if !seen.iter().any(|x| x.section == s.section) {
+            seen.push(SectionAccess {
                 section: s.section,
-                can_author,
-            }),
+                can_author: false,
+            });
         }
     }
     let has_grant = category_grants.iter().any(|g| !g.is_empty());
@@ -155,9 +150,9 @@ async fn replace_sections(
     Ok(())
 }
 
-/// Describe section access for the audit log: "templates; learning (author)".
-/// The section names are fixed strings, so — unlike categories — there is
-/// nothing to look up.
+/// Describe section access for the audit log, e.g. "templates". The section
+/// names are fixed strings, so — unlike categories — there is nothing to look
+/// up.
 fn describe_sections(sections: &[SectionAccess]) -> String {
     if sections.is_empty() {
         return "no sections".to_string();

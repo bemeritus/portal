@@ -25,44 +25,27 @@ import type { Category, CategoryPermission, SectionAccess, User, Uuid } from "..
 type Matrix = Record<Uuid, CategoryPermission>;
 
 /**
- * The section boxes as the UI holds them. `learning` gates its author box and
- * `projects` gates its lead box: you cannot make a teacher or a lead of someone
- * who is not in the section.
+ * The section boxes as the UI holds them. The only section left is `templates`,
+ * which a held category grant implies anyway.
  */
 type SectionState = {
   templates: boolean;
-  learning: boolean;
-  learningAuthor: boolean;
-  projects: boolean;
-  projectsLead: boolean;
 };
 
 const EMPTY_SECTIONS: SectionState = {
   templates: false,
-  learning: false,
-  learningAuthor: false,
-  projects: false,
-  projectsLead: false,
 };
 
 function sectionStateFor(sections: SectionAccess[]): SectionState {
-  const learning = sections.find((s) => s.section === "learning");
-  const projects = sections.find((s) => s.section === "projects");
   return {
     templates: sections.some((s) => s.section === "templates"),
-    learning: !!learning,
-    learningAuthor: !!learning?.can_author,
-    projects: !!projects,
-    projectsLead: !!projects?.can_author,
   };
 }
 
-/** The shape the API wants — only the opened sections, author bit folded in. */
+/** The shape the API wants — only the opened sections. */
 function toSections(state: SectionState): SectionAccess[] {
   const out: SectionAccess[] = [];
   if (state.templates) out.push({ section: "templates", can_author: false });
-  if (state.learning) out.push({ section: "learning", can_author: state.learningAuthor });
-  if (state.projects) out.push({ section: "projects", can_author: state.projectsLead });
   return out;
 }
 
@@ -93,61 +76,6 @@ function SectionPicker({
         />
         {t("users.sectionTemplates")}
       </label>
-      <label className="chk" htmlFor={`${idPrefix}-sec-learning`}>
-        <input
-          id={`${idPrefix}-sec-learning`}
-          type="checkbox"
-          checked={state.learning}
-          onChange={(e) =>
-            // Leaving the section clears the author bit — a teacher with no
-            // section is the kind of dead state the server would drop anyway.
-            onChange({
-              ...state,
-              learning: e.target.checked,
-              learningAuthor: e.target.checked && state.learningAuthor,
-            })
-          }
-        />
-        {t("users.sectionLearning")}
-      </label>
-      {state.learning && (
-        <label className="chk" htmlFor={`${idPrefix}-sec-learning-author`} style={{ marginLeft: 22 }}>
-          <input
-            id={`${idPrefix}-sec-learning-author`}
-            type="checkbox"
-            checked={state.learningAuthor}
-            onChange={(e) => onChange({ ...state, learningAuthor: e.target.checked })}
-          />
-          {t("users.sectionLearningAuthor")}
-        </label>
-      )}
-      <label className="chk" htmlFor={`${idPrefix}-sec-projects`}>
-        <input
-          id={`${idPrefix}-sec-projects`}
-          type="checkbox"
-          checked={state.projects}
-          onChange={(e) =>
-            // Leaving the section clears the lead bit, the same way learning does.
-            onChange({
-              ...state,
-              projects: e.target.checked,
-              projectsLead: e.target.checked && state.projectsLead,
-            })
-          }
-        />
-        {t("users.sectionProjects")}
-      </label>
-      {state.projects && (
-        <label className="chk" htmlFor={`${idPrefix}-sec-projects-lead`} style={{ marginLeft: 22 }}>
-          <input
-            id={`${idPrefix}-sec-projects-lead`}
-            type="checkbox"
-            checked={state.projectsLead}
-            onChange={(e) => onChange({ ...state, projectsLead: e.target.checked })}
-          />
-          {t("users.sectionProjectsLead")}
-        </label>
-      )}
       <p className="hint">{t("users.sectionsHint")}</p>
     </div>
   );
@@ -583,11 +511,7 @@ function UserRow({
         ) : user.sections.length === 0 ? (
           <span className="muted">{t("users.noSections")}</span>
         ) : (
-          user.sections
-            .map((s) =>
-              s.section === "learning" && s.can_author ? `${s.section} (author)` : s.section,
-            )
-            .join(", ")
+          user.sections.map((s) => s.section).join(", ")
         )}
       </td>
       <td className="wrap">

@@ -70,10 +70,9 @@ export function inSection(user: User | null, section: Section): boolean {
 }
 
 /**
- * Whether the user may author in a section — mirrors `User::can_author`. Only
- * ever true for `learning` (create resources/tests/labs) and `projects` (manage
- * boards and columns). Decides whether those actions are shown, never whether
- * one is allowed.
+ * Whether the user may author in a section. The only section left is
+ * `templates`, whose write access comes from category grants, so this is never
+ * true for a non-admin — kept for symmetry with `User::can_author`.
  */
 export function canAuthor(user: User | null, section: Section): boolean {
   if (!user) return false;
