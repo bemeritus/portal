@@ -12,40 +12,10 @@ export type Timestamp = string;
 
 export type DocumentStatus = "draft" | "published";
 
-/** The four independent capabilities from §4.2. */
-export type Permission = "read" | "write" | "edit" | "delete";
-
-/** One user's permissions on one category (§4.2.1, §6.6). */
-export interface CategoryPermission {
-  category_id: Uuid;
-  can_read: boolean;
-  can_write: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
-}
-
 /**
- * A section — the fixed top layer above categories. A closed set, mirroring the
- * Rust `Section` enum; a new value here is always a new backend enum variant.
- */
-export type Section = "templates";
-
-/**
- * One user's access to one section. `can_author` is kept for wire-compatibility
- * but is never honored: the only section left is `templates`, whose write access
- * comes entirely from category grants.
- */
-export interface SectionAccess {
-  section: Section;
-  can_author: boolean;
-}
-
-/**
- * A user account, minus any secret material.
- *
- * Note what is *not* here: the legacy global `can_*` flags. They grant nothing
- * on the server (§4.2.1), so the API stopped sending them — a field the client
- * could read would eventually become a field the client branched on.
+ * A user account, minus any secret material. There is no per-category
+ * permission model: any signed-in user may read and manage every document, and
+ * `is_admin` alone gates the admin-only screens.
  */
 export interface User {
   id: Uuid;
@@ -53,8 +23,6 @@ export interface User {
   is_admin: boolean;
   is_active: boolean;
   created_at: Timestamp;
-  category_perms: CategoryPermission[];
-  sections: SectionAccess[];
 }
 
 export interface Category {
@@ -163,6 +131,4 @@ export interface CreateUserBody {
   username: string;
   password: string;
   is_admin: boolean;
-  category_perms: CategoryPermission[];
-  sections: SectionAccess[];
 }

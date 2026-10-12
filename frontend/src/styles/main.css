@@ -249,22 +249,6 @@ a:hover { text-decoration: underline; }
 
 .nav-tools { display: flex; align-items: center; gap: 10px; }
 
-/* The section switcher in the top bar: pill tabs sharing the nav-link look, the
-   active one carrying the same soft-blue call-out as the rail. */
-.section-tabs { display: flex; gap: 4px; margin-left: 10px; }
-.section-tab {
-  color: var(--muted);
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-  font-weight: 600;
-  transition: color var(--fast), background var(--fast);
-}
-.section-tab:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
-.section-tab[aria-current="page"] {
-  color: var(--nav-active-text);
-  background: var(--nav-active-bg);
-}
 
 /* Divider between a section's rail links and the cross-section admin group. */
 .side-sep { border: 0; border-top: 1px solid var(--border); margin: 10px 4px; }
@@ -933,20 +917,6 @@ label.chk {
   color: var(--text); font-size: 14px; cursor: pointer;
 }
 label.chk input { width: auto; cursor: pointer; }
-
-/* Per-category permission matrix (admin → users). */
-.perm-matrix { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2); overflow: hidden; }
-.perm-matrix th, .perm-matrix td { padding: 5px 10px; font-size: 13px; }
-.perm-matrix th:not(:first-child), .perm-matrix td:not(:first-child) { text-align: center; width: 60px; }
-.perm-matrix tr:last-child td { border-bottom: none; }
-.perm-matrix input { width: auto; margin: 0; }
-/* Bigger hit area than a bare 13px checkbox row. */
-.perm-matrix td:not(:first-child) label { display: block; margin: 0; padding: 2px; cursor: pointer; }
-
-.cat-perms summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 2px 0; }
-.cat-perms summary:hover { color: var(--text); }
-.cat-perms[open] summary { margin-bottom: 8px; }
-.cat-perms .perm-matrix { min-width: 320px; white-space: normal; }
 
 code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
 

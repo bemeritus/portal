@@ -13,13 +13,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::audit::{audit_now, audit_tx, Audit};
-use crate::auth::{require_in_category, InTemplates};
+use crate::auth::CurrentUser;
 use crate::content::render_markdown;
 use crate::db::AppState;
 use crate::error::{db_reference, internal, ApiError, ApiResult};
 use crate::models::{
-    normalize_status, DocumentDraft, DocumentSummary, DocumentWithBlocks, Permission, QaBlockInput,
-    QaBlockView,
+    normalize_status, DocumentDraft, DocumentSummary, DocumentWithBlocks, QaBlockInput, QaBlockView,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -70,7 +69,7 @@ pub struct PreviewResult {
 /// makes SR-9 true for listings and not just for single records.
 async fn list(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Query(params): Query<ListParams>,
 ) -> ApiResult<Json<Vec<DocumentSummary>>> {
     let q = params
@@ -81,7 +80,6 @@ async fn list(
     let status = params
         .status
         .filter(|s| s == "published" || s == "draft");
-    let readable = user.granted_categories(Permission::Read);
 
     // Full-text search over the title and, via EXISTS, every Q&A block body,
     // with an ILIKE fallback so a partial word typed mid-search ("postg") still
@@ -107,14 +105,11 @@ async fn list(
                    )
               ))
            AND ($2::uuid IS NULL OR d.category_id = $2)
-           AND ($3::bool OR d.category_id = ANY($4::uuid[]))
-           AND ($5::text IS NULL OR d.status = $5)
+           AND ($3::text IS NULL OR d.status = $3)
          ORDER BY d.created_at DESC",
     )
     .bind(q.clone())
     .bind(params.category)
-    .bind(user.is_admin)
-    .bind(&readable)
     .bind(status)
     .fetch_all(&state.pool)
     .await
@@ -139,7 +134,7 @@ async fn list(
 /// FR-21: one document with its blocks, answers rendered to sanitized HTML.
 async fn get_one(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<DocumentWithBlocks>> {
     #[derive(sqlx::FromRow)]
@@ -170,10 +165,6 @@ async fn get_one(
     .await
     .map_err(|e| internal("loading a document", e))?
     .ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
-
-    // READ is decided solely by the document's category — authoring it does
-    // not grant a way back in once the category is withheld.
-    require_in_category(&user, Permission::Read, meta.category_id)?;
 
     let raw_blocks: Vec<(String, String)> = sqlx::query_as(
         "SELECT question, answer FROM qa_blocks WHERE document_id = $1 ORDER BY position, created_at",
@@ -225,20 +216,21 @@ async fn get_one(
     }))
 }
 
-/// Bookmark this document for the caller, or remove the bookmark. Requires READ
-/// in the document's category — the same right that let them open it.
+/// Bookmark this document for the caller, or remove the bookmark.
 async fn add_bookmark(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let category: Option<Uuid> = sqlx::query_scalar("SELECT category_id FROM documents WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| internal("loading a document to bookmark", e))?;
-    let category = category.ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
-    require_in_category(&user, Permission::Read, category)?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM documents WHERE id = $1)")
+            .bind(id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| internal("loading a document to bookmark", e))?;
+    if !exists {
+        return Err(ApiError::NotFound("Document not found".into()));
+    }
 
     sqlx::query(
         "INSERT INTO bookmarks (user_id, document_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
@@ -253,7 +245,7 @@ async fn add_bookmark(
 
 async fn remove_bookmark(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     sqlx::query("DELETE FROM bookmarks WHERE user_id = $1 AND document_id = $2")
@@ -265,13 +257,11 @@ async fn remove_bookmark(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// The caller's bookmarked documents, newest bookmark first, still narrowed to
-/// the categories they may READ (a bookmark does not outlive lost access).
+/// The caller's bookmarked documents, newest bookmark first.
 pub async fn list_bookmarks(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
 ) -> ApiResult<Json<Vec<DocumentSummary>>> {
-    let readable = user.granted_categories(Permission::Read);
     let docs = sqlx::query_as::<_, DocumentSummary>(
         "SELECT d.id, d.title, d.status, d.category_id,
                 c.name AS category_name,
@@ -282,23 +272,19 @@ pub async fn list_bookmarks(
          JOIN categories c ON c.id = d.category_id
          JOIN users u ON u.id = d.author_id
          WHERE b.user_id = $1
-           AND ($2::bool OR d.category_id = ANY($3::uuid[]))
          ORDER BY b.created_at DESC",
     )
     .bind(user.id)
-    .bind(user.is_admin)
-    .bind(&readable)
     .fetch_all(&state.pool)
     .await
     .map_err(|e| internal("listing bookmarks", e))?;
     Ok(Json(docs))
 }
 
-/// The same document as raw markdown, for the editor. Requires `EDIT`, because
-/// that is what the caller is about to do with it.
+/// The same document as raw markdown, for the editor.
 async fn get_draft(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(_user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<DocumentDraft>> {
     #[derive(sqlx::FromRow)]
@@ -318,8 +304,6 @@ async fn get_draft(
     .await
     .map_err(|e| internal("loading a document draft", e))?
     .ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
-
-    require_in_category(&user, Permission::Edit, row.category_id)?;
 
     let blocks: Vec<QaBlockInput> = sqlx::query_as::<_, (String, String)>(
         "SELECT question, answer FROM qa_blocks WHERE document_id = $1 ORDER BY position, created_at",
@@ -342,15 +326,12 @@ async fn get_draft(
     }))
 }
 
-/// FR-11/FR-12: create a document with its ordered Q&A blocks. Requires
-/// `WRITE` **in the chosen category**.
+/// FR-11/FR-12: create a document with its ordered Q&A blocks.
 async fn create(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Json(body): Json<DocumentBody>,
 ) -> ApiResult<(StatusCode, Json<CreatedDocument>)> {
-    require_in_category(&user, Permission::Write, body.category_id)?;
-
     let title = body.title.trim().to_string();
     if title.is_empty() {
         return Err(ApiError::BadRequest("Title is required".into()));
@@ -418,12 +399,10 @@ async fn create(
     Ok((StatusCode::CREATED, Json(CreatedDocument { id: doc_id })))
 }
 
-/// FR-15: replace a document's fields and Q&A blocks. Requires `EDIT` in the
-/// document's current category; moving it additionally requires `WRITE` or
-/// `EDIT` in the destination (SR-8).
+/// FR-15: replace a document's fields and Q&A blocks.
 async fn update(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
     Json(body): Json<DocumentBody>,
 ) -> ApiResult<StatusCode> {
@@ -450,20 +429,6 @@ async fn update(
             .map_err(|e| internal("loading the document being edited", e))?;
     let (current_category, old_title, old_status) =
         current.ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
-
-    require_in_category(&user, Permission::Edit, current_category)?;
-
-    // Moving a document is a write into the destination as much as an edit of
-    // the source (SR-8). Either right there is enough — WRITE to put content
-    // in, EDIT to maintain what is already there.
-    if body.category_id != current_category
-        && !user.has_in(body.category_id, Permission::Write)
-        && !user.has_in(body.category_id, Permission::Edit)
-    {
-        return Err(ApiError::Forbidden(
-            "You cannot move a document into that category".into(),
-        ));
-    }
 
     let updated = sqlx::query(
         "UPDATE documents SET title = $2, category_id = $3, status = $4, updated_at = now()
@@ -549,10 +514,10 @@ async fn update(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Delete a document (blocks cascade). Requires `DELETE` in its category.
+/// Delete a document (blocks cascade).
 async fn remove(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     // The title is read before the delete because afterwards there is nowhere
@@ -567,10 +532,8 @@ async fn remove(
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| internal("loading the document being deleted", e))?;
-    let (category_id, title, category_name) =
+    let (_category_id, title, category_name) =
         existing.ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
-
-    require_in_category(&user, Permission::Delete, category_id)?;
 
     sqlx::query("DELETE FROM documents WHERE id = $1")
         .bind(id)
@@ -599,7 +562,7 @@ async fn remove(
 /// `render_markdown` path so the preview can never diverge from the real render
 /// (or skip the sanitizer). Any signed-in templates user may call it.
 pub async fn preview_markdown(
-    InTemplates(_user): InTemplates,
+    CurrentUser(_user): CurrentUser,
     Json(body): Json<PreviewBody>,
 ) -> Json<PreviewResult> {
     Json(PreviewResult {

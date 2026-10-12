@@ -11,11 +11,9 @@ use uuid::Uuid;
 
 /// A user account, minus any secret material.
 ///
-/// Access is decided **per category only**: a non-admin may act on a document
-/// exactly when [`User::category_perms`] grants that action on the document's
-/// category. The `can_*` columns are legacy global flags that no longer grant
-/// anything — they used to mean "in every category", which let a user read
-/// categories an admin had deliberately withheld. Admins still hold everything.
+/// There is no per-category permission model: any authenticated, active user
+/// may read and manage every document. `is_admin` is the one distinction left —
+/// it gates the admin-only screens (users, categories, analytics, audit log).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
@@ -23,131 +21,6 @@ pub struct User {
     pub is_admin: bool,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
-    /// Loaded by a second query, never by `FromRow` — hence `skip`.
-    #[sqlx(skip)]
-    #[serde(default)]
-    pub category_perms: Vec<CategoryPermission>,
-    /// The sections this user may enter. Like `category_perms`, loaded by a
-    /// separate query rather than by `FromRow`.
-    #[sqlx(skip)]
-    #[serde(default)]
-    pub sections: Vec<SectionAccess>,
-}
-
-impl User {
-    /// Whether this user holds the permission in the given category. For a
-    /// non-admin this is *only* the grant on that category — there is no
-    /// global flag and no author exemption that can widen it.
-    pub fn has_in(&self, category_id: Uuid, perm: Permission) -> bool {
-        self.is_admin
-            || self
-                .category_perms
-                .iter()
-                .any(|c| c.category_id == category_id && c.allows(perm))
-    }
-
-    /// The categories this user was granted `perm` on. Only meaningful for a
-    /// non-admin; an admin reaches every category regardless.
-    pub fn granted_categories(&self, perm: Permission) -> Vec<Uuid> {
-        self.category_perms
-            .iter()
-            .filter(|c| c.allows(perm))
-            .map(|c| c.category_id)
-            .collect()
-    }
-
-    /// The categories this user can see at all — those with any grant on them.
-    pub fn accessible_categories(&self) -> Vec<Uuid> {
-        self.category_perms
-            .iter()
-            .filter(|c| !c.is_empty())
-            .map(|c| c.category_id)
-            .collect()
-    }
-
-    /// Whether this user may enter a section — the outer door of the two-level
-    /// model. Admin, or a row in `user_sections`. There is no third term.
-    pub fn in_section(&self, section: Section) -> bool {
-        self.is_admin || self.sections.iter().any(|s| s.section == section)
-    }
-}
-
-/// A section — the code-level, fixed top layer above categories (§ sections).
-///
-/// This is deliberately a Rust enum, not a database lookup table: a new section
-/// is always new tables, new endpoints and new UI, so it is always a code
-/// change. Making it data would only invite the impression that a row alone
-/// could add one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Section {
-    Templates,
-}
-
-impl Section {
-    /// The string stored in `user_sections.section` (must match the CHECK).
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Section::Templates => "templates",
-        }
-    }
-
-    /// Parse the stored string back, ignoring anything the CHECK would reject.
-    pub fn from_db(value: &str) -> Option<Section> {
-        match value {
-            "templates" => Some(Section::Templates),
-            _ => None,
-        }
-    }
-}
-
-/// One user's access to one section. Doubles as the payload the admin UI sends
-/// when assigning sections, exactly as [`CategoryPermission`] does for grants.
-///
-/// `can_author` is kept for wire-compatibility but is never honored: the only
-/// section left is `templates`, whose write access comes entirely from category
-/// grants, and the database rejects the authoring bit on it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SectionAccess {
-    pub section: Section,
-    #[serde(default)]
-    pub can_author: bool,
-}
-
-/// One user's permissions on one category (§4.2.1, §6.6). Doubles as the
-/// payload the admin UI sends when assigning permissions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize, FromRow)]
-pub struct CategoryPermission {
-    pub category_id: Uuid,
-    pub can_read: bool,
-    pub can_write: bool,
-    pub can_edit: bool,
-    pub can_delete: bool,
-}
-
-impl CategoryPermission {
-    pub fn allows(&self, perm: Permission) -> bool {
-        match perm {
-            Permission::Read => self.can_read,
-            Permission::Write => self.can_write,
-            Permission::Edit => self.can_edit,
-            Permission::Delete => self.can_delete,
-        }
-    }
-
-    /// A grant with nothing ticked is the same as no grant at all.
-    pub fn is_empty(&self) -> bool {
-        !(self.can_read || self.can_write || self.can_edit || self.can_delete)
-    }
-}
-
-/// The four independent capabilities from §4.2.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Permission {
-    Read,
-    Write,
-    Edit,
-    Delete,
 }
 
 /// A content category (§6.2).

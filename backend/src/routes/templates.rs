@@ -1,10 +1,9 @@
-//! `/api/templates` — the original category + Q&A world, now the first section.
+//! `/api/templates` — the category + Q&A world: categories, documents, the tag-
+//! free bookmarks list and the markdown preview, grouped under one prefix.
 //!
-//! Nothing here changed in substance: the categories and documents modules are
-//! exactly as they were, only mounted one level deeper and reached through the
-//! `InTemplates` door their handlers now extract. The section check lives on
-//! those handlers rather than as a layer here so a request is loaded once, not
-//! once for the door and again for the body.
+//! Every handler here takes only `CurrentUser`: any signed-in user may read and
+//! manage documents, and the admin-only actions (managing categories) carry
+//! their own `AdminUser` guard.
 
 use axum::routing::{get, post};
 use axum::Router;

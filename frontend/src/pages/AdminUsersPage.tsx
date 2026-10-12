@@ -1,187 +1,28 @@
 /**
- * `/admin/users` — creating users and granting them categories (§5.2, §8).
+ * `/admin/users` — creating users, blocking them, and resetting passwords.
  *
- * The whole screen is the category matrix, because that is the whole of the
- * permission model (§4.2.1). There are no global permission checkboxes here,
- * and there is no endpoint behind them: a non-admin's rights are exactly the
- * rows they have in `user_category_permissions`, so a user created with an
- * empty matrix can sign in and see nothing at all.
+ * There is no per-category permission model any more: any signed-in user may
+ * read and manage every document. The one choice left when creating an account
+ * is whether it is an administrator, which is what gates this page and the other
+ * admin-only screens.
  */
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
-import { categories as categoriesApi, users as usersApi } from "../api/endpoints";
+import { users as usersApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash, Flash } from "../components/Flash";
 import { Empty, Spinner } from "../components/Loading";
 import { formatDate } from "../format";
-import type { Category, CategoryPermission, SectionAccess, User, Uuid } from "../api/types";
-
-/** The matrix as the UI holds it: one entry per category, all four flags. */
-type Matrix = Record<Uuid, CategoryPermission>;
-
-/**
- * The section boxes as the UI holds them. The only section left is `templates`,
- * which a held category grant implies anyway.
- */
-type SectionState = {
-  templates: boolean;
-};
-
-const EMPTY_SECTIONS: SectionState = {
-  templates: false,
-};
-
-function sectionStateFor(sections: SectionAccess[]): SectionState {
-  return {
-    templates: sections.some((s) => s.section === "templates"),
-  };
-}
-
-/** The shape the API wants — only the opened sections. */
-function toSections(state: SectionState): SectionAccess[] {
-  const out: SectionAccess[] = [];
-  if (state.templates) out.push({ section: "templates", can_author: false });
-  return out;
-}
-
-function SectionPicker({
-  state,
-  onChange,
-  idPrefix,
-  templatesForced = false,
-}: {
-  state: SectionState;
-  onChange: (next: SectionState) => void;
-  idPrefix: string;
-  /** A held category grant implies the templates door, so the box is shown
-      ticked and locked rather than letting the admin contradict what the
-      server will store. */
-  templatesForced?: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="section-picker" style={{ display: "grid", gap: 6 }}>
-      <label className="chk" htmlFor={`${idPrefix}-sec-templates`}>
-        <input
-          id={`${idPrefix}-sec-templates`}
-          type="checkbox"
-          checked={state.templates || templatesForced}
-          disabled={templatesForced}
-          onChange={(e) => onChange({ ...state, templates: e.target.checked })}
-        />
-        {t("users.sectionTemplates")}
-      </label>
-      <p className="hint">{t("users.sectionsHint")}</p>
-    </div>
-  );
-}
-
-const FLAGS = [
-  { key: "can_read", labelKey: "perm.read" },
-  { key: "can_write", labelKey: "perm.write" },
-  { key: "can_edit", labelKey: "perm.edit" },
-  { key: "can_delete", labelKey: "perm.delete" },
-] as const;
-
-type FlagKey = (typeof FLAGS)[number]["key"];
-
-function emptyMatrix(categories: Category[]): Matrix {
-  const matrix: Matrix = {};
-  for (const c of categories) {
-    matrix[c.id] = {
-      category_id: c.id,
-      can_read: false,
-      can_write: false,
-      can_edit: false,
-      can_delete: false,
-    };
-  }
-  return matrix;
-}
-
-function matrixFor(categories: Category[], grants: CategoryPermission[]): Matrix {
-  const matrix = emptyMatrix(categories);
-  for (const g of grants) {
-    // A grant on a category that has since been deleted has nothing to render
-    // against; the server drops it on the next save anyway.
-    if (matrix[g.category_id]) matrix[g.category_id] = { ...g };
-  }
-  return matrix;
-}
-
-/** Only the rows with something ticked — the shape the API wants. */
-function toGrants(matrix: Matrix): CategoryPermission[] {
-  return Object.values(matrix).filter(
-    (g) => g.can_read || g.can_write || g.can_edit || g.can_delete,
-  );
-}
-
-function PermMatrix({
-  categories,
-  matrix,
-  onChange,
-  idPrefix,
-}: {
-  categories: Category[];
-  matrix: Matrix;
-  onChange: (next: Matrix) => void;
-  idPrefix: string;
-}) {
-  const { t } = useTranslation();
-
-  if (categories.length === 0) {
-    return <p className="hint">{t("perm.createFirst")}</p>;
-  }
-
-  function toggle(categoryId: Uuid, flag: FlagKey) {
-    const row = matrix[categoryId];
-    onChange({ ...matrix, [categoryId]: { ...row, [flag]: !row[flag] } });
-  }
-
-  return (
-    <div className="perm-matrix">
-      <table>
-        <thead>
-          <tr>
-            <th>{t("perm.category")}</th>
-            {FLAGS.map((f) => (
-              <th key={f.key}>{t(f.labelKey)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {categories.map((c) => (
-            <tr key={c.id}>
-              <td>{c.name}</td>
-              {FLAGS.map((f) => (
-                <td key={f.key}>
-                  <label htmlFor={`${idPrefix}-${c.id}-${f.key}`}>
-                    <input
-                      id={`${idPrefix}-${c.id}-${f.key}`}
-                      type="checkbox"
-                      aria-label={t("perm.flagIn", { flag: t(f.labelKey), category: c.name })}
-                      checked={matrix[c.id]?.[f.key] ?? false}
-                      onChange={() => toggle(c.id, f.key)}
-                    />
-                  </label>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+import type { User } from "../api/types";
 
 export function AdminUsersPage() {
   const queryClient = useQueryClient();
-  const { user: me, refresh } = useAuth();
+  const { user: me } = useAuth();
   const { t } = useTranslation();
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -189,23 +30,14 @@ export function AdminUsersPage() {
     document.title = t("docTitle", { page: t("users.heading"), app: t("app.name") });
   }, [t]);
 
-  const categoriesQuery = useQuery({
-    queryKey: ["categories"],
-    queryFn: ({ signal }) => categoriesApi.list(signal),
-  });
   const usersQuery = useQuery({
     queryKey: ["users"],
     queryFn: ({ signal }) => usersApi.list(signal),
   });
 
-  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
-
-  async function afterChange(message: string, changedSelf: boolean) {
+  async function afterChange(message: string) {
     setNotice(message);
     await queryClient.invalidateQueries({ queryKey: ["users"] });
-    // Changing your own grants changes what the rail and the buttons should
-    // show. Without this the UI keeps offering what you just took away.
-    if (changedSelf) await refresh();
   }
 
   return (
@@ -213,8 +45,7 @@ export function AdminUsersPage() {
       <h1>{t("users.heading")}</h1>
 
       <CreateUserForm
-        categories={categories}
-        onCreated={(username) => void afterChange(t("users.created", { name: username }), false)}
+        onCreated={(username) => void afterChange(t("users.created", { name: username }))}
       />
 
       {notice && <Flash kind="ok">{notice}</Flash>}
@@ -234,8 +65,6 @@ export function AdminUsersPage() {
               <tr>
                 <th>{t("users.thUsername")}</th>
                 <th>{t("users.thRole")}</th>
-                <th>{t("users.thSections")}</th>
-                <th className="wrap">{t("users.thCategories")}</th>
                 <th>{t("users.thStatus")}</th>
                 <th>{t("users.thResetPassword")}</th>
               </tr>
@@ -245,9 +74,8 @@ export function AdminUsersPage() {
                 <UserRow
                   key={user.id}
                   user={user}
-                  categories={categories}
                   isSelf={me?.id === user.id}
-                  onChanged={(message) => void afterChange(message, me?.id === user.id)}
+                  onChanged={(message) => void afterChange(message)}
                 />
               ))}
             </tbody>
@@ -258,58 +86,20 @@ export function AdminUsersPage() {
   );
 }
 
-function CreateUserForm({
-  categories,
-  onCreated,
-}: {
-  categories: Category[];
-  onCreated: (username: string) => void;
-}) {
+function CreateUserForm({ onCreated }: { onCreated: (username: string) => void }) {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [matrix, setMatrix] = useState<Matrix>({});
-  const [sections, setSections] = useState<SectionState>(EMPTY_SECTIONS);
   const [error, setError] = useState<string | null>(null);
 
-  // Categories arrive after the first render, and a category created while
-  // this form is open should appear in it.
-  useEffect(() => {
-    setMatrix((prev) => {
-      const next = emptyMatrix(categories);
-      for (const id of Object.keys(next)) {
-        if (prev[id]) next[id] = prev[id];
-      }
-      return next;
-    });
-  }, [categories]);
-
   const create = useMutation({
-    mutationFn: () =>
-      usersApi.create({
-        username,
-        password,
-        is_admin: isAdmin,
-        // An admin holds everything everywhere, so sending a matrix or section
-        // list for one would store rows that can never change an outcome.
-        category_perms: isAdmin ? [] : toGrants(matrix),
-        // Fold in the templates door a category grant implies, so the payload
-        // matches what the picker shows (and what the server would add anyway).
-        sections: isAdmin
-          ? []
-          : toSections({
-              ...sections,
-              templates: sections.templates || toGrants(matrix).length > 0,
-            }),
-      }),
+    mutationFn: () => usersApi.create({ username, password, is_admin: isAdmin }),
     onSuccess: () => {
       onCreated(username.trim());
       setUsername("");
       setPassword("");
       setIsAdmin(false);
-      setMatrix(emptyMatrix(categories));
-      setSections(EMPTY_SECTIONS);
       setError(null);
     },
     onError: (e) => setError(errorMessage(e)),
@@ -381,36 +171,9 @@ function CreateUserForm({
         </div>
 
         <label className="chk">
-          <input
-            type="checkbox"
-            checked={isAdmin}
-            onChange={(e) => setIsAdmin(e.target.checked)}
-          />
+          <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />
           {t("users.isAdminLabel")}
         </label>
-
-        {!isAdmin && (
-          <div style={{ marginTop: 14 }}>
-            <label>{t("users.sectionAccess")}</label>
-            <SectionPicker
-              state={sections}
-              onChange={setSections}
-              idPrefix="new"
-              templatesForced={toGrants(matrix).length > 0}
-            />
-
-            <label style={{ marginTop: 14, display: "block" }}>
-              {t("users.categoryPermissions")}
-            </label>
-            <PermMatrix
-              categories={categories}
-              matrix={matrix}
-              onChange={setMatrix}
-              idPrefix="new"
-            />
-            <p className="hint">{t("users.nothingTicked")}</p>
-          </div>
-        )}
 
         <ErrorFlash error={error} />
 
@@ -430,48 +193,16 @@ function CreateUserForm({
 
 function UserRow({
   user,
-  categories,
   isSelf,
   onChanged,
 }: {
   user: User;
-  categories: Category[];
   isSelf: boolean;
   onChanged: (message: string) => void;
 }) {
   const { t } = useTranslation();
-  const [matrix, setMatrix] = useState<Matrix>(() => matrixFor(categories, user.category_perms));
-  const [sections, setSections] = useState<SectionState>(() => sectionStateFor(user.sections));
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  // Re-sync when the list refetches or a category is added.
-  useEffect(() => {
-    setMatrix(matrixFor(categories, user.category_perms));
-  }, [categories, user.category_perms]);
-  useEffect(() => {
-    setSections(sectionStateFor(user.sections));
-  }, [user.sections]);
-
-  const savePermissions = useMutation({
-    // Grants and sections go together: the server writes them in one
-    // transaction and derives the templates door from the grants, so we fold
-    // that same implication into the payload here.
-    mutationFn: () =>
-      usersApi.setPermissions(
-        user.id,
-        toGrants(matrix),
-        toSections({
-          ...sections,
-          templates: sections.templates || toGrants(matrix).length > 0,
-        }),
-      ),
-    onSuccess: () => {
-      setError(null);
-      onChanged(t("users.permsSaved", { name: user.username }));
-    },
-    onError: (e) => setError(errorMessage(e)),
-  });
 
   const setActive = useMutation({
     mutationFn: (active: boolean) => usersApi.setActive(user.id, active),
@@ -496,8 +227,6 @@ function UserRow({
     onError: (e) => setError(errorMessage(e)),
   });
 
-  const grantCount = user.category_perms.length;
-
   return (
     <tr>
       <td>
@@ -505,57 +234,6 @@ function UserRow({
         {isSelf && <span className="muted">{t("users.you")}</span>}
       </td>
       <td>{user.is_admin ? t("users.roleAdmin") : t("users.roleUser")}</td>
-      <td className="wrap">
-        {user.is_admin ? (
-          <span className="muted">{t("users.all")}</span>
-        ) : user.sections.length === 0 ? (
-          <span className="muted">{t("users.noSections")}</span>
-        ) : (
-          user.sections.map((s) => s.section).join(", ")
-        )}
-      </td>
-      <td className="wrap">
-        {user.is_admin ? (
-          <span className="muted">{t("users.all")}</span>
-        ) : (
-          <details className="cat-perms">
-            <summary>
-              {grantCount === 0
-                ? t("users.noCategories")
-                : t("users.categories", { count: grantCount })}
-            </summary>
-            <div style={{ marginTop: 10 }}>
-              <label>{t("users.sectionAccess")}</label>
-              <SectionPicker
-                state={sections}
-                onChange={setSections}
-                idPrefix={user.id}
-                templatesForced={toGrants(matrix).length > 0}
-              />
-            </div>
-            <label style={{ marginTop: 12, display: "block" }}>
-              {t("users.categoryPermissions")}
-            </label>
-            <PermMatrix
-              categories={categories}
-              matrix={matrix}
-              onChange={setMatrix}
-              idPrefix={user.id}
-            />
-            <div className="actions" style={{ marginTop: 10 }}>
-              <button
-                className="btn small"
-                type="button"
-                disabled={savePermissions.isPending}
-                onClick={() => savePermissions.mutate()}
-              >
-                {savePermissions.isPending ? t("common.saving") : t("common.save")}
-              </button>
-            </div>
-          </details>
-        )}
-        <ErrorFlash error={error} />
-      </td>
       <td>
         {user.is_active ? (
           isSelf ? (
@@ -585,6 +263,7 @@ function UserRow({
             </button>
           </span>
         )}
+        <ErrorFlash error={error} />
       </td>
       <td>
         <span className="actions">

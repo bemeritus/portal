@@ -13,13 +13,11 @@ import type {
   AuditEntry,
   Category,
   CategoryBody,
-  CategoryPermission,
   CreateUserBody,
   DocumentBody,
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
-  SectionAccess,
   UploadResponse,
   User,
   Uuid,
@@ -100,14 +98,6 @@ export const analytics = {
 export const users = {
   list: (signal?: AbortSignal) => api.get<User[]>(`${BASE}/users`, signal),
   create: (body: CreateUserBody) => api.post<{ id: Uuid }>(`${BASE}/users`, body),
-  /**
-   * Replaces the user's grants *and* section access wholesale — anything
-   * omitted is dropped. Sent together because they are edited on one screen and
-   * the server writes them in one transaction (and derives the templates door
-   * from the grants, so they must be consistent).
-   */
-  setPermissions: (id: Uuid, category_perms: CategoryPermission[], sections: SectionAccess[]) =>
-    api.put<void>(`${BASE}/users/${id}/permissions`, { category_perms, sections }),
   setActive: (id: Uuid, active: boolean) => api.put<void>(`${BASE}/users/${id}/active`, { active }),
   resetPassword: (id: Uuid, new_password: string) =>
     api.put<void>(`${BASE}/users/${id}/password`, { new_password }),

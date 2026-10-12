@@ -20,7 +20,6 @@ import { useTranslation } from "react-i18next";
 
 import { documents as documentsApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
-import { hasAnywhere, inSection } from "../permissions";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -65,21 +64,15 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     return () => window.clearTimeout(id);
   }, [q]);
 
-  // The nav commands this user may actually reach, mirroring the rail's gating.
+  // The nav commands this user may actually reach, mirroring the rail.
   const commands = useMemo<Item[]>(() => {
     const items: Item[] = [];
-    if (inSection(user, "templates")) {
-      items.push({ key: "documents", label: t("nav.documents"), to: "/templates" });
-      if (hasAnywhere(user, "write")) {
-        items.push({ key: "drafts", label: t("nav.drafts"), to: "/templates/drafts" });
-      }
-      items.push({ key: "bookmarks", label: t("nav.bookmarks"), to: "/templates/bookmarks" });
-      if (hasAnywhere(user, "write")) {
-        items.push({ key: "new", label: t("nav.newDocument"), to: "/templates/docs/new" });
-      }
-      if (user?.is_admin) {
-        items.push({ key: "categories", label: t("nav.categories"), to: "/templates/categories" });
-      }
+    items.push({ key: "documents", label: t("nav.documents"), to: "/templates" });
+    items.push({ key: "drafts", label: t("nav.drafts"), to: "/templates/drafts" });
+    items.push({ key: "bookmarks", label: t("nav.bookmarks"), to: "/templates/bookmarks" });
+    items.push({ key: "new", label: t("nav.newDocument"), to: "/templates/docs/new" });
+    if (user?.is_admin) {
+      items.push({ key: "categories", label: t("nav.categories"), to: "/templates/categories" });
     }
     items.push({ key: "settings", label: t("menu.settings"), to: "/settings" });
     if (user?.is_admin) {

@@ -14,12 +14,10 @@ import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { documents as documentsApi } from "../api/endpoints";
-import { useUser } from "../auth/AuthContext";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash } from "../components/Flash";
 import { Spinner } from "../components/Loading";
 import { categoryTagClass, formatDate } from "../format";
-import { hasIn } from "../permissions";
 
 /** Above this many questions, offer a jump list rather than a long scroll.
  * Two, matching the original Leptos view: even a short Q&A doc gets the list. */
@@ -27,7 +25,6 @@ const TOC_THRESHOLD = 2;
 
 export function DocumentPage() {
   const { id = "" } = useParams();
-  const user = useUser();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -76,9 +73,6 @@ export function DocumentPage() {
     );
   }
 
-  const canEdit = hasIn(user, doc.category_id, "edit");
-  const canDelete = hasIn(user, doc.category_id, "delete");
-
   return (
     <>
       <Link className="backlink" to="/templates">
@@ -117,19 +111,15 @@ export function DocumentPage() {
             <span aria-hidden="true">{doc.bookmarked ? "★" : "☆"}</span>
             {doc.bookmarked ? t("doc.bookmarked") : t("doc.bookmark")}
           </button>
-          {canEdit && (
-            <Link className="btn secondary small" to={`/templates/docs/${doc.id}/edit`}>
-              {t("common.edit")}
-            </Link>
-          )}
-          {canDelete && (
-            <ConfirmButton
-              label={t("common.delete")}
-              confirmLabel={t("doc.deleteForGood")}
-              pending={remove.isPending}
-              onConfirm={() => remove.mutate()}
-            />
-          )}
+          <Link className="btn secondary small" to={`/templates/docs/${doc.id}/edit`}>
+            {t("common.edit")}
+          </Link>
+          <ConfirmButton
+            label={t("common.delete")}
+            confirmLabel={t("doc.deleteForGood")}
+            pending={remove.isPending}
+            onConfirm={() => remove.mutate()}
+          />
         </div>
       </div>
 

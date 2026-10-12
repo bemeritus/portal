@@ -1,19 +1,16 @@
 /**
- * The route table (§8), now organized by section.
+ * The route table (§8).
  *
  * Everything except `/login` is nested inside `<RequireAuth>` and then inside
- * `<Layout>`. Below that the `templates` section sits behind its own door
- * (`<RequireSection>`): `/templates/*` is the category + Q&A world. `/admin/*`
- * is cross-section and stays at the top level behind `<RequireAdmin>`. The index
- * route sends each user to whichever section they can actually enter.
+ * `<Layout>`. Any signed-in user reaches the whole `/templates/*` world; only
+ * `/templates/categories` and `/admin/*` stay behind `<RequireAdmin>`. The index
+ * forwards to the documents list.
  */
 
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "./components/Layout";
-import { RequireAdmin, RequireAuth, RequireSection } from "./components/RequireAuth";
-import { useAuth } from "./auth/AuthContext";
-import { inSection } from "./permissions";
+import { RequireAdmin, RequireAuth } from "./components/RequireAuth";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
@@ -25,7 +22,6 @@ import { EditorPage } from "./pages/EditorPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { useTranslation } from "react-i18next";
 
 function NotFound() {
   return (
@@ -39,23 +35,6 @@ function NotFound() {
   );
 }
 
-/**
- * The bare index. Sends the user to whichever section they hold — templates
- * first, since it is the platform's original home — or explains that they hold
- * none, which is a real state (a user created with no sections at all).
- */
-function SectionLanding() {
-  const { user } = useAuth();
-  const { t } = useTranslation();
-  if (inSection(user, "templates")) return <Navigate to="/templates" replace />;
-  return (
-    <>
-      <h1>{t("authz.noSectionsTitle")}</h1>
-      <p className="muted">{t("authz.noSectionsBody")}</p>
-    </>
-  );
-}
-
 export function App() {
   return (
     <Routes>
@@ -63,14 +42,13 @@ export function App() {
 
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
-          <Route index element={<SectionLanding />} />
+          <Route index element={<Navigate to="/templates" replace />} />
 
-          {/* Every signed-in user's own settings — theme and language. Cross-
-              section, so it sits at the top level rather than under a door. */}
+          {/* Every signed-in user's own settings — theme and language. */}
           <Route path="settings" element={<SettingsPage />} />
 
-          {/* Templates — the category + Q&A world. */}
-          <Route path="templates" element={<RequireSection section="templates" />}>
+          {/* The category + Q&A world. */}
+          <Route path="templates">
             <Route index element={<HomePage />} />
             <Route path="drafts" element={<DraftsPage />} />
             <Route path="bookmarks" element={<BookmarksPage />} />
@@ -83,7 +61,7 @@ export function App() {
             </Route>
           </Route>
 
-          {/* Cross-section admin. */}
+          {/* Admin-only. */}
           <Route element={<RequireAdmin />}>
             <Route path="admin/users" element={<AdminUsersPage />} />
             <Route path="admin/logs" element={<AuditLogPage />} />
@@ -94,8 +72,7 @@ export function App() {
         </Route>
       </Route>
 
-      {/* Anything outside the trees above (a stray link, an old bookmark) goes
-          to the index, which forwards to the user's section. */}
+      {/* Anything outside the trees above (a stray link, an old bookmark). */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

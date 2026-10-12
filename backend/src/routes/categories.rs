@@ -12,16 +12,18 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::audit::{audit_now, Audit};
-use crate::auth::{AdminUser, InTemplates};
+use crate::auth::{AdminUser, CurrentUser};
 use crate::content::slugify;
 use crate::db::AppState;
 use crate::error::{db_conflict, db_reference, internal, ApiError, ApiResult};
-use crate::models::{Category, Permission};
+use crate::models::Category;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
-        .route("/writable", get(list_writable))
+        // Kept for the editor's picker; with no per-category permissions every
+        // category is writable, so it returns the same list.
+        .route("/writable", get(list))
         .route("/{id}", post(update).put(update).delete(remove))
 }
 
@@ -30,44 +32,18 @@ pub struct CategoryBody {
     name: String,
 }
 
-/// List the categories the caller can see: everything for an admin, otherwise
-/// only the ones they hold a grant on.
+/// Every category — any signed-in user sees them all.
 async fn list(
     State(state): State<AppState>,
-    InTemplates(user): InTemplates,
+    CurrentUser(_user): CurrentUser,
 ) -> ApiResult<Json<Vec<Category>>> {
-    let visible = user.accessible_categories();
-    Ok(Json(fetch(&state, user.is_admin, &visible).await?))
-}
-
-/// The categories the caller may author or edit documents in — what the
-/// editor's picker offers (FR-25).
-async fn list_writable(
-    State(state): State<AppState>,
-    InTemplates(user): InTemplates,
-) -> ApiResult<Json<Vec<Category>>> {
-    let mut writable = user.granted_categories(Permission::Write);
-    for id in user.granted_categories(Permission::Edit) {
-        if !writable.contains(&id) {
-            writable.push(id);
-        }
-    }
-    Ok(Json(fetch(&state, user.is_admin, &writable).await?))
-}
-
-/// Shared tail of the two listings above.
-async fn fetch(state: &AppState, all: bool, ids: &[Uuid]) -> ApiResult<Vec<Category>> {
-    sqlx::query_as::<_, Category>(
-        "SELECT id, name, slug, created_at
-         FROM categories
-         WHERE $1::bool OR id = ANY($2::uuid[])
-         ORDER BY name",
+    let categories = sqlx::query_as::<_, Category>(
+        "SELECT id, name, slug, created_at FROM categories ORDER BY name",
     )
-    .bind(all)
-    .bind(ids)
     .fetch_all(&state.pool)
     .await
-    .map_err(|e| internal("listing categories", e))
+    .map_err(|e| internal("listing categories", e))?;
+    Ok(Json(categories))
 }
 
 /// FR-9: create a category.

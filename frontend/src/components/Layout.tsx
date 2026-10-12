@@ -15,19 +15,12 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
-import type { Section } from "../api/types";
-import { hasAnywhere, inSection } from "../permissions";
 import { comboFromEvent, isTypingTarget, SHORTCUTS } from "../shortcuts/registry";
 import { useShortcuts } from "../shortcuts/ShortcutsContext";
 import { CommandPalette } from "./CommandPalette";
 import { ShortcutsHelp } from "./ShortcutsHelp";
 import { useTheme } from "./ThemeSelect";
 import { UserMenu } from "./UserMenu";
-
-/** The section switcher's entries. Only templates remains. */
-const SECTION_TABS: { section: Section; to: string; labelKey: string }[] = [
-  { section: "templates", to: "/templates", labelKey: "nav.templates" },
-];
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -51,9 +44,7 @@ export function Layout() {
   const handlers = useMemo<Record<string, () => void>>(
     () => ({
       commandPalette: () => setPaletteOpen((v) => !v),
-      newDocument: () => {
-        if (hasAnywhere(user, "write")) navigate("/templates/docs/new");
-      },
+      newDocument: () => navigate("/templates/docs/new"),
       goDocuments: () => navigate("/templates"),
       goBookmarks: () => navigate("/templates/bookmarks"),
       goSettings: () => navigate("/settings"),
@@ -66,7 +57,7 @@ export function Layout() {
       },
       showHelp: () => setHelpOpen(true),
     }),
-    [user, navigate, setTheme],
+    [navigate, setTheme],
   );
 
   // One global key listener drives every shortcut from the user's live bindings.
@@ -89,8 +80,7 @@ export function Layout() {
     return () => document.removeEventListener("keydown", onKey);
   }, [bindings, handlers]);
 
-  const heldTabs = SECTION_TABS.filter((tab) => inSection(user, tab.section));
-  const showNewDocument = hasAnywhere(user, "write");
+  const showNewDocument = !!user;
 
   async function onLogout() {
     setLoggingOut(true);
@@ -119,19 +109,6 @@ export function Layout() {
           📚 {t("app.name")}
         </Link>
 
-        {/* The section switcher — only the doors this user holds. Hidden
-            entirely for someone with a single section, since there is nothing
-            to switch between. */}
-        {heldTabs.length > 1 && (
-          <div className="section-tabs" role="tablist" aria-label={t("nav.sections")}>
-            {heldTabs.map((tab) => (
-              <NavLink key={tab.section} className="section-tab" to={tab.to}>
-                {t(tab.labelKey)}
-              </NavLink>
-            ))}
-          </div>
-        )}
-
         <span className="spacer" />
         <div className="nav-tools">
           {showNewDocument && (
@@ -152,9 +129,7 @@ export function Layout() {
             <NavLink to="/templates" end>
               {t("nav.documents")}
             </NavLink>
-            {hasAnywhere(user, "write") && (
-              <NavLink to="/templates/drafts">{t("nav.drafts")}</NavLink>
-            )}
+            <NavLink to="/templates/drafts">{t("nav.drafts")}</NavLink>
             <NavLink to="/templates/bookmarks">{t("nav.bookmarks")}</NavLink>
             {user?.is_admin && (
               <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>

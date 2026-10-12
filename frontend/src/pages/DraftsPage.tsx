@@ -15,12 +15,10 @@ import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi, documents as documentsApi } from "../api/endpoints";
-import { useUser } from "../auth/AuthContext";
 import { ErrorFlash } from "../components/Flash";
 import { Empty, Skeletons } from "../components/Loading";
 import { Select } from "../components/Select";
 import { categoryTagClass, formatDate } from "../format";
-import { hasAnywhere } from "../permissions";
 
 /** How long to wait after the last keystroke before asking the server. */
 const TYPING_PAUSE_MS = 250;
@@ -31,9 +29,7 @@ export function DraftsPage() {
   const categoryParam = params.get("category") ?? "";
 
   const [qInput, setQInput] = useState(qParam);
-  const user = useUser();
   const { t } = useTranslation();
-  const canWrite = hasAnywhere(user, "write");
 
   useEffect(() => {
     document.title = t("docTitle", { page: t("nav.drafts"), app: t("app.name") });
@@ -97,11 +93,9 @@ export function DraftsPage() {
         style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
       >
         <h1 style={{ flex: 1, minWidth: 0 }}>{t("nav.drafts")}</h1>
-        {canWrite && (
-          <Link className="btn" to="/templates/docs/new">
-            {t("home.newDocument")}
-          </Link>
-        )}
+        <Link className="btn" to="/templates/docs/new">
+          {t("home.newDocument")}
+        </Link>
       </div>
 
       <div className="panel" style={{ margin: "16px 0" }}>
