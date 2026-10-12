@@ -22,7 +22,6 @@ export function CategoriesPage() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -46,10 +45,9 @@ export function CategoriesPage() {
     ]);
 
   const create = useMutation({
-    mutationFn: () => categoriesApi.create({ name, description }),
+    mutationFn: () => categoriesApi.create({ name }),
     onSuccess: async (category) => {
       setName("");
-      setDescription("");
       setCreateError(null);
       setNotice(t("categories.created", { name: category.name }));
       await invalidate();
@@ -61,7 +59,6 @@ export function CategoriesPage() {
     mutationFn: (category: Category) =>
       categoriesApi.update(category.id, {
         name: category.name,
-        description: category.description ?? "",
       }),
     onSuccess: async () => {
       setEditing(null);
@@ -105,15 +102,6 @@ export function CategoriesPage() {
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
-            <div>
-              <label htmlFor="cat-desc">{t("categories.descriptionOptional")}</label>
-              <input
-                id="cat-desc"
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
             <div className="grow-0">
               <button className="btn" type="submit" disabled={create.isPending || !name.trim()}>
                 {create.isPending ? t("common.adding") : t("common.add")}
@@ -143,7 +131,6 @@ export function CategoriesPage() {
             <thead>
               <tr>
                 <th>{t("categories.thName")}</th>
-                <th className="wrap">{t("categories.thDescription")}</th>
                 <th>{t("categories.thSlug")}</th>
                 <th>{t("categories.thCreated")}</th>
                 <th />
@@ -159,14 +146,6 @@ export function CategoriesPage() {
                         value={editing.name}
                         aria-label={t("categories.nameAria")}
                         onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                      />
-                    </td>
-                    <td className="wrap">
-                      <input
-                        type="text"
-                        value={editing.description ?? ""}
-                        aria-label={t("categories.descAria")}
-                        onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                       />
                     </td>
                     <td className="muted">{category.slug}</td>
@@ -194,7 +173,6 @@ export function CategoriesPage() {
                 ) : (
                   <tr key={category.id}>
                     <td>{category.name}</td>
-                    <td className="wrap muted">{category.description ?? "—"}</td>
                     <td className="muted">
                       <code>{category.slug}</code>
                     </td>

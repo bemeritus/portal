@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::audit::{audit_now, Audit};
 use crate::auth::{AdminUser, InTemplates};
-use crate::content::{optional_text, slugify};
+use crate::content::slugify;
 use crate::db::AppState;
 use crate::error::{db_conflict, db_reference, internal, ApiError, ApiResult};
 use crate::models::{Category, Permission};
@@ -28,8 +28,6 @@ pub fn routes() -> Router<AppState> {
 #[derive(Deserialize)]
 pub struct CategoryBody {
     name: String,
-    #[serde(default)]
-    description: String,
 }
 
 /// List the categories the caller can see: everything for an admin, otherwise
@@ -60,7 +58,7 @@ async fn list_writable(
 /// Shared tail of the two listings above.
 async fn fetch(state: &AppState, all: bool, ids: &[Uuid]) -> ApiResult<Vec<Category>> {
     sqlx::query_as::<_, Category>(
-        "SELECT id, name, slug, description, created_at
+        "SELECT id, name, slug, created_at
          FROM categories
          WHERE $1::bool OR id = ANY($2::uuid[])
          ORDER BY name",
@@ -83,15 +81,13 @@ async fn create(
         return Err(ApiError::BadRequest("Category name is required".into()));
     }
     let slug = slugify(&name);
-    let description = optional_text(&body.description);
 
     let category = sqlx::query_as::<_, Category>(
-        "INSERT INTO categories (name, slug, description) VALUES ($1, $2, $3)
-         RETURNING id, name, slug, description, created_at",
+        "INSERT INTO categories (name, slug) VALUES ($1, $2)
+         RETURNING id, name, slug, created_at",
     )
     .bind(&name)
     .bind(&slug)
-    .bind(&description)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| {
@@ -111,7 +107,7 @@ async fn create(
             target_type: "category",
             target_id: Some(category.id),
             target_name: &category.name,
-            details: category.description.clone(),
+            details: None,
         },
     )
     .await;
@@ -119,7 +115,7 @@ async fn create(
     Ok((StatusCode::CREATED, Json(category)))
 }
 
-/// FR-9: rename / re-describe a category.
+/// FR-9: rename a category.
 async fn update(
     State(state): State<AppState>,
     AdminUser(admin): AdminUser,
@@ -131,21 +127,19 @@ async fn update(
         return Err(ApiError::BadRequest("Category name is required".into()));
     }
     let slug = slugify(&name);
-    let description = optional_text(&body.description);
 
     // The CTE carries the pre-edit row out of the same statement that
     // overwrites it, so the log can say what the name changed *from* without a
     // second read that another admin could slip an edit into.
-    let previous: Option<(String, Option<String>)> = sqlx::query_as(
-        "WITH before AS (SELECT id, name, description FROM categories WHERE id = $1)
-         UPDATE categories SET name = $2, slug = $3, description = $4
+    let previous: Option<(String,)> = sqlx::query_as(
+        "WITH before AS (SELECT id, name FROM categories WHERE id = $1)
+         UPDATE categories SET name = $2, slug = $3
          FROM before WHERE categories.id = before.id
-         RETURNING before.name, before.description",
+         RETURNING before.name",
     )
     .bind(id)
     .bind(&name)
     .bind(&slug)
-    .bind(&description)
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
@@ -157,15 +151,12 @@ async fn update(
     })?;
     // Zero rows means it was deleted meanwhile. Reporting success would leave
     // the admin looking at edits that went nowhere.
-    let (old_name, old_description) =
+    let (old_name,) =
         previous.ok_or_else(|| ApiError::NotFound("That category no longer exists".into()))?;
 
     let mut changes = Vec::new();
     if old_name != name {
         changes.push(format!("renamed from \"{old_name}\""));
-    }
-    if old_description != description {
-        changes.push("description changed".to_string());
     }
     audit_now(
         &state.pool,

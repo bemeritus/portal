@@ -152,6 +152,9 @@ export function Layout() {
             <NavLink to="/templates" end>
               {t("nav.documents")}
             </NavLink>
+            {hasAnywhere(user, "write") && (
+              <NavLink to="/templates/drafts">{t("nav.drafts")}</NavLink>
+            )}
             <NavLink to="/templates/bookmarks">{t("nav.bookmarks")}</NavLink>
             {user?.is_admin && (
               <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>

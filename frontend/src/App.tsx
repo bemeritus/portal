@@ -20,6 +20,7 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 import { BookmarksPage } from "./pages/BookmarksPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { DocumentPage } from "./pages/DocumentPage";
+import { DraftsPage } from "./pages/DraftsPage";
 import { EditorPage } from "./pages/EditorPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -71,6 +72,7 @@ export function App() {
           {/* Templates — the category + Q&A world. */}
           <Route path="templates" element={<RequireSection section="templates" />}>
             <Route index element={<HomePage />} />
+            <Route path="drafts" element={<DraftsPage />} />
             <Route path="bookmarks" element={<BookmarksPage />} />
             {/* Before `docs/:id`, or "new" would be read as an id. */}
             <Route path="docs/new" element={<EditorPage />} />

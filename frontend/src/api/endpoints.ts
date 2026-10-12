@@ -19,7 +19,6 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
-  FeedbackSummary,
   SectionAccess,
   UploadResponse,
   User,
@@ -63,9 +62,13 @@ export const categories = {
 };
 
 export const documents = {
-  list: (filters: { q?: string; category?: Uuid }, signal?: AbortSignal) =>
+  list: (filters: { q?: string; category?: Uuid; status?: string }, signal?: AbortSignal) =>
     api.get<DocumentSummary[]>(
-      `${TEMPLATES}/documents${query({ q: filters.q, category: filters.category })}`,
+      `${TEMPLATES}/documents${query({
+        q: filters.q,
+        category: filters.category,
+        status: filters.status,
+      })}`,
       signal,
     ),
   get: (id: Uuid, signal?: AbortSignal) =>
@@ -76,21 +79,11 @@ export const documents = {
   create: (body: DocumentBody) => api.post<{ id: Uuid }>(`${TEMPLATES}/documents`, body),
   update: (id: Uuid, body: DocumentBody) => api.put<void>(`${TEMPLATES}/documents/${id}`, body),
   remove: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}`),
-  /** Vote 👍 (true) / 👎 (false); returns the updated tally. */
-  vote: (id: Uuid, helpful: boolean) =>
-    api.post<FeedbackSummary>(`${TEMPLATES}/documents/${id}/feedback`, { helpful }),
-  /** Clear this reader's vote. */
-  clearVote: (id: Uuid) => api.del<FeedbackSummary>(`${TEMPLATES}/documents/${id}/feedback`),
   /** Bookmark / un-bookmark this document for the current user. */
   bookmark: (id: Uuid) => api.post<void>(`${TEMPLATES}/documents/${id}/bookmark`),
   unbookmark: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}/bookmark`),
   /** Render markdown to the same sanitized HTML the doc view shows — live preview. */
   preview: (markdown: string) => api.post<{ html: string }>(`${TEMPLATES}/preview`, { markdown }),
-};
-
-export const tags = {
-  /** The whole tag vocabulary, alphabetical — for editor suggestions. */
-  list: (signal?: AbortSignal) => api.get<string[]>(`${TEMPLATES}/tags`, signal),
 };
 
 export const bookmarks = {
@@ -100,7 +93,7 @@ export const bookmarks = {
 };
 
 export const analytics = {
-  /** The admin dashboard payload: views, feedback rankings, search gaps. */
+  /** The admin dashboard payload: views ranking and search gaps. */
   overview: (signal?: AbortSignal) => api.get<AnalyticsOverview>(`${BASE}/analytics`, signal),
 };
 

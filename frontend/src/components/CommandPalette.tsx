@@ -70,6 +70,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const items: Item[] = [];
     if (inSection(user, "templates")) {
       items.push({ key: "documents", label: t("nav.documents"), to: "/templates" });
+      if (hasAnywhere(user, "write")) {
+        items.push({ key: "drafts", label: t("nav.drafts"), to: "/templates/drafts" });
+      }
       items.push({ key: "bookmarks", label: t("nav.bookmarks"), to: "/templates/bookmarks" });
       if (hasAnywhere(user, "write")) {
         items.push({ key: "new", label: t("nav.newDocument"), to: "/templates/docs/new" });

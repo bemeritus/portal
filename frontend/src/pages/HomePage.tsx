@@ -68,9 +68,12 @@ export function HomePage() {
   });
 
   const documentsQuery = useQuery({
-    queryKey: ["documents", qParam, categoryParam],
+    queryKey: ["documents", "published", qParam, categoryParam],
     queryFn: ({ signal }) =>
-      documentsApi.list({ q: qParam, category: categoryParam || undefined }, signal),
+      documentsApi.list(
+        { q: qParam, category: categoryParam || undefined, status: "published" },
+        signal,
+      ),
   });
 
   const isFiltered = qParam !== "" || categoryParam !== "";
@@ -175,17 +178,7 @@ export function HomePage() {
                 <span>{doc.author_username}</span>
                 <span aria-hidden="true">·</span>
                 <span>{formatDate(doc.created_at)}</span>
-                {doc.status === "draft" && <span className="badge draft">{t("status.draft")}</span>}
               </div>
-              {doc.tags.length > 0 && (
-                <div className="tag-row">
-                  {doc.tags.map((tag) => (
-                    <span className="tag-chip" key={tag}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
             </Link>
           ))}
         </>

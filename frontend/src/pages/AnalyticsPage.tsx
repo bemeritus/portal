@@ -1,10 +1,9 @@
 /**
  * `/admin/analytics` — how the knowledge base is actually used (admin only).
  *
- * Read-only: three rankings the server computes from views, 👍/👎 feedback and
- * logged empty searches. It answers "what do people read", "what have they
- * flagged as unhelpful", and "what did they look for and not find" — the last
- * being the list of articles worth writing next.
+ * Read-only: the server computes a most-read ranking and the list of logged
+ * empty searches. It answers "what do people read" and "what did they look for
+ * and not find" — the last being the list of articles worth writing next.
  */
 
 import { useEffect } from "react";
@@ -56,12 +55,6 @@ export function AnalyticsPage() {
       </section>
 
       <section className="analytics-section">
-        <h2>{t("analytics.needsWork")}</h2>
-        <p className="muted">{t("analytics.needsWorkHint")}</p>
-        <DocTable rows={data.needs_work} emptyText={t("analytics.noNegative")} />
-      </section>
-
-      <section className="analytics-section">
         <h2>{t("analytics.contentGaps")}</h2>
         <p className="muted">{t("analytics.contentGapsHint")}</p>
         {data.search_misses.length === 0 ? (
@@ -106,8 +99,6 @@ function DocTable({ rows, emptyText }: { rows: PopularDoc[]; emptyText: string }
             <th>{t("analytics.document")}</th>
             <th>{t("analytics.category")}</th>
             <th className="num">{t("analytics.views")}</th>
-            <th className="num">👍</th>
-            <th className="num">👎</th>
           </tr>
         </thead>
         <tbody>
@@ -118,8 +109,6 @@ function DocTable({ rows, emptyText }: { rows: PopularDoc[]; emptyText: string }
               </td>
               <td>{d.category_name}</td>
               <td className="num">{d.view_count}</td>
-              <td className="num">{d.helpful_count}</td>
-              <td className="num">{d.not_helpful_count}</td>
             </tr>
           ))}
         </tbody>

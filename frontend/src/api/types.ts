@@ -61,7 +61,6 @@ export interface Category {
   id: Uuid;
   name: string;
   slug: string;
-  description: string | null;
   created_at: Timestamp;
 }
 
@@ -73,7 +72,6 @@ export interface DocumentSummary {
   category_name: string;
   author_username: string;
   created_at: Timestamp;
-  tags: string[];
 }
 
 /** A question with its answer already rendered and sanitized by the server. */
@@ -93,19 +91,8 @@ export interface DocumentWithBlocks {
   created_at: Timestamp;
   updated_at: Timestamp;
   blocks: QaBlockView[];
-  tags: string[];
   view_count: number;
-  helpful_count: number;
-  not_helpful_count: number;
-  /** This viewer's vote: true 👍, false 👎, null none. */
-  my_vote: boolean | null;
   bookmarked: boolean;
-}
-
-export interface FeedbackSummary {
-  helpful_count: number;
-  not_helpful_count: number;
-  my_vote: boolean | null;
 }
 
 export interface PopularDoc {
@@ -113,8 +100,6 @@ export interface PopularDoc {
   title: string;
   category_name: string;
   view_count: number;
-  helpful_count: number;
-  not_helpful_count: number;
 }
 
 export interface SearchMiss {
@@ -127,7 +112,6 @@ export interface AnalyticsOverview {
   total_documents: number;
   total_views: number;
   popular: PopularDoc[];
-  needs_work: PopularDoc[];
   search_misses: SearchMiss[];
 }
 
@@ -144,7 +128,6 @@ export interface DocumentDraft {
   category_id: Uuid;
   author_id: Uuid;
   blocks: QaBlockInput[];
-  tags: string[];
 }
 
 export interface AuditEntry {
@@ -170,12 +153,10 @@ export interface DocumentBody {
   category_id: Uuid;
   status: string;
   blocks: QaBlockInput[];
-  tags: string[];
 }
 
 export interface CategoryBody {
   name: string;
-  description: string;
 }
 
 export interface CreateUserBody {

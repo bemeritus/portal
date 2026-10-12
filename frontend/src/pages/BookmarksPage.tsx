@@ -55,15 +55,6 @@ export function BookmarksPage() {
               <span>{formatDate(doc.created_at)}</span>
               {doc.status === "draft" && <span className="badge draft">{t("status.draft")}</span>}
             </div>
-            {doc.tags.length > 0 && (
-              <div className="tag-row">
-                {doc.tags.map((tag) => (
-                  <span className="tag-chip" key={tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
           </Link>
         ))
       )}

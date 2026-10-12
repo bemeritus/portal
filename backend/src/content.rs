@@ -44,16 +44,6 @@ pub fn slugify(name: &str) -> String {
     }
 }
 
-/// Trim, and treat an all-whitespace description as absent.
-pub fn optional_text(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

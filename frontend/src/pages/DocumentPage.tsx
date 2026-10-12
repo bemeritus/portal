@@ -41,18 +41,6 @@ export function DocumentPage() {
     if (doc) document.title = t("docTitle", { page: doc.title, app: t("app.name") });
   }, [doc, t]);
 
-  // Voting patches the cached document in place so the counts and the pressed
-  // thumb update without a refetch. Pressing the active thumb again clears it.
-  const vote = useMutation({
-    mutationFn: (next: boolean | null) =>
-      next === null ? documentsApi.clearVote(id) : documentsApi.vote(id, next),
-    onSuccess: (summary) => {
-      queryClient.setQueryData<typeof doc>(["document", id], (prev) =>
-        prev ? { ...prev, ...summary } : prev,
-      );
-    },
-  });
-
   // Bookmarking flips the cached document's flag immediately and invalidates
   // the bookmarks list so it reflects the change on next visit.
   const bookmark = useMutation({
@@ -116,17 +104,6 @@ export function DocumentPage() {
               {t(`status.${doc.status}`)}
             </span>
           </div>
-          {doc.tags.length > 0 && (
-            <div className="tag-row">
-              {doc.tags.map((tag) => (
-                // Each tag links back to the list filtered to it, turning the
-                // label into a way to find everything else wearing it.
-                <Link className="tag-chip" key={tag} to={`/templates?q=${encodeURIComponent(tag)}`}>
-                  {tag}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
         <div className="actions">
           {/* Every reader can bookmark; edit/delete stay gated on rights. */}
@@ -190,35 +167,6 @@ export function DocumentPage() {
           ))}
         </>
       )}
-
-      {/* Was this helpful? — one vote per reader, pressing the active thumb
-          again clears it. Counts sit beside each thumb so the room's verdict
-          is visible, which is also the signal the analytics page ranks on. */}
-      <div className="feedback">
-        <span className="feedback-q">{t("doc.helpfulQuestion")}</span>
-        <div className="feedback-buttons">
-          <button
-            type="button"
-            className={`feedback-btn${doc.my_vote === true ? " active up" : ""}`}
-            aria-pressed={doc.my_vote === true}
-            disabled={vote.isPending}
-            onClick={() => vote.mutate(doc.my_vote === true ? null : true)}
-          >
-            <span aria-hidden="true">👍</span> {t("doc.yes")}
-            <span className="feedback-count">{doc.helpful_count}</span>
-          </button>
-          <button
-            type="button"
-            className={`feedback-btn${doc.my_vote === false ? " active down" : ""}`}
-            aria-pressed={doc.my_vote === false}
-            disabled={vote.isPending}
-            onClick={() => vote.mutate(doc.my_vote === false ? null : false)}
-          >
-            <span aria-hidden="true">👎</span> {t("doc.no")}
-            <span className="feedback-count">{doc.not_helpful_count}</span>
-          </button>
-        </div>
-      </div>
     </>
   );
 }
