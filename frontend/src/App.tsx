@@ -47,7 +47,9 @@ export function App() {
           {/* Every signed-in user's own settings — theme and language. */}
           <Route path="settings" element={<SettingsPage />} />
 
-          {/* The category + Q&A world. */}
+          {/* The category + Q&A world. Categories are managed by any user
+              (adding and renaming); only deleting stays admin-only, enforced
+              inside the page and on the server. */}
           <Route path="templates">
             <Route index element={<HomePage />} />
             <Route path="drafts" element={<DraftsPage />} />
@@ -56,16 +58,15 @@ export function App() {
             <Route path="docs/new" element={<EditorPage />} />
             <Route path="docs/:id" element={<DocumentPage />} />
             <Route path="docs/:id/edit" element={<EditorPage />} />
-            <Route element={<RequireAdmin />}>
-              <Route path="categories" element={<CategoriesPage />} />
-            </Route>
+            <Route path="categories" element={<CategoriesPage />} />
           </Route>
 
-          {/* Admin-only. */}
+          {/* The log and analytics are read-only and open to any signed-in
+              user; only user management stays admin-only. */}
+          <Route path="admin/logs" element={<AuditLogPage />} />
+          <Route path="admin/analytics" element={<AnalyticsPage />} />
           <Route element={<RequireAdmin />}>
             <Route path="admin/users" element={<AdminUsersPage />} />
-            <Route path="admin/logs" element={<AuditLogPage />} />
-            <Route path="admin/analytics" element={<AnalyticsPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

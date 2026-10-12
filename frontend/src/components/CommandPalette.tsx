@@ -71,14 +71,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     items.push({ key: "drafts", label: t("nav.drafts"), to: "/templates/drafts" });
     items.push({ key: "bookmarks", label: t("nav.bookmarks"), to: "/templates/bookmarks" });
     items.push({ key: "new", label: t("nav.newDocument"), to: "/templates/docs/new" });
-    if (user?.is_admin) {
-      items.push({ key: "categories", label: t("nav.categories"), to: "/templates/categories" });
-    }
+    items.push({ key: "categories", label: t("nav.categories"), to: "/templates/categories" });
     items.push({ key: "settings", label: t("menu.settings"), to: "/settings" });
+    items.push({ key: "analytics", label: t("nav.analytics"), to: "/admin/analytics" });
+    items.push({ key: "logs", label: t("nav.logs"), to: "/admin/logs" });
     if (user?.is_admin) {
       items.push({ key: "users", label: t("nav.users"), to: "/admin/users" });
-      items.push({ key: "analytics", label: t("nav.analytics"), to: "/admin/analytics" });
-      items.push({ key: "logs", label: t("nav.logs"), to: "/admin/logs" });
     }
     return items;
   }, [user, t]);

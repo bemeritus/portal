@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi } from "../api/endpoints";
+import { useAuth } from "../auth/AuthContext";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash, Flash } from "../components/Flash";
 import { Empty, Spinner } from "../components/Loading";
@@ -20,6 +21,7 @@ import type { Category } from "../api/types";
 
 export function CategoriesPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -190,15 +192,18 @@ export function CategoriesPage() {
                         >
                           {t("common.rename")}
                         </button>
-                        <ConfirmButton
-                          label={t("common.delete")}
-                          confirmLabel={t("common.delete")}
-                          pending={remove.isPending}
-                          onConfirm={() => {
-                            setNotice(null);
-                            remove.mutate(category.id);
-                          }}
-                        />
+                        {/* Deleting a category stays admin-only. */}
+                        {user?.is_admin && (
+                          <ConfirmButton
+                            label={t("common.delete")}
+                            confirmLabel={t("common.delete")}
+                            pending={remove.isPending}
+                            onConfirm={() => {
+                              setNotice(null);
+                              remove.mutate(category.id);
+                            }}
+                          />
+                        )}
                       </span>
                     </td>
                   </tr>

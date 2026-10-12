@@ -46,10 +46,10 @@ async fn list(
     Ok(Json(categories))
 }
 
-/// FR-9: create a category.
+/// FR-9: create a category. Any signed-in user may add one.
 async fn create(
     State(state): State<AppState>,
-    AdminUser(admin): AdminUser,
+    CurrentUser(user): CurrentUser,
     Json(body): Json<CategoryBody>,
 ) -> ApiResult<(StatusCode, Json<Category>)> {
     let name = body.name.trim().to_string();
@@ -76,8 +76,8 @@ async fn create(
 
     audit_now(
         &state.pool,
-        Some(admin.id),
-        &admin.username,
+        Some(user.id),
+        &user.username,
         Audit {
             action: "category.create",
             target_type: "category",
@@ -91,10 +91,10 @@ async fn create(
     Ok((StatusCode::CREATED, Json(category)))
 }
 
-/// FR-9: rename a category.
+/// FR-9: rename a category. Any signed-in user may edit one.
 async fn update(
     State(state): State<AppState>,
-    AdminUser(admin): AdminUser,
+    CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
     Json(body): Json<CategoryBody>,
 ) -> ApiResult<StatusCode> {
@@ -136,8 +136,8 @@ async fn update(
     }
     audit_now(
         &state.pool,
-        Some(admin.id),
-        &admin.username,
+        Some(user.id),
+        &user.username,
         Audit {
             action: "category.update",
             target_type: "category",

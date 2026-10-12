@@ -131,18 +131,12 @@ export function Layout() {
             </NavLink>
             <NavLink to="/templates/drafts">{t("nav.drafts")}</NavLink>
             <NavLink to="/templates/bookmarks">{t("nav.bookmarks")}</NavLink>
-            {user?.is_admin && (
-              <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>
-            )}
+            <NavLink to="/templates/categories">{t("nav.categories")}</NavLink>
 
-            {user?.is_admin && (
-              <>
-                <hr className="side-sep" />
-                <NavLink to="/admin/users">{t("nav.users")}</NavLink>
-                <NavLink to="/admin/analytics">{t("nav.analytics")}</NavLink>
-                <NavLink to="/admin/logs">{t("nav.logs")}</NavLink>
-              </>
-            )}
+            <hr className="side-sep" />
+            <NavLink to="/admin/analytics">{t("nav.analytics")}</NavLink>
+            <NavLink to="/admin/logs">{t("nav.logs")}</NavLink>
+            {user?.is_admin && <NavLink to="/admin/users">{t("nav.users")}</NavLink>}
           </nav>
           {user && (
             <UserMenu

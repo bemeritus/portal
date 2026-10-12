@@ -9,7 +9,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
 
-use crate::auth::AdminUser;
+use crate::auth::CurrentUser;
 use crate::db::AppState;
 use crate::error::{internal, ApiResult};
 use crate::models::AuditEntry;
@@ -34,11 +34,10 @@ pub struct AuditParams {
     limit: Option<i64>,
 }
 
-/// The newest entries first, admin only (SR-11): the log names who did what to
-/// accounts a non-admin cannot otherwise see.
+/// The newest entries first. Read-only, and open to any signed-in user.
 async fn list(
     State(state): State<AppState>,
-    AdminUser(_): AdminUser,
+    CurrentUser(_): CurrentUser,
     Query(params): Query<AuditParams>,
 ) -> ApiResult<Json<Vec<AuditEntry>>> {
     let limit = params

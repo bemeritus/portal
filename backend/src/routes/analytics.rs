@@ -1,16 +1,14 @@
-//! `/api/analytics` — the admin's read-only view of how the knowledge base is
-//! actually used (§5.6 neighbourhood): what gets read, and which searches come
-//! up empty.
+//! `/api/analytics` — a read-only view of how the knowledge base is actually
+//! used (§5.6 neighbourhood): what gets read, and which searches come up empty.
 //!
-//! Admin only, like the audit log: it aggregates across every category,
-//! including ones a given admin was never granted, so the guard is the role
-//! rather than a per-category check.
+//! Open to any signed-in user; it only aggregates reads and empty searches,
+//! nothing account-sensitive.
 
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use crate::auth::AdminUser;
+use crate::auth::CurrentUser;
 use crate::db::AppState;
 use crate::error::{internal, ApiResult};
 use crate::models::{AnalyticsOverview, PopularDoc, SearchMiss};
@@ -26,7 +24,7 @@ pub fn routes() -> Router<AppState> {
 
 async fn overview(
     State(state): State<AppState>,
-    AdminUser(_admin): AdminUser,
+    CurrentUser(_user): CurrentUser,
 ) -> ApiResult<Json<AnalyticsOverview>> {
     // These figures are independent aggregations over different tables, so they
     // go out together rather than one after the other. The page is admin-only
