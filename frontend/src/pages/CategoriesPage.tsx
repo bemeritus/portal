@@ -1,5 +1,5 @@
 /**
- * `/templates/categories` — admin category management (FR-9, FR-24).
+ * `/templates/categories` — category management (FR-9, FR-24).
  *
  * Deleting is refused by the server while documents still reference the
  * category; the grants on it cascade away. Both outcomes come back as the
@@ -10,6 +10,18 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
@@ -91,33 +103,35 @@ export function CategoriesPage() {
     <>
       <h1>{t("categories.heading")}</h1>
 
-      <div className="panel">
-        <h3 style={{ marginTop: 0 }}>{t("categories.newCategory")}</h3>
-        <form onSubmit={onCreate}>
-          <div className="row">
-            <div>
-              <label htmlFor="cat-name">{t("categories.name")}</label>
-              <input
-                id="cat-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="grow-0">
-              <button className="btn" type="submit" disabled={create.isPending || !name.trim()}>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("categories.newCategory")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onCreate}>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-48 flex-1 space-y-1.5">
+                <Label htmlFor="cat-name">{t("categories.name")}</Label>
+                <Input
+                  id="cat-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={create.isPending || !name.trim()}>
                 {create.isPending ? t("common.adding") : t("common.add")}
-              </button>
+              </Button>
             </div>
-          </div>
-          <ErrorFlash error={createError} />
-        </form>
-      </div>
+            <ErrorFlash error={createError} />
+          </form>
+        </CardContent>
+      </Card>
 
       {notice && <Flash kind="ok">{notice}</Flash>}
       <ErrorFlash error={rowError} />
 
-      <h3 style={{ marginTop: 28 }}>{t("categories.allHeading")}</h3>
+      <h3 className="mt-7 mb-3">{t("categories.allHeading")}</h3>
 
       {list.isPending ? (
         <Spinner />
@@ -125,93 +139,94 @@ export function CategoriesPage() {
         <ErrorFlash error={errorMessage(list.error)} />
       ) : list.data.length === 0 ? (
         <Empty title={t("categories.noneTitle")}>
-          <p className="muted">{t("categories.noneBody")}</p>
+          <p>{t("categories.noneBody")}</p>
         </Empty>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("categories.thName")}</th>
-                <th>{t("categories.thSlug")}</th>
-                <th>{t("categories.thCreated")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.map((category) =>
-                editing?.id === category.id ? (
-                  <tr key={category.id}>
-                    <td>
-                      <input
-                        type="text"
-                        value={editing.name}
-                        aria-label={t("categories.nameAria")}
-                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                      />
-                    </td>
-                    <td className="muted">{category.slug}</td>
-                    <td className="muted">{formatDate(category.created_at)}</td>
-                    <td>
-                      <span className="actions">
-                        <button
-                          className="btn small"
-                          type="button"
-                          disabled={update.isPending || !editing.name.trim()}
-                          onClick={() => update.mutate(editing)}
-                        >
-                          {t("common.save")}
-                        </button>
-                        <button
-                          className="btn small secondary"
-                          type="button"
-                          onClick={() => setEditing(null)}
-                        >
-                          {t("common.cancel")}
-                        </button>
-                      </span>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={category.id}>
-                    <td>{category.name}</td>
-                    <td className="muted">
-                      <code>{category.slug}</code>
-                    </td>
-                    <td className="muted">{formatDate(category.created_at)}</td>
-                    <td>
-                      <span className="actions">
-                        <button
-                          className="btn small secondary"
-                          type="button"
-                          onClick={() => {
-                            setRowError(null);
+        <Table className="min-w-160">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("categories.thName")}</TableHead>
+              <TableHead>{t("categories.thSlug")}</TableHead>
+              <TableHead>{t("categories.thCreated")}</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.data.map((category) =>
+              editing?.id === category.id ? (
+                <TableRow key={category.id}>
+                  <TableCell>
+                    <Input
+                      type="text"
+                      value={editing.name}
+                      aria-label={t("categories.nameAria")}
+                      onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                    />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{category.slug}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(category.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        type="button"
+                        disabled={update.isPending || !editing.name.trim()}
+                        onClick={() => update.mutate(editing)}
+                      >
+                        {t("common.save")}
+                      </Button>
+                      <Button size="sm" variant="outline" type="button" onClick={() => setEditing(null)}>
+                        {t("common.cancel")}
+                      </Button>
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <TableRow key={category.id}>
+                  <TableCell>{category.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    <code className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-xs">
+                      {category.slug}
+                    </code>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(category.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          setRowError(null);
+                          setNotice(null);
+                          setEditing(category);
+                        }}
+                      >
+                        {t("common.rename")}
+                      </Button>
+                      {/* Deleting a category stays admin-only. */}
+                      {user?.is_admin && (
+                        <ConfirmButton
+                          label={t("common.delete")}
+                          confirmLabel={t("common.delete")}
+                          pending={remove.isPending}
+                          onConfirm={() => {
                             setNotice(null);
-                            setEditing(category);
+                            remove.mutate(category.id);
                           }}
-                        >
-                          {t("common.rename")}
-                        </button>
-                        {/* Deleting a category stays admin-only. */}
-                        {user?.is_admin && (
-                          <ConfirmButton
-                            label={t("common.delete")}
-                            confirmLabel={t("common.delete")}
-                            pending={remove.isPending}
-                            onConfirm={() => {
-                              setNotice(null);
-                              remove.mutate(category.id);
-                            }}
-                          />
-                        )}
-                      </span>
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
+                        />
+                      )}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ),
+            )}
+          </TableBody>
+        </Table>
       )}
     </>
   );

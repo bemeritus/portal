@@ -25,7 +25,7 @@ export function formatUtc(iso: string): string {
 }
 
 /**
- * The `cat-N` class (N in 1…6) that gives a category its badge colour.
+ * The `badge-cat-N` class (N in 1…6) that gives a category its badge colour.
  *
  * Derived from the id so a category keeps the same hue on every page and
  * across reloads — no colour is stored server-side. The sum of the id's
@@ -35,5 +35,5 @@ export function formatUtc(iso: string): string {
 export function categoryTagClass(id: string): string {
   let sum = 0;
   for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i);
-  return `cat-${(sum % 6) + 1}`;
+  return `badge-cat-${(sum % 6) + 1}`;
 }

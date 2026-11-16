@@ -16,6 +16,8 @@ export const ru = {
       toggleSections: "Показать разделы",
       sections: "Разделы",
       newDocument: "Новый документ",
+      admin: "Администрирование",
+      search: "Поиск",
     },
 
     menu: {
@@ -258,6 +260,9 @@ export const ru = {
       link: "Ссылка",
       linkText: "текст",
       preview: "Предпросмотр",
+      write: "Текст",
+      expand: "Развернуть",
+      collapse: "Свернуть",
       exitPreview: "Выйти из предпросмотра",
       previewEmpty: "Пока нечего показать.",
       qaBlocks: "Блоки вопрос–ответ",

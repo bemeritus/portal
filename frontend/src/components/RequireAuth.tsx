@@ -22,7 +22,7 @@ export function RequireAuth() {
   // signed-in user to the login page on every hard refresh.
   if (loading) {
     return (
-      <div className="container">
+      <div className="mx-auto max-w-[1200px] px-6 py-6">
         <Spinner />
       </div>
     );
@@ -46,7 +46,7 @@ export function RequireAdmin() {
     return (
       <>
         <h1>{t("authz.notAllowed")}</h1>
-        <p className="muted">{t("authz.adminsOnly")}</p>
+        <p className="text-muted-foreground">{t("authz.adminsOnly")}</p>
       </>
     );
   }

@@ -12,6 +12,19 @@ import { Link } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { errorMessage } from "../api/client";
 import { audit as auditApi } from "../api/endpoints";
 import { ErrorFlash } from "../components/Flash";
@@ -29,15 +42,14 @@ const TYPING_PAUSE_MS = 250;
  * The colour class for an action tag, from its verb — the part after the dot.
  * Deletions are what an audit reader scans for first, so they get the danger
  * ink; creations read as calm green; permission grants as amber. Everything
- * else (updates, logins) stays neutral. Returns "" for the neutral case so the
- * base `.log-action` styling stands alone.
+ * else (updates, logins) stays neutral.
  */
-function actionKind(action: string): string {
+function actionColor(action: string): string {
   const verb = action.slice(action.lastIndexOf(".") + 1);
-  if (verb === "delete") return "delete";
-  if (verb === "create") return "create";
-  if (verb.startsWith("permission")) return "perm";
-  return "";
+  if (verb === "delete") return "text-destructive";
+  if (verb === "create") return "text-success";
+  if (verb.startsWith("permission")) return "text-tag-3";
+  return "text-foreground";
 }
 
 const KINDS = [
@@ -87,13 +99,13 @@ export function AuditLogPage() {
   return (
     <>
       <h1>{t("log.heading")}</h1>
-      <p className="muted">{t("log.intro")}</p>
+      <p className="text-muted-foreground">{t("log.intro")}</p>
 
-      <div className="panel" style={{ margin: "16px 0" }}>
-        <div className="row">
-          <div>
-            <label htmlFor="log-search">{t("log.search")}</label>
-            <input
+      <Card className="my-4">
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="min-w-48 flex-1 space-y-1.5">
+            <Label htmlFor="log-search">{t("log.search")}</Label>
+            <Input
               id="log-search"
               type="search"
               placeholder={t("log.searchPlaceholder")}
@@ -101,8 +113,8 @@ export function AuditLogPage() {
               onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
-          <div>
-            <label htmlFor="log-kind">{t("log.kind")}</label>
+          <div className="min-w-48 flex-1 space-y-1.5">
+            <Label htmlFor="log-kind">{t("log.kind")}</Label>
             <Select
               id="log-kind"
               ariaLabel={t("log.kind")}
@@ -111,8 +123,8 @@ export function AuditLogPage() {
               options={KINDS.map((k) => ({ value: k.value, label: t(k.key) }))}
             />
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <ErrorFlash error={error ? errorMessage(error) : null} />
 
@@ -120,59 +132,73 @@ export function AuditLogPage() {
         <Spinner />
       ) : entries.length === 0 ? (
         <Empty title={t("log.nothingTitle")}>
-          <p className="muted">{kind || search ? t("log.noMatch") : t("log.willAppear")}</p>
+          <p>{kind || search ? t("log.noMatch") : t("log.willAppear")}</p>
         </Empty>
       ) : (
         <>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("log.thWhen")}</th>
-                  <th>{t("log.thWho")}</th>
-                  <th>{t("log.thAction")}</th>
-                  <th>{t("log.thTarget")}</th>
-                  <th className="wrap">{t("log.thDetails")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="muted">{formatUtc(entry.at)}</td>
-                    <td>{entry.actor_name}</td>
-                    <td>
-                      <span className={`log-action ${actionKind(entry.action)}`}>{entry.action}</span>
-                    </td>
-                    <td>
-                      {/* A deleted document has nowhere to link to — that URL
-                          could only 404. */}
-                      {entry.target_type === "document" &&
-                      entry.target_id &&
-                      entry.action !== "document.delete" ? (
-                        <Link to={`/templates/docs/${entry.target_id}`}>{entry.target_name}</Link>
-                      ) : (
-                        entry.target_name
+          <Table className="min-w-160">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("log.thWhen")}</TableHead>
+                <TableHead>{t("log.thWho")}</TableHead>
+                <TableHead>{t("log.thAction")}</TableHead>
+                <TableHead>{t("log.thTarget")}</TableHead>
+                <TableHead>{t("log.thDetails")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell className="text-muted-foreground">{formatUtc(entry.at)}</TableCell>
+                  <TableCell>{entry.actor_name}</TableCell>
+                  <TableCell>
+                    {/* Monospaced so 'document.update' and 'document.delete'
+                        are told apart by shape as well as by reading them. */}
+                    <span
+                      className={cn(
+                        "rounded-md bg-secondary px-1.5 py-0.5 font-mono text-xs whitespace-nowrap",
+                        actionColor(entry.action),
                       )}
-                    </td>
-                    <td className="wrap muted">{entry.details ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    >
+                      {entry.action}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {/* A deleted document has nowhere to link to — that URL
+                        could only 404. */}
+                    {entry.target_type === "document" &&
+                    entry.target_id &&
+                    entry.action !== "document.delete" ? (
+                      <Link
+                        className="text-link hover:underline"
+                        to={`/templates/docs/${entry.target_id}`}
+                      >
+                        {entry.target_name}
+                      </Link>
+                    ) : (
+                      entry.target_name
+                    )}
+                  </TableCell>
+                  <TableCell className="min-w-56 whitespace-normal text-muted-foreground">
+                    {entry.details ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
 
-          <div className="actions" style={{ marginTop: 16 }}>
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
             {canLoadMore && (
-              <button
-                className="btn secondary"
+              <Button
+                variant="outline"
                 type="button"
                 disabled={isFetching}
                 onClick={() => setLimit((l) => Math.min(l + PAGE, MAX))}
               >
                 {isFetching ? t("common.loading") : t("common.loadMore")}
-              </button>
+              </Button>
             )}
-            <span className="muted" style={{ fontSize: 13 }}>
+            <span className="text-[13px] text-muted-foreground">
               {t("log.entries", { count: entries.length })}
               {limit >= MAX && t("log.serverMax")}
             </span>

@@ -16,6 +16,8 @@ export const en = {
       toggleSections: "Toggle sections",
       sections: "Sections",
       newDocument: "New document",
+      admin: "Admin",
+      search: "Search",
     },
 
     menu: {
@@ -250,6 +252,9 @@ export const en = {
       link: "Link",
       linkText: "text",
       preview: "Preview",
+      write: "Write",
+      expand: "Expand",
+      collapse: "Collapse",
       exitPreview: "Exit preview",
       previewEmpty: "Nothing to preview yet.",
       qaBlocks: "Q&A blocks",

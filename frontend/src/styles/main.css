@@ -1,86 +1,31 @@
-/* Shape / motion tokens shared by every theme. The redesign rounds everything
-   off a step: cards to 16, buttons to 14, inputs to 12, and badges to a full
-   pill. These live here (not per-theme) because a corner radius is not a colour
-   — one set of shapes carries across dark, light and both gruvboxes alike. */
-:root {
-  --radius: 16px;        /* cards, panels, table shells */
-  --radius-sm: 12px;     /* inputs, selects, nav pills, flashes */
-  --radius-btn: 14px;    /* buttons */
-  --radius-pill: 9999px; /* badges / status chips */
-  --nav-h: 56px;
-  --fast: 0.18s ease;
-}
+/* Tailwind v4 + shadcn/ui theme layer.
+ *
+ * The four skins (dark, light, gruvbox, gruvbox-light) keep their carefully
+ * tuned palettes from the original stylesheet; each block below only defines
+ * raw palette variables. The `@theme inline` section then maps those onto the
+ * semantic tokens shadcn/ui components consume (background, card, primary…),
+ * so every component follows whichever theme `data-theme` on <html> selects.
+ */
 
-/* Dark (default — also what SSR renders before the client applies a stored choice). */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, [data-theme="gruvbox"], [data-theme="gruvbox"] *));
+
+/* Light (default) — shadcn's stock neutral/zinc look: a white page, near-black
+   primary, and a faintly grey sidebar, matching the official dashboard blocks. */
 :root,
-[data-theme="dark"] {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --panel-2: #1e222b;
-  --border: #2a2f3a;
-  --text: #e6e8ee;
-  --muted: #9aa3b2;
-  --accent: #5b8cff;
-  --accent-2: #3a67d6;
-  --danger: #e5484d;
-  --ok: #46a758;
-  --ring: rgba(91, 140, 255, 0.45);
-  --danger-soft: rgba(229, 72, 77, 0.12);
-  --ok-soft: rgba(70, 167, 88, 0.12);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
-  --row-alt: #1b1f27;
-  --hover: #222834;
-  --tag-1: #7aa2f7;
-  --tag-2: #9ece6a;
-  --tag-3: #e0af68;
-  --tag-4: #bb9af7;
-  --tag-5: #7dcfff;
-  --tag-6: #f7768e;
-
-  /* Redesign layer. Each new token defaults to one that already exists, so the
-     dark theme and the two gruvboxes — which never set these — resolve them
-     through their own palette and stay coherent. Only [data-theme="light"]
-     overrides them with the redesign's literal values. */
-  --surface-soft: var(--panel-2);      /* the F8FAFC "soft" background */
-  --nav-active-bg: var(--panel-2);     /* active rail item pill */
-  --nav-active-text: var(--text);
-  --btn-bg: var(--accent-2);           /* primary button rests here … */
-  --btn-bg-hover: var(--accent);       /* … and brightens to here on hover */
-  --btn-shadow: var(--shadow);
-  --badge-blue-bg: var(--panel-2);
-  --badge-blue-text: var(--accent);
-  --badge-gray-bg: var(--panel-2);
-  --badge-gray-text: var(--muted);
-  --badge-amber-bg: var(--panel-2);
-  --badge-amber-text: var(--tag-3);
-  --shadow-sm: var(--shadow);          /* resting card / button shadow */
-  --avatar-bg: var(--accent-2);
-  --menu-shadow: var(--shadow);
-}
-
-/* White — the redesign's home theme: a clean, airy, modern light system on a
-   genuinely white page. The palette is the spec's, to the hex. Body text
-   (#1E293B) clears ~13:1 on white; --muted (#94A3B8) is deliberately soft and
-   is used only for metadata, labels and separators, never for reading copy. */
 [data-theme="light"] {
   --bg: #ffffff;
   --panel: #ffffff;
-  --panel-2: #f8fafc;
-  --border: #e2e8f0;
-  --text: #1e293b;
-  --muted: #94a3b8;
-  --accent: #4f7cf7;
-  --accent-2: #3b6ae0;
-  --danger: #ef4444;
-  --ok: #15803d;
-  --ring: rgba(79, 124, 247, 0.25);
-  --danger-soft: rgba(239, 68, 68, 0.1);
-  --ok-soft: rgba(22, 163, 74, 0.12);
-  /* Soft, low-spread shadows — the redesign leans on whitespace and a hairline
-     border, with the shadow only hinting at elevation. */
-  --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.05);
-  --row-alt: #f8fafc;
-  --hover: #f1f5f9;
+  --panel-2: #f4f4f5;
+  --line: #e4e4e7;
+  --ink: #09090b;
+  --ink-muted: #71717a;
+  --brand: #18181b;
+  --bad: #dc2626;
+  --good: #16a34a;
+  --hover-bg: #f4f4f5;
   /* Darkened against the light surfaces: a tag is small text on a 14% tint of
      itself, so these are picked to clear 4.5:1 there, not on white. */
   --tag-1: #2b5fb8;
@@ -89,23 +34,38 @@
   --tag-4: #6b3fa0;
   --tag-5: #10627a;
   --tag-6: #a83246;
+  --btn-bg: #18181b;
+  --btn-fg: #fafafa;
+  --ring-c: #a1a1aa;
+  --sidebar-bg: #fafafa;
+  --sidebar-accent-bg: #f0f0f1;
+  --sidebar-line: #e4e4e7;
+}
 
-  /* Redesign layer — the spec's literal component colours. */
-  --surface-soft: #f8fafc;
-  --nav-active-bg: #eaf1fe;
-  --nav-active-text: #4f7cf7;
-  --btn-bg: #4f7cf7;
-  --btn-bg-hover: #3b6ae0;
-  --btn-shadow: 0 1px 2px rgba(79, 124, 247, 0.25), 0 4px 12px rgba(79, 124, 247, 0.18);
-  --badge-blue-bg: #eaf1fe;
-  --badge-blue-text: #4f7cf7;
-  --badge-gray-bg: #f1f5f9;
-  --badge-gray-text: #64748b;
-  --badge-amber-bg: #fdf3d7;
-  --badge-amber-text: #b7791f;
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --avatar-bg: #4f7cf7;
-  --menu-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+/* Dark — the same neutral system inverted (zinc). */
+[data-theme="dark"] {
+  --bg: #09090b;
+  --panel: #18181b;
+  --panel-2: #27272a;
+  --line: #27272a;
+  --ink: #fafafa;
+  --ink-muted: #a1a1aa;
+  --brand: #fafafa;
+  --bad: #ef4444;
+  --good: #4ade80;
+  --hover-bg: #27272a;
+  --tag-1: #7aa2f7;
+  --tag-2: #9ece6a;
+  --tag-3: #e0af68;
+  --tag-4: #bb9af7;
+  --tag-5: #7dcfff;
+  --tag-6: #f7768e;
+  --btn-bg: #fafafa;
+  --btn-fg: #18181b;
+  --ring-c: #71717a;
+  --sidebar-bg: #18181b;
+  --sidebar-accent-bg: #27272a;
+  --sidebar-line: #27272a;
 }
 
 /* Gruvbox — dark, warm retro palette. */
@@ -113,1258 +73,191 @@
   --bg: #282828;
   --panel: #32302f;
   --panel-2: #3c3836;
-  --border: #504945;
-  --text: #ebdbb2;
-  --muted: #a89984;
-  --accent: #83a598;
-  --accent-2: #458588;
-  --danger: #fb4934;
-  --ok: #b8bb26;
-  --ring: rgba(131, 165, 152, 0.45);
-  --danger-soft: rgba(251, 73, 52, 0.14);
-  --ok-soft: rgba(184, 187, 38, 0.14);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
-  --row-alt: #2e2c2b;
-  --hover: #3a3735;
-  /* Gruvbox's own bright accents, in the palette's order. */
+  --line: #504945;
+  --ink: #ebdbb2;
+  --ink-muted: #a89984;
+  --brand: #83a598;
+  --brand-2: #458588;
+  --bad: #fb4934;
+  --good: #b8bb26;
+  --hover-bg: #3a3735;
   --tag-1: #83a598;
   --tag-2: #b8bb26;
   --tag-3: #fabd2f;
   --tag-4: #d3869b;
   --tag-5: #8ec07c;
   --tag-6: #fe8019;
+  --btn-bg: #ebdbb2;
+  --btn-fg: #282828;
+  --ring-c: #a89984;
+  --sidebar-bg: #32302f;
+  --sidebar-accent-bg: #3c3836;
+  --sidebar-line: #504945;
 }
 
-/* Gruvbox — the light side of the same palette, on its *soft* background.
-   Gruvbox ships bg0_h / bg0 / bg0_s precisely so the page can be turned down;
-   this uses the dimmest of the three and steps the panels down with it. */
+/* Gruvbox — the light side of the same palette, on its soft background. */
 [data-theme="gruvbox-light"] {
-  --bg: #f2e5bc;        /* bg0_s */
-  --panel: #ebdbb2;     /* bg1 */
-  --panel-2: #e0d1a8;   /* between bg1 and bg2 — inputs stay legible */
-  --border: #c4b491;
-  --text: #3c3836;      /* fg1 */
-  --muted: #665c54;     /* fg3 — one step darker, for the dimmer surface */
-  /* Blue carries the links and focus ring because on this cream background the
-     faded aqua lands at 4.4:1 — under the 4.5:1 needed for body text. Aqua
-     still shows up as the button fill, where it sits under white at 5:1. */
-  --accent: #076678;    /* blue, faded */
-  --accent-2: #427b58;  /* aqua, faded */
-  --danger: #9d0006;
-  /* Gruvbox's faded green (#79740e) only reaches 3.6:1 on these warm surfaces,
-     so the "published" badge gets a darkened version of it. */
-  --ok: #5f5a0a;
-  --ring: rgba(7, 102, 120, 0.35);
-  --danger-soft: rgba(157, 0, 6, 0.1);
-  --ok-soft: rgba(95, 90, 10, 0.12);
-  --shadow: 0 1px 2px rgba(60, 56, 54, 0.08), 0 8px 24px rgba(60, 56, 54, 0.1);
-  --row-alt: #ecdfb6;
-  --hover: #e3d4a8;
-  /* The *faded* half of gruvbox, which is what the light side is built from —
-     the bright accents above are unreadable on cream. */
+  --bg: #f2e5bc;
+  --panel: #ebdbb2;
+  --panel-2: #e0d1a8;
+  --line: #c4b491;
+  --ink: #3c3836;
+  --ink-muted: #665c54;
+  --brand: #076678;
+  --brand-2: #427b58;
+  --bad: #9d0006;
+  --good: #5f5a0a;
+  --hover-bg: #e3d4a8;
+  /* The *faded* half of gruvbox — the bright accents are unreadable on cream. */
   --tag-1: #076678;
   --tag-2: #79740e;
   --tag-3: #b57614;
   --tag-4: #8f3f71;
   --tag-5: #427b58;
   --tag-6: #af3a03;
+  --btn-bg: #3c3836;
+  --btn-fg: #f2e5bc;
+  --ring-c: #665c54;
+  --sidebar-bg: #ebdbb2;
+  --sidebar-accent-bg: #e0d1a8;
+  --sidebar-line: #c4b491;
 }
 
-* { box-sizing: border-box; }
-
-html { scroll-behavior: smooth; }
-
-body {
-  margin: 0;
-  /* Manrope: a rounded, modern sans, self-hosted (see main.tsx) so it needs no
-     network. The system stack stays behind it for the moment before the
-     variable file is parsed and for anywhere it fails to load. */
-  font-family: "Manrope Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  transition: background 0.2s ease, color 0.2s ease;
-  /* Long words / URLs must never push the layout sideways on a phone. */
-  overflow-wrap: break-word;
+:root {
+  --radius: 0.625rem;
 }
 
-/* Headings carry the weight in a system this quiet — large and bold, with the
-   optical tightening a display size wants. */
-h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 12px; }
-h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-h3 { font-size: 17px; font-weight: 700; }
+@theme inline {
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--panel);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--panel);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--btn-bg);
+  --color-primary-foreground: var(--btn-fg);
+  --color-secondary: var(--panel-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--panel-2);
+  --color-muted-foreground: var(--ink-muted);
+  --color-accent: var(--hover-bg);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--bad);
+  --color-destructive-foreground: #ffffff;
+  --color-success: var(--good);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--ring-c);
+  --color-link: var(--brand);
 
-/* One visible focus treatment everywhere — keyboard users can always see
-   where they are, mouse users never get a stray ring. */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-foreground: var(--ink);
+  --color-sidebar-primary: var(--btn-bg);
+  --color-sidebar-primary-foreground: var(--btn-fg);
+  --color-sidebar-accent: var(--sidebar-accent-bg);
+  --color-sidebar-accent-foreground: var(--ink);
+  --color-sidebar-border: var(--sidebar-line);
+  --color-sidebar-ring: var(--ring-c);
+
+  --color-tag-1: var(--tag-1);
+  --color-tag-2: var(--tag-2);
+  --color-tag-3: var(--tag-3);
+  --color-tag-4: var(--tag-4);
+  --color-tag-5: var(--tag-5);
+  --color-tag-6: var(--tag-6);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* 960px was set when the page had no rail beside it. With the 208px sidebar
-   taking its share, the reading column ended up left of centre and the wide
-   tables (the log's Details column worst of all) were squeezed into a fraction
-   of the window. This is wide enough for a five-column table to breathe and
-   still short enough that prose does not run past a comfortable line length. */
-.container { max-width: 1200px; margin-inline: auto; padding: 24px 24px 64px; }
-
-/* Section rail beside the page body. `min-width: 0` on the content column so a
-   wide table scrolls itself instead of stretching the row. */
-.layout { display: flex; align-items: flex-start; }
-.layout > .container { flex: 1 1 auto; min-width: 0; }
-
-/* ---------------------------------------------------------------- Navbar */
-
-.navbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: var(--nav-h);
-  padding: 8px 20px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
-.navbar .brand { font-weight: 700; font-size: 18px; color: var(--text); white-space: nowrap; }
-.navbar .brand:hover { text-decoration: none; opacity: 0.85; }
-.navbar .spacer { flex: 1; }
-.navbar .who { color: var(--muted); font-size: 14px; white-space: nowrap; }
-
-/* Links that stayed in the bar rather than moving to the rail. */
-.navbar .nav-link {
-  color: var(--muted);
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-  transition: color var(--fast), background var(--fast);
-}
-.navbar .nav-link:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
-.navbar .nav-link[aria-current="page"] { color: var(--nav-active-text); background: var(--nav-active-bg); font-weight: 700; }
-
-.nav-tools { display: flex; align-items: center; gap: 10px; }
-
-
-/* Divider between a section's rail links and the cross-section admin group. */
-.side-sep { border: 0; border-top: 1px solid var(--border); margin: 10px 4px; }
-
-/* --------------------------------------------------------------- Sidebar */
-
-/* Sticks under the top bar and scrolls on its own once the list outgrows the
-   viewport, so the sections stay put while the page body moves. */
-.sidebar {
-  position: sticky;
-  top: var(--nav-h);
-  display: flex;
-  flex-direction: column;
-  /* 208px left the account card at the foot too tight — a 40px avatar, the
-     name/role and a chevron do not fit a ~80px text column without cramping.
-     A wider rail matches the airier redesign and gives the card room. */
-  flex: 0 0 248px;
-  /* Exactly the height left under the bar: the rail stays pinned and scrolls
-     inside itself once the sections outgrow it, instead of leaving the page. */
-  height: calc(100vh - var(--nav-h));
-  overflow-y: auto;
-  padding: 16px;
-  background: var(--panel);
-  border-right: 1px solid var(--border);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    line-height: 1.5;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    /* Long words / URLs must never push the layout sideways on a phone. */
+    overflow-wrap: break-word;
+  }
+  /* Headings carry the weight in a system this quiet — large and bold, with
+     the optical tightening a display size wants. */
+  h1 {
+    @apply mb-3 text-3xl leading-tight font-extrabold tracking-tight;
+  }
+  h2 {
+    @apply text-[22px] font-bold tracking-tight;
+  }
+  h3 {
+    @apply text-[17px] font-bold;
+  }
 }
 
-.side-links { display: flex; flex-direction: column; gap: 2px; }
-.side-links a {
-  color: var(--muted);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  transition: color var(--fast), background var(--fast);
+/* ------------------------------------------------- Server-rendered answers
+ * Q&A answers arrive as HTML the server already rendered and sanitized, so
+ * Tailwind classes cannot reach inside them; this block styles that markup. */
+.answer-prose {
+  color: var(--ink);
 }
-.side-links a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
-/* The current section is called out so you always know where you are — a soft
-   blue pill with blue, bolder text, the redesign's active-state signature. */
-.side-links a[aria-current="page"] {
-  color: var(--nav-active-text);
-  background: var(--nav-active-bg);
+.answer-prose > :first-child { margin-top: 0; }
+.answer-prose > :last-child { margin-bottom: 0; }
+.answer-prose p { margin: 0.75em 0; }
+.answer-prose h1, .answer-prose h2, .answer-prose h3, .answer-prose h4 {
   font-weight: 700;
+  margin: 1.2em 0 0.5em;
+  line-height: 1.25;
 }
-.side-links a[aria-current="page"]:hover { color: var(--nav-active-text); background: var(--nav-active-bg); }
-
-/* The account lives at the foot of the rail: an avatar, who you are, and a
-   chevron that opens the menu (theme, log out) upward over the sections. */
-.side-foot { margin-top: auto; padding-top: 12px; position: relative; }
-
-/* The resting card is a button so the whole row is one keyboard/tap target —
-   drawn as its own bordered card at the foot of the rail, matching the design. */
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--fast), border-color var(--fast), box-shadow var(--fast);
-}
-.user-card:hover { background: var(--surface-soft); box-shadow: var(--shadow-sm); }
-.user-card[aria-expanded="true"] { background: var(--surface-soft); }
-
-/* Initials in a filled circle — no image to load, and it colours itself from
-   the accent so it belongs to whatever theme is on. */
-.avatar {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-pill);
-  background: var(--avatar-bg);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-.who-block { flex: 1 1 auto; min-width: 0; line-height: 1.3; }
-/* Block, not the inline default: otherwise the name and role run together on
-   one line ("adminAdmin") and the ellipsis on the name — which needs a block to
-   act on — does nothing. Stacked, the name truncates and the role sits under it. */
-.who-name { display: block; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-card .chevron { flex: 0 0 auto; color: var(--muted); display: inline-flex; }
-
-/* The menu — a floating white card that opens upward from the account row.
-   left/right:0 pins it to the same edges as the card below (both fill the
-   rail's padded content box), so the two align to the pixel and read as one
-   connected element; a 6px gap sits it just above the card. */
-.user-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% - 6px);
-  z-index: 40;
-  padding: 8px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--menu-shadow);
-}
-
-/* The header repeats the account as a row you can press to reach the profile;
-   its chevron points onward (right) rather than up. */
-.menu-profile {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 8px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--fast);
-}
-.menu-profile:hover { background: var(--surface-soft); }
-.menu-profile .menu-arrow { flex: 0 0 auto; color: var(--muted); display: inline-flex; }
-
-.menu-sep { height: 1px; margin: 8px 4px; background: var(--border); border: none; }
-
-/* Every row shares one shape so the list reads as one thing. Icons are thin
-   line glyphs (inline SVG, stroke currentColor) that stay quiet and grey and
-   follow the theme. `label.menu-item` wraps the toggle so its whole row is one
-   target — hence the margin reset off the global label rule. */
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  margin: 0;
-  padding: 10px 8px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 15px;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--fast), color var(--fast);
-}
-.menu-item:hover { background: var(--surface-soft); text-decoration: none; color: var(--text); }
-.menu-item .menu-icon { flex: 0 0 auto; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
-.menu-item .menu-icon svg { width: 20px; height: 20px; }
-.menu-item .menu-label { flex: 1 1 auto; }
-.menu-item .menu-value { color: var(--muted); font-size: 14px; }
-.menu-item.danger { color: var(--danger); }
-.menu-item.danger:hover { background: var(--danger-soft); color: var(--danger); }
-.menu-item.danger .menu-icon { color: var(--danger); }
-.menu-item:disabled { opacity: 0.55; cursor: not-allowed; }
-/* A row that only shows a value (Language) — present, but not a control. */
-.menu-item.static { cursor: default; }
-.menu-item.static:hover { background: transparent; }
-
-/* The dark-mode row carries a switch instead of a value. The checkbox is the
-   real control, drawn as track + knob; :checked slides the knob and turns the
-   track accent. It stays a native checkbox underneath for keyboard and a11y. */
-.switch { position: relative; flex: 0 0 auto; width: 44px; height: 24px; }
-.switch input {
-  position: absolute; inset: 0; margin: 0; width: 100%; height: 100%;
-  opacity: 0; cursor: pointer;
-}
-.switch .track {
-  display: block; width: 44px; height: 24px; border-radius: var(--radius-pill);
-  background: var(--border); transition: background var(--fast);
-}
-.switch .knob {
-  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
-  border-radius: var(--radius-pill); background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
-  transition: transform var(--fast);
-}
-.switch input:checked ~ .track { background: var(--accent); }
-.switch input:checked ~ .knob { transform: translateX(20px); }
-.switch input:focus-visible ~ .track { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* The Language row is a custom dropdown so its open list is themed like the
-   app's own menus, not the OS's native select popup. The row reuses `.menu-item`
-   for its trigger; the value + caret sit muted on the right like the design's
-   "Language · English". */
-.lang-select { position: relative; }
-.lang-select .lang-current {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  flex: 0 0 auto;
-  color: var(--muted);
-  font-size: 14px;
-}
-.lang-select .menu-item:hover .lang-current { color: var(--text); }
-.lang-select .lang-caret { display: inline-flex; color: var(--muted); }
-
-/* The open list: same panel, border, radius and shadow as `.user-menu`, so it
-   reads as one of the platform's menus. It opens above the row (the account
-   menu itself sits at the bottom of the viewport) and right-aligns to the value. */
-.lang-list {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 4px);
-  z-index: 50;
-  min-width: 160px;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--menu-shadow);
-}
-.lang-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  margin: 0;
-  padding: 8px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--fast), color var(--fast);
-}
-.lang-option:hover { background: var(--surface-soft); }
-.lang-option .lang-option-label { flex: 1 1 auto; }
-.lang-option .lang-check { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
-.lang-option.selected { color: var(--accent); }
-.lang-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* Floating action button: the primary "create" action, always in reach at the
-   bottom-right. It repeats the New shortcut for anyone who can write. */
-.fab {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 30;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-pill);
-  border: none;
-  background: var(--btn-bg);
-  color: #fff;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: var(--btn-shadow), 0 8px 24px rgba(15, 23, 42, 0.18);
-  transition: background var(--fast), transform var(--fast), box-shadow var(--fast);
-}
-.fab:hover { background: var(--btn-bg-hover); transform: translateY(-2px); text-decoration: none; color: #fff; }
-.fab:active { transform: none; }
-
-/* Hamburger: hidden on desktop, revealed by the media query below. */
-.nav-toggle {
-  display: none;
-  padding: 6px 10px;
-  font-size: 16px;
-  line-height: 1;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-/* ------------------------------------------------------- Cards / panels */
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
-}
-.card {
-  display: block;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  margin-bottom: 14px;
-  color: inherit;
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
-}
-.card:hover {
-  border-color: var(--accent);
-  text-decoration: none;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
-}
-.card:active { transform: none; }
-.card h3 { margin: 0 0 6px; color: var(--text); }
-.card:hover h3 { color: var(--accent); }
-.card .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-
-/* ----------------------------------------------------------------- Forms */
-
-label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 14px; }
-.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
-
-input[type=text], input[type=password], input[type=search], input[type=file],
-input[type=date], input[type=number], select, textarea {
-  width: 100%;
-  padding: 10px 12px;
+.answer-prose h1 { font-size: 1.4em; }
+.answer-prose h2 { font-size: 1.25em; }
+.answer-prose h3 { font-size: 1.1em; }
+.answer-prose a { color: var(--brand); text-decoration: none; }
+.answer-prose a:hover { text-decoration: underline; }
+.answer-prose ul, .answer-prose ol { padding-left: 1.5em; margin: 0.75em 0; }
+.answer-prose ul { list-style: disc; }
+.answer-prose ol { list-style: decimal; }
+.answer-prose li { margin: 0.25em 0; }
+.answer-prose img { max-width: 100%; border-radius: var(--radius-md); }
+.answer-prose code {
   background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font: inherit;
-  transition: border-color var(--fast), box-shadow var(--fast);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.85em;
 }
-/* One height for every single-line control. An <input> lays its text out with
-   the inherited line-height (1.5 → 24px of content), while a <select> uses the
-   browser's own metrics and ignores it — so the two come out ~5px apart and a
-   row of them can align its fields at the bottom or its labels at the top, but
-   never both. 46px is what the input already computes to (24 + 2×10 padding +
-   2×1 border), so this pins the select to the input rather than moving either. */
-input[type=text], input[type=password], input[type=search],
-input[type=date], input[type=number], select {
-  height: 46px;
-}
-input::placeholder, textarea::placeholder { color: var(--muted); opacity: 0.8; }
-
-/* Checkboxes are drawn by the browser, and its default blue-on-white is the
-   one thing on a dark page that still looks like a 2005 form. `accent-color`
-   re-tints the native control, which keeps the platform's own focus and
-   keyboard behaviour instead of rebuilding it out of divs. */
-input[type=checkbox], input[type=radio] {
-  accent-color: var(--accent);
-  width: auto;
-  cursor: pointer;
-}
-
-/* A native <select> paints its own background and arrow from the OS theme,
-   which on a dark page is a light-grey slab. Turning the appearance off and
-   drawing the arrow as a background image is what brings it into the palette.
-   The arrow is an inline SVG whose stroke is `currentColor`, so it follows
-   --text through all four themes without a second asset per theme. */
-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 12px 8px;
-  /* Room for the arrow so a long option label never runs under it. */
-  padding-right: 34px;
-  cursor: pointer;
-}
-textarea { min-height: 120px; resize: none; overflow: hidden; }
-/* Markdown answer editor: taller box with an internal scrollbar. */
-.md-editor {
-  min-height: 320px;
-  max-height: 60vh;
-  resize: vertical;
-  overflow-y: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 14px;
-}
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--ring);
-}
-/* The generic ring above already marks focus on fields — don't double it. */
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; }
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 18px;
-  border-radius: var(--radius-btn);
-  border: 1px solid var(--btn-bg);
-  background: var(--btn-bg);
-  color: white;
-  font: inherit;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: var(--btn-shadow);
-  transition: background var(--fast), border-color var(--fast), color var(--fast), box-shadow var(--fast), transform var(--fast), opacity var(--fast);
-}
-.btn:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); text-decoration: none; color: white; }
-.btn:active { transform: translateY(1px); }
-/* Only the filled primary carries the coloured lift. The outline variants below
-   sit flat — a shadow under a transparent button reads as a stray blue glow. */
-.btn.secondary, .btn.danger, .btn.success { box-shadow: none; }
-.btn.danger.armed { box-shadow: var(--shadow-sm); }
-.btn.secondary { background: transparent; color: var(--text); border-color: var(--border); }
-.btn.secondary:hover { background: var(--panel-2); color: var(--text); border-color: var(--accent-2); }
-/* Destructive actions rest quiet and only turn red under the cursor.
-   Delete and Block were the loudest things in every table — a red outline on
-   each row of a list you are only reading, pulling the eye toward the one
-   action you least want taken by accident. Neutral until you reach for it
-   inverts that, and the red still arrives before the click does. */
-.btn.danger { background: transparent; color: var(--muted); border-color: var(--border); }
-.btn.danger:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
-
-/* The armed half of a ConfirmButton, and only that. Once you have said
-   "Delete" and been asked again, the button that actually does it should look
-   like what it is — this is the one place loud red is the honest choice. */
-.btn.danger.armed {
-  background: var(--danger);
-  color: white;
-  border-color: var(--danger);
-}
-.btn.danger.armed:hover { background: var(--danger); color: white; border-color: var(--danger); }
-
-/* Positive actions: re-enabling a blocked account is something you want to
-   find, so it reads as an action rather than as another grey control. */
-.btn.success { background: transparent; color: var(--ok); border-color: var(--ok); }
-.btn.success:hover { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
-.btn.small { padding: 5px 10px; font-size: 13px; }
-/* Square buttons for single-glyph controls (block reordering). */
-.btn.icon { padding: 5px 9px; font-size: 13px; min-width: 30px; }
-/* Disabled must look disabled, not just ignore clicks. */
-.btn:disabled, .btn[disabled] { opacity: 0.55; cursor: not-allowed; transform: none; }
-.btn:disabled:hover, .btn[disabled]:hover { background: var(--btn-bg); border-color: var(--btn-bg); }
-.btn.secondary:disabled:hover { background: transparent; border-color: var(--border); }
-/* Without this the generic disabled:hover repaints it accent-blue mid-logout. */
-.btn.danger:disabled:hover { background: transparent; color: var(--muted); border-color: var(--border); }
-.btn.danger.armed:disabled:hover { background: var(--danger); border-color: var(--danger); }
-.btn.success:disabled:hover { background: transparent; border-color: var(--ok); }
-
-/* Top-aligned so every column's label sits on the same line; the fields below
-   them line up because they are all the same height (see above). */
-.row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
-.row > * { flex: 1; min-width: 0; }
-.row .grow-0 { flex: 0 0 auto; }
-/* Buttons in a filter row have no label above them, so they belong on the
-   fields' baseline rather than the labels'. */
-.row > .grow-0 { align-self: flex-end; }
-
-/* A horizontal group of buttons that wraps instead of overflowing. */
-.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-
-/* Filled pills, not outlined chips. The base is the neutral grey badge; the
-   semantic variants each swap in their own soft fill + ink pair. No border —
-   the fill carries the shape, and a full pill radius finishes it. */
-.badge {
-  display: inline-block; padding: 3px 11px; border-radius: var(--radius-pill);
-  font-size: 12px; font-weight: 600; border: none; white-space: nowrap;
-  background: var(--badge-gray-bg); color: var(--badge-gray-text);
-}
-.badge.published { color: var(--ok); background: var(--ok-soft); }
-.badge.draft { background: var(--badge-gray-bg); color: var(--badge-gray-text); }
-
-/* A user's account state, as a badge in both directions rather than plain text
-   one way and a badge the other — "Active" in the ok colour, "blocked" in the
-   danger colour, on the soft washes the redesign uses for every status pill. */
-.badge.active { color: var(--ok); background: var(--ok-soft); }
-.badge.blocked { color: var(--danger); background: var(--danger-soft); }
-
-/* Category badges on the document list carry one of the six tag hues, so the
-   eye can group cards by colour before reading a word. Each is its hue as ink
-   on a 14% wash of itself — the tag tokens were chosen to clear 4.5:1 exactly
-   there (see the light themes' notes) — with a stronger edge. `color-mix` makes
-   the wash from the one token, so a new theme only sets --tag-N and both follow.
-   The 1–6 index is derived from the category id in JS, so a category keeps its
-   colour across pages. */
-.badge.cat-1 { color: var(--tag-1); border-color: color-mix(in srgb, var(--tag-1) 45%, transparent); background: color-mix(in srgb, var(--tag-1) 14%, transparent); }
-.badge.cat-2 { color: var(--tag-2); border-color: color-mix(in srgb, var(--tag-2) 45%, transparent); background: color-mix(in srgb, var(--tag-2) 14%, transparent); }
-.badge.cat-3 { color: var(--tag-3); border-color: color-mix(in srgb, var(--tag-3) 45%, transparent); background: color-mix(in srgb, var(--tag-3) 14%, transparent); }
-.badge.cat-4 { color: var(--tag-4); border-color: color-mix(in srgb, var(--tag-4) 45%, transparent); background: color-mix(in srgb, var(--tag-4) 14%, transparent); }
-.badge.cat-5 { color: var(--tag-5); border-color: color-mix(in srgb, var(--tag-5) 45%, transparent); background: color-mix(in srgb, var(--tag-5) 14%, transparent); }
-.badge.cat-6 { color: var(--tag-6); border-color: color-mix(in srgb, var(--tag-6) 45%, transparent); background: color-mix(in srgb, var(--tag-6) 14%, transparent); }
-
-.error { color: var(--danger); margin: 10px 0; }
-.success { color: var(--ok); margin: 10px 0; }
-.muted { color: var(--muted); }
-
-/* Inline alerts — an error you can actually notice next to a form. */
-.flash {
-  margin: 12px 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  font-size: 14px;
-}
-.flash.error { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
-.flash.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
-
-/* Empty / loading states, so a blank screen always explains itself. */
-.empty {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-}
-.empty .empty-title { color: var(--text); font-weight: 600; margin-bottom: 6px; }
-
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  vertical-align: -2px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.loading-inline { color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 8px; }
-
-/* Placeholder rows while the first document list is in flight. */
-.skeleton {
-  height: 78px;
-  margin-bottom: 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 50%, var(--panel) 75%);
-  background-size: 400% 100%;
-  animation: shimmer 1.4s ease infinite;
-}
-@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-
-/* --------------------------------------------------------------- Q&A view */
-
-.qa { margin: 18px 0; padding-top: 4px; scroll-margin-top: calc(var(--nav-h) + 12px); }
-.qa + .qa { border-top: 1px solid var(--border); padding-top: 18px; }
-.qa .q { font-weight: 600; font-size: 17px; margin-bottom: 6px; }
-.qa .q .qnum { color: var(--muted); font-weight: 500; margin-right: 6px; }
-.qa .a { color: var(--text); }
-.qa .a img { max-width: 100%; border-radius: var(--radius-sm); }
-/* Markdown answers can contain anything — keep it inside the column. */
-.qa .a pre {
+.answer-prose pre {
   background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
   padding: 12px;
   overflow-x: auto;
+  margin: 0.75em 0;
 }
-.qa .a pre code { background: none; padding: 0; font-size: 13px; }
-.qa .a blockquote {
+.answer-prose pre code { background: none; padding: 0; font-size: 13px; }
+.answer-prose blockquote {
   margin: 12px 0;
   padding: 4px 14px;
-  border-left: 3px solid var(--border);
-  color: var(--muted);
+  border-left: 3px solid var(--line);
+  color: var(--ink-muted);
 }
-.qa .a table { display: block; overflow-x: auto; }
-.qa .a > :first-child { margin-top: 0; }
-.qa .a > :last-child { margin-bottom: 0; }
+.answer-prose table { display: block; overflow-x: auto; border-collapse: collapse; margin: 0.75em 0; }
+.answer-prose th, .answer-prose td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
 
-/* Jump list for documents with several questions. */
-.toc { margin: 16px 0; }
-.toc summary { cursor: pointer; color: var(--muted); font-size: 14px; }
-.toc ol { margin: 10px 0 0; padding-left: 22px; color: var(--muted); }
-.toc li { margin: 4px 0; }
-
-.doc-header h1 { margin-bottom: 4px; }
-.doc-header .meta { color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-
-/* Small "← back" affordance above a detail page title. */
-.backlink { display: inline-block; margin-bottom: 10px; color: var(--muted); font-size: 14px; }
-.backlink:hover { color: var(--accent); }
-
-/* ---------------------------------------------------------------- Tables */
-
-table { width: 100%; border-collapse: collapse; }
-td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
-
-/* The header is a label for the column, not data in it — so it is smaller,
-   quieter and letter-spaced, and reads as a different kind of thing at a
-   glance rather than after comparing it with the row below. */
-th {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* Zebra striping, then hover on top of it. Both are backgrounds on the row, so
-   the hover has to come second to win — and both are quiet enough that the
-   cell borders still do the structural work. */
-tbody tr:nth-child(even) { background: var(--row-alt); }
-tbody tr:hover { background: var(--hover); }
-
-/* Wrap every wide table in this: it scrolls itself instead of the page. */
-.table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  -webkit-overflow-scrolling: touch;
-}
-.table-wrap > table { min-width: 640px; }
-.table-wrap th, .table-wrap td { white-space: nowrap; }
-/* Opt a prose column back into wrapping. */
-.table-wrap td.wrap { white-space: normal; min-width: 220px; }
-.table-wrap tr:last-child td { border-bottom: none; }
-
-.center-narrow { max-width: 380px; margin: 10vh auto 0; }
-
-/* --------------------------------------------------------------- Editor */
-
-.block-editor {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin-bottom: 12px;
-  background: var(--panel-2);
-}
-.block-editor .block-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.block-editor .block-head .grow-0 { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
-.block-editor .block-head .grow-0 .danger { margin-left: 12px; }
-
-/* Save / Cancel stay reachable without scrolling to the end of a long form. */
-.form-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-top: 20px;
-  padding: 12px 0;
-  background: var(--bg);
-  border-top: 1px solid var(--border);
-}
-
-.theme-select {
-  width: auto;
-  /* Opt out of the single-line field height: this one sits in the top bar. */
-  height: auto;
-  padding: 5px 8px;
-  font-size: 13px;
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-label.chk {
-  display: inline-flex; align-items: center; gap: 4px; margin: 0;
-  color: var(--text); font-size: 14px; cursor: pointer;
-}
-label.chk input { width: auto; cursor: pointer; }
-
-code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
-
-/* The audit log's action column: monospaced so 'document.update' and
-   'document.delete' are told apart by shape as well as by reading them. */
-.log-action {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: var(--panel-2);
-  color: var(--text);
-  white-space: nowrap;
-}
-/* Coloured by the verb so a scan down the column finds deletions at once:
-   creates read as calm green, deletions as quiet red, permission changes as
-   amber. The monospace slab and its panel background stay put — only the ink
-   moves, which is enough to sort the column by kind without shouting. */
-.log-action.create { color: var(--ok); }
-.log-action.delete { color: var(--danger); }
-.log-action.perm { color: var(--tag-3); }
-
-/* ------------------------------------------------------------ Responsive */
-
-@media (max-width: 760px) {
-  .container { padding: 18px 14px 56px; }
-
-  .nav-toggle { display: inline-flex; }
-  .navbar { flex-wrap: wrap; padding: 8px 14px; gap: 10px; }
-  .navbar .spacer { flex: 1; }
-
-  /* No room for a rail: the sections stack above the page and only when the
-     bar's toggle asks for them. */
-  .layout { flex-direction: column; }
-  .sidebar {
-    display: none;
-    position: static;
-    flex: none;
-    width: 100%;
-    height: auto;
-    padding: 8px 14px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .sidebar.open { display: block; }
-
-  /* Filters and form rows read better stacked than squeezed. */
-  .row > * { flex-basis: 100%; }
-  .row .grow-0 { flex-basis: auto; }
-
-  .center-narrow { margin-top: 4vh; max-width: none; }
-  .md-editor { max-height: 50vh; }
-  h1 { font-size: 26px; }
-}
-
-/* ------------------------------------------------------- Settings page */
-
-.settings-page { max-width: 640px; }
-.settings-page > .muted { margin-top: -4px; }
-.settings-section { margin-top: 28px; }
-.settings-section h2 { margin: 0 0 4px; font-size: 18px; color: var(--text); }
-.settings-section > .muted { margin: 0 0 14px; font-size: 14px; }
-
-/* A radio group drawn as tiles: each is a bordered card that turns its border
-   and text accent when chosen, like the platform's other selected states. */
-.option-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.option-tile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 140px;
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--fast), color var(--fast), background var(--fast);
-}
-.option-tile:hover { border-color: var(--accent); }
-.option-tile.selected { border-color: var(--accent); color: var(--accent); background: var(--surface-soft); }
-.option-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.option-tile .option-name { flex: 1 1 auto; }
-
-/* A little two-tone chip previewing each theme's surface + accent, so the
-   choice is legible without reading the label. Colours are the themes' own. */
-.theme-swatch {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid rgba(128, 128, 128, 0.3);
-}
-.theme-swatch--dark { background: linear-gradient(135deg, #171a21 55%, #5b8cff 55%); }
-.theme-swatch--light { background: linear-gradient(135deg, #ffffff 55%, #4f7cf7 55%); }
-.theme-swatch--gruvbox { background: linear-gradient(135deg, #32302f 55%, #83a598 55%); }
-.theme-swatch--gruvbox-light { background: linear-gradient(135deg, #ebdbb2 55%, #076678 55%); }
-
-/* ------------------------------------------------------- Analytics */
-
-.analytics-section { margin-top: 28px; }
-.analytics-section h2 { margin: 0 0 4px; font-size: 18px; color: var(--text); }
-.analytics-section > .muted { margin: 0 0 12px; font-size: 14px; }
-
-/* Two headline numbers at the top of the page. */
-.stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
-.stat-card {
-  flex: 1 1 160px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 18px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.stat-value { font-size: 28px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-.stat-label { color: var(--muted); font-size: 13px; }
-
-/* Right-align the count columns so the numbers line up on their units. */
-.data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-
-/* ------------------------------------------------------- Markdown editor */
-
-/* The answer label and its formatting toolbar share one row. The margin
-   replaces the one the global `label` rule would have given, so the toolbar
-   is not glued to the question field above or the textarea below. */
-.answer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 12px;
-  flex-wrap: wrap;
-  margin: 14px 0 8px;
-}
-.answer-head label { margin: 0; }
-.md-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
-.md-tool {
-  min-width: 32px;
-  height: 30px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-2);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition: border-color var(--fast), color var(--fast), background var(--fast);
-}
-.md-tool:hover { border-color: var(--accent); color: var(--accent); }
-.md-tool.preview-toggle { font-weight: 500; margin-left: 6px; }
-.md-tool.preview-toggle.active { border-color: var(--accent); color: var(--accent); background: var(--surface-soft); }
-
-/* Inline, editor and rendered output sit side by side on a wide screen and
-   stack on a narrow one. */
-.md-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
-.md-preview {
-  min-height: 320px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-}
-.md-preview > .a > :first-child { margin-top: 0; }
-.md-preview > .a > :last-child { margin-bottom: 0; }
-
-/* Preview mode expands the whole answer editor to near-window size: a fixed
-   panel over a dimmed page, with the textarea and preview each filling its
-   half of the height. Escape or the toggle returns to inline. */
-.md-region.fullscreen {
-  position: fixed;
-  inset: 3vh 3vw;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 18px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--menu-shadow);
-}
-.md-region.fullscreen::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: rgba(0, 0, 0, 0.5);
-}
-.md-region.fullscreen .answer-head { margin: 0 0 12px; }
-/* Flexbox (not grid) here so the two panes reliably fill the panel's height.
-   `align-items: stretch` + `height: 100%` makes the textarea fill its column —
-   without the explicit height it collapses to its ~2-row intrinsic size. */
-.md-region.fullscreen .md-split {
-  display: flex;
-  gap: 12px;
-  flex: 1 1 auto;
-  min-height: 0;
-  align-items: stretch;
-}
-.md-region.fullscreen .md-editor,
-.md-region.fullscreen .md-preview {
-  flex: 1 1 0;
-  min-height: 0;
-  max-height: none;
-  height: 100%;
-  resize: none;
-}
-
-@media (max-width: 760px) {
-  .md-split { grid-template-columns: 1fr; }
-  .md-preview { max-height: 40vh; }
-  .md-region.fullscreen { inset: 0; border-radius: 0; }
-  /* Too narrow for side-by-side: stack the panes, each taking half the height. */
-  .md-region.fullscreen .md-split { flex-direction: column; }
-}
-
-/* ------------------------------------------------------- Bookmarks */
-
-/* The ★ toggle reuses the small secondary button; when active the star and
-   label take the accent so a saved document reads at a glance. */
-.bookmark-btn { display: inline-flex; align-items: center; gap: 6px; }
-.bookmark-btn.active { border-color: var(--accent); color: var(--accent); }
-
-/* ------------------------------------------------------- Command palette */
-
-.cmdk-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 12vh 16px 16px;
-  background: rgba(0, 0, 0, 0.45);
-}
-.cmdk-panel {
-  width: 100%;
-  max-width: 560px;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--menu-shadow);
-}
-.cmdk-input {
-  width: 100%;
-  margin: 0;
-  padding: 16px 18px;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 16px;
-}
-.cmdk-input:focus { outline: none; box-shadow: none; }
-.cmdk-list { overflow-y: auto; padding: 6px; }
-.cmdk-group {
-  padding: 8px 10px 4px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.cmdk-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  width: 100%;
-  margin: 0;
-  padding: 10px 12px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 15px;
-  text-align: left;
-  cursor: pointer;
-}
-.cmdk-row.active { background: var(--surface-soft); }
-.cmdk-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmdk-hint { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
-.cmdk-empty { padding: 18px 12px; color: var(--muted); font-size: 14px; text-align: center; }
-
-/* ------------------------------------------------------- Select (dropdown) */
-
-/* The themed replacement for native <select>. The trigger looks like the other
-   form fields; the list is one of the platform's own menus. */
-.select { position: relative; width: 100%; }
-.select-trigger {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 46px;
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--fast), box-shadow var(--fast);
-}
-.select-trigger:hover { border-color: var(--accent); }
-.select-trigger[aria-expanded="true"] { border-color: var(--accent); }
-.select-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.select-value { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select-caret { flex: 0 0 auto; color: var(--muted); }
-
-.select-list {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 50;
-  margin: 0;
-  padding: 6px;
-  max-height: 280px;
-  overflow-y: auto;
-  list-style: none;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--menu-shadow);
-}
-.select-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  margin: 0;
-  padding: 9px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-}
-/* Keyboard-active and pointer-hover share the soft highlight. */
-.select-option.active { background: var(--surface-soft); }
-.select-option .select-option-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select-option .select-check { flex: 0 0 auto; color: var(--accent); }
-.select-option.selected { color: var(--accent); }
-
-/* ------------------------------------------------------- Keyboard shortcuts */
-
-.section-head-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.section-head-row h2 { margin: 0 0 4px; font-size: 18px; color: var(--text); }
-
-.shortcut-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-.shortcut-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-}
-.shortcut-label { flex: 1 1 auto; font-size: 14px; color: var(--text); }
-.shortcut-key {
-  flex: 0 0 auto;
-  min-width: 96px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-2);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color var(--fast);
-}
-.shortcut-key:hover { border-color: var(--accent); }
-.shortcut-key.recording { border-color: var(--accent); color: var(--accent); }
-
-/* A little keycap. */
-.kbd {
-  display: inline-block;
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 6px;
-  background: var(--surface-soft);
-  color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-/* The `?` cheat-sheet, over the shared command-palette backdrop. */
-.help-panel {
-  width: 100%;
-  max-width: 460px;
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 18px 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--menu-shadow);
-}
-.help-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.help-head h2 { margin: 0; font-size: 18px; }
-.help-edit { font-size: 13px; }
-.help-list { list-style: none; margin: 0; padding: 0; }
-.help-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
-}
-.help-list li:last-child { border-bottom: none; }
+/* Category badges carry one of six stable hues: the hue as ink on a 14% wash
+ * of itself. The 1–6 index is derived from the category id in JS, so a
+ * category keeps its colour across pages. */
+.badge-cat-1 { color: var(--tag-1); background: color-mix(in srgb, var(--tag-1) 14%, transparent); }
+.badge-cat-2 { color: var(--tag-2); background: color-mix(in srgb, var(--tag-2) 14%, transparent); }
+.badge-cat-3 { color: var(--tag-3); background: color-mix(in srgb, var(--tag-3) 14%, transparent); }
+.badge-cat-4 { color: var(--tag-4); background: color-mix(in srgb, var(--tag-4) 14%, transparent); }
+.badge-cat-5 { color: var(--tag-5); background: color-mix(in srgb, var(--tag-5) 14%, transparent); }
+.badge-cat-6 { color: var(--tag-6); background: color-mix(in srgb, var(--tag-6) 14%, transparent); }
 
 /* Respect the OS "reduce motion" setting. */
 @media (prefers-reduced-motion: reduce) {
@@ -1374,4 +267,16 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-si
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+/* ---break---
+ */
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }

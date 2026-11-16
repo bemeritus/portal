@@ -1,5 +1,5 @@
 /**
- * `/admin/analytics` — how the knowledge base is actually used (admin only).
+ * `/admin/analytics` — how the knowledge base is actually used.
  *
  * Read-only: the server computes a most-read ranking and the list of logged
  * empty searches. It answers "what do people read" and "what did they look for
@@ -11,6 +11,15 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { errorMessage } from "../api/client";
 import { analytics as analyticsApi } from "../api/endpoints";
 import { ErrorFlash } from "../components/Flash";
@@ -36,52 +45,62 @@ export function AnalyticsPage() {
   return (
     <>
       <h1>{t("analytics.heading")}</h1>
-      <p className="muted">{t("analytics.subtitle")}</p>
+      <p className="text-muted-foreground">{t("analytics.subtitle")}</p>
 
-      <div className="stat-row">
-        <div className="stat-card">
-          <span className="stat-value">{data.total_documents}</span>
-          <span className="stat-label">{t("analytics.totalDocuments")}</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-value">{data.total_views}</span>
-          <span className="stat-label">{t("analytics.totalViews")}</span>
-        </div>
+      {/* Two headline numbers at the top of the page. */}
+      <div className="my-4 flex flex-wrap gap-3">
+        <Card className="min-w-40 flex-1">
+          <CardContent className="flex flex-col gap-1">
+            <span className="text-[28px] font-bold tabular-nums">{data.total_documents}</span>
+            <span className="text-[13px] text-muted-foreground">
+              {t("analytics.totalDocuments")}
+            </span>
+          </CardContent>
+        </Card>
+        <Card className="min-w-40 flex-1">
+          <CardContent className="flex flex-col gap-1">
+            <span className="text-[28px] font-bold tabular-nums">{data.total_views}</span>
+            <span className="text-[13px] text-muted-foreground">{t("analytics.totalViews")}</span>
+          </CardContent>
+        </Card>
       </div>
 
-      <section className="analytics-section">
-        <h2>{t("analytics.mostViewed")}</h2>
+      <section className="mt-7">
+        <h2 className="mb-3 text-lg">{t("analytics.mostViewed")}</h2>
         <DocTable rows={data.popular} emptyText={t("analytics.noViews")} />
       </section>
 
-      <section className="analytics-section">
-        <h2>{t("analytics.contentGaps")}</h2>
-        <p className="muted">{t("analytics.contentGapsHint")}</p>
+      <section className="mt-7">
+        <h2 className="mb-1 text-lg">{t("analytics.contentGaps")}</h2>
+        <p className="mb-3 text-sm text-muted-foreground">{t("analytics.contentGapsHint")}</p>
         {data.search_misses.length === 0 ? (
           <Empty title={t("analytics.noGaps")} />
         ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t("analytics.query")}</th>
-                  <th className="num">{t("analytics.times")}</th>
-                  <th>{t("analytics.lastSearched")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.search_misses.map((m) => (
-                  <tr key={m.query}>
-                    <td>
-                      <Link to={`/templates?q=${encodeURIComponent(m.query)}`}>{m.query}</Link>
-                    </td>
-                    <td className="num">{m.count}</td>
-                    <td>{formatDate(m.last_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("analytics.query")}</TableHead>
+                <TableHead className="text-right">{t("analytics.times")}</TableHead>
+                <TableHead>{t("analytics.lastSearched")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.search_misses.map((m) => (
+                <TableRow key={m.query}>
+                  <TableCell>
+                    <Link
+                      className="text-link hover:underline"
+                      to={`/templates?q=${encodeURIComponent(m.query)}`}
+                    >
+                      {m.query}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{m.count}</TableCell>
+                  <TableCell>{formatDate(m.last_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </section>
     </>
@@ -92,27 +111,27 @@ function DocTable({ rows, emptyText }: { rows: PopularDoc[]; emptyText: string }
   const { t } = useTranslation();
   if (rows.length === 0) return <Empty title={emptyText} />;
   return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>{t("analytics.document")}</th>
-            <th>{t("analytics.category")}</th>
-            <th className="num">{t("analytics.views")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((d) => (
-            <tr key={d.id}>
-              <td>
-                <Link to={`/templates/docs/${d.id}`}>{d.title}</Link>
-              </td>
-              <td>{d.category_name}</td>
-              <td className="num">{d.view_count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t("analytics.document")}</TableHead>
+          <TableHead>{t("analytics.category")}</TableHead>
+          <TableHead className="text-right">{t("analytics.views")}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((d) => (
+          <TableRow key={d.id}>
+            <TableCell>
+              <Link className="text-link hover:underline" to={`/templates/docs/${d.id}`}>
+                {d.title}
+              </Link>
+            </TableCell>
+            <TableCell>{d.category_name}</TableCell>
+            <TableCell className="text-right tabular-nums">{d.view_count}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

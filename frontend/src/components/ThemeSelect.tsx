@@ -29,7 +29,7 @@ export const THEMES = [
 
 export type ThemeValue = (typeof THEMES)[number]["value"];
 
-const DEFAULT_THEME: ThemeValue = "dark";
+const DEFAULT_THEME: ThemeValue = "light";
 
 /**
  * The input comes from `localStorage` and from a `<select>`, so an

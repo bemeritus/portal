@@ -18,7 +18,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "exactOptionalPropertyTypes": false
+    "exactOptionalPropertyTypes": false,
+
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src"]
 }

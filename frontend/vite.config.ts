@@ -1,12 +1,21 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // The dev server owns the browser's origin and forwards the API to Axum, so
 // the session cookie is same-origin in development exactly as it is in
 // production. Without the proxy the cookie would be cross-site and `SameSite=Lax`
 // would drop it — the app would log in and immediately look logged out.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(path.dirname(fileURLToPath(import.meta.url)), "src"),
+    },
+  },
   server: {
     port: 5173,
     proxy: {

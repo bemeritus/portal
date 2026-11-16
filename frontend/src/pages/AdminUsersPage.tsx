@@ -8,9 +8,24 @@
  */
 
 import { useEffect, useState, type FormEvent } from "react";
+import { RefreshCw } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { errorMessage } from "../api/client";
 import { users as usersApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
@@ -50,7 +65,7 @@ export function AdminUsersPage() {
 
       {notice && <Flash kind="ok">{notice}</Flash>}
 
-      <h3 style={{ marginTop: 28 }}>{t("users.allUsers")}</h3>
+      <h3 className="mt-7 mb-3">{t("users.allUsers")}</h3>
 
       {usersQuery.isPending ? (
         <Spinner />
@@ -59,28 +74,26 @@ export function AdminUsersPage() {
       ) : usersQuery.data.length === 0 ? (
         <Empty title={t("users.none")} />
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("users.thUsername")}</th>
-                <th>{t("users.thRole")}</th>
-                <th>{t("users.thStatus")}</th>
-                <th>{t("users.thResetPassword")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersQuery.data.map((user) => (
-                <UserRow
-                  key={user.id}
-                  user={user}
-                  isSelf={me?.id === user.id}
-                  onChanged={(message) => void afterChange(message)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table className="min-w-160">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("users.thUsername")}</TableHead>
+              <TableHead>{t("users.thRole")}</TableHead>
+              <TableHead>{t("users.thStatus")}</TableHead>
+              <TableHead>{t("users.thResetPassword")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {usersQuery.data.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                isSelf={me?.id === user.id}
+                onChanged={(message) => void afterChange(message)}
+              />
+            ))}
+          </TableBody>
+        </Table>
       )}
     </>
   );
@@ -119,75 +132,67 @@ function CreateUserForm({ onCreated }: { onCreated: (username: string) => void }
   }
 
   return (
-    <div className="panel">
-      <h3 style={{ marginTop: 0 }}>{t("users.createUser")}</h3>
-      <form onSubmit={onSubmit}>
-        <div className="row">
-          <div>
-            <label htmlFor="new-username">{t("users.username")}</label>
-            <input
-              id="new-username"
-              type="text"
-              autoComplete="off"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          <div>
-            <label htmlFor="new-password">{t("users.initialPassword")}</label>
-            <div className="input-with-action">
-              <input
-                id="new-password"
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("users.createUser")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit}>
+          <div className="flex flex-wrap gap-3">
+            <div className="min-w-48 flex-1 space-y-1.5">
+              <Label htmlFor="new-username">{t("users.username")}</Label>
+              <Input
+                id="new-username"
                 type="text"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="off"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
-              <button
-                type="button"
-                className="btn secondary icon-square"
-                title={t("users.generateTitle")}
-                aria-label={t("common.generate")}
-                onClick={generatePassword}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width={18}
-                  height={18}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                  <path d="M21 3v5h-5" />
-                </svg>
-              </button>
             </div>
-            <p className="hint">{t("users.atLeast6")}</p>
+            <div className="min-w-48 flex-1 space-y-1.5">
+              <Label htmlFor="new-password">{t("users.initialPassword")}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="new-password"
+                  type="text"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-10 shrink-0"
+                  title={t("users.generateTitle")}
+                  aria-label={t("common.generate")}
+                  onClick={generatePassword}
+                >
+                  <RefreshCw />
+                </Button>
+              </div>
+              <p className="text-[13px] text-muted-foreground">{t("users.atLeast6")}</p>
+            </div>
           </div>
-        </div>
 
-        <label className="chk">
-          <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />
-          {t("users.isAdminLabel")}
-        </label>
+          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox checked={isAdmin} onCheckedChange={(v) => setIsAdmin(v === true)} />
+            {t("users.isAdminLabel")}
+          </label>
 
-        <ErrorFlash error={error} />
+          <ErrorFlash error={error} />
 
-        <div className="actions" style={{ marginTop: 14 }}>
-          <button
-            className="btn"
-            type="submit"
-            disabled={create.isPending || !username.trim() || password.length < 6}
-          >
-            {create.isPending ? t("users.creating") : t("users.createUser")}
-          </button>
-        </div>
-      </form>
-    </div>
+          <div className="mt-3.5">
+            <Button
+              type="submit"
+              disabled={create.isPending || !username.trim() || password.length < 6}
+            >
+              {create.isPending ? t("users.creating") : t("users.createUser")}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -228,20 +233,20 @@ function UserRow({
   });
 
   return (
-    <tr>
-      <td>
+    <TableRow>
+      <TableCell>
         {user.username}
-        {isSelf && <span className="muted">{t("users.you")}</span>}
-      </td>
-      <td>{user.is_admin ? t("users.roleAdmin") : t("users.roleUser")}</td>
-      <td>
+        {isSelf && <span className="ml-1.5 text-muted-foreground">{t("users.you")}</span>}
+      </TableCell>
+      <TableCell>{user.is_admin ? t("users.roleAdmin") : t("users.roleUser")}</TableCell>
+      <TableCell>
         {user.is_active ? (
           isSelf ? (
             // The server refuses this too; saying so here saves the round-trip
             // and the confusing error.
-            <span className="badge active" title={t("users.cannotDisableSelf")}>
+            <Badge variant="success" title={t("users.cannotDisableSelf")}>
               {t("users.active")}
-            </span>
+            </Badge>
           ) : (
             <ConfirmButton
               label={t("users.block")}
@@ -251,41 +256,43 @@ function UserRow({
             />
           )
         ) : (
-          <span className="actions" style={{ gap: 6 }}>
-            <span className="badge blocked">{t("users.blocked")}</span>
-            <button
-              className="btn small success"
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <Badge variant="destructive">{t("users.blocked")}</Badge>
+            <Button
+              size="sm"
+              variant="success"
               type="button"
               disabled={setActive.isPending}
               onClick={() => setActive.mutate(true)}
             >
               {t("users.activate")}
-            </button>
+            </Button>
           </span>
         )}
         <ErrorFlash error={error} />
-      </td>
-      <td>
-        <span className="actions">
-          <input
+      </TableCell>
+      <TableCell>
+        <span className="flex flex-wrap items-center gap-2">
+          <Input
             type="text"
+            className="h-8 w-40 text-xs"
             aria-label={t("users.newPasswordAria", { name: user.username })}
             placeholder={t("users.newPasswordPlaceholder")}
-            style={{ minWidth: 150 }}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
           />
-          <button
-            className="btn small secondary"
+          <Button
+            size="sm"
+            variant="outline"
             type="button"
             disabled={resetPassword.isPending || newPassword.length < 6}
             onClick={() => resetPassword.mutate()}
           >
             {t("common.reset")}
-          </button>
+          </Button>
         </span>
-        <p className="hint">{formatDate(user.created_at)}</p>
-      </td>
-    </tr>
+        <p className="mt-1 text-[13px] text-muted-foreground">{formatDate(user.created_at)}</p>
+      </TableCell>
+    </TableRow>
   );
 }

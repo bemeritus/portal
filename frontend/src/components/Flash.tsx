@@ -1,7 +1,9 @@
 /** The one-line message strip used for both failures and confirmations. */
 
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { translateApiError } from "../i18n/errors";
 
 interface FlashProps {
@@ -14,9 +16,18 @@ export function Flash({ kind, children }: FlashProps) {
     // aria-live so a screen reader announces the outcome of a save the user
     // cannot see happen. Errors are assertive; confirmations can wait for a
     // pause in speech.
-    <p className={`flash ${kind}`} role={kind === "error" ? "alert" : "status"}>
-      {children}
-    </p>
+    <Alert
+      variant={kind === "error" ? "destructive" : "success"}
+      role={kind === "error" ? "alert" : "status"}
+      className="my-3"
+    >
+      {kind === "error" ? <CircleAlert /> : <CheckCircle2 />}
+      <AlertDescription
+        className={kind === "error" ? "text-destructive" : "text-success"}
+      >
+        {children}
+      </AlertDescription>
+    </Alert>
   );
 }
 

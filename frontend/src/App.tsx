@@ -9,6 +9,7 @@
 
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
+import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
 import { RequireAdmin, RequireAuth } from "./components/RequireAuth";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
@@ -27,10 +28,10 @@ function NotFound() {
   return (
     <>
       <h1>Page not found</h1>
-      <p className="muted">That address does not match anything here.</p>
-      <Link className="btn secondary" to="/">
-        Home
-      </Link>
+      <p className="mb-4 text-muted-foreground">That address does not match anything here.</p>
+      <Button asChild variant="outline">
+        <Link to="/">Home</Link>
+      </Button>
     </>
   );
 }

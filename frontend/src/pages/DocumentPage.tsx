@@ -9,9 +9,13 @@
 
 import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Star } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { errorMessage } from "../api/client";
 import { documents as documentsApi } from "../api/endpoints";
 import { ConfirmButton } from "../components/ConfirmButton";
@@ -19,9 +23,20 @@ import { ErrorFlash } from "../components/Flash";
 import { Spinner } from "../components/Loading";
 import { categoryTagClass, formatDate } from "../format";
 
-/** Above this many questions, offer a jump list rather than a long scroll.
- * Two, matching the original Leptos view: even a short Q&A doc gets the list. */
+/** Above this many questions, offer a jump list rather than a long scroll. */
 const TOC_THRESHOLD = 2;
+
+function BackLink({ children }: { children: React.ReactNode }) {
+  return (
+    <Link
+      className="mb-2.5 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-link"
+      to="/templates"
+    >
+      <ArrowLeft className="size-3.5" />
+      {children}
+    </Link>
+  );
+}
 
 export function DocumentPage() {
   const { id = "" } = useParams();
@@ -65,9 +80,7 @@ export function DocumentPage() {
   if (error) {
     return (
       <>
-        <Link className="backlink" to="/templates">
-          {t("doc.back")}
-        </Link>
+        <BackLink>{t("doc.back")}</BackLink>
         <ErrorFlash error={errorMessage(error)} />
       </>
     );
@@ -75,45 +88,42 @@ export function DocumentPage() {
 
   return (
     <>
-      <Link className="backlink" to="/templates">
-        {t("doc.back")}
-      </Link>
+      <BackLink>{t("doc.back")}</BackLink>
 
-      <div
-        className="doc-header"
-        style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}
-      >
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <h1>{doc.title}</h1>
-          <div className="meta">
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-60 flex-1">
+          <h1 className="mb-1">{doc.title}</h1>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             {/* The category reads as a chip, not as prose — it is a thing you
                 can be granted rights on, and the badge says so. */}
-            <span className={`badge ${categoryTagClass(doc.category_id)}`}>{doc.category_name}</span>
+            <Badge className={categoryTagClass(doc.category_id)}>{doc.category_name}</Badge>
             <span>{doc.author_username}</span>
             <span aria-hidden="true">·</span>
             <span>{formatDate(doc.created_at)}</span>
             <span aria-hidden="true">·</span>
             <span>{t("doc.views", { count: doc.view_count })}</span>
-            <span className={`badge ${doc.status === "published" ? "published" : "draft"}`}>
+            <Badge variant={doc.status === "published" ? "success" : "secondary"}>
               {t(`status.${doc.status}`)}
-            </span>
+            </Badge>
           </div>
         </div>
-        <div className="actions">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Every reader can bookmark; edit/delete stay gated on rights. */}
-          <button
+          <Button
             type="button"
-            className={`btn secondary small bookmark-btn${doc.bookmarked ? " active" : ""}`}
+            variant="outline"
+            size="sm"
+            className={cn(doc.bookmarked && "border-ring text-link hover:text-link")}
             aria-pressed={doc.bookmarked}
             disabled={bookmark.isPending}
             onClick={() => bookmark.mutate(!doc.bookmarked)}
           >
-            <span aria-hidden="true">{doc.bookmarked ? "★" : "☆"}</span>
+            <Star className={cn("size-3.5", doc.bookmarked && "fill-current")} aria-hidden="true" />
             {doc.bookmarked ? t("doc.bookmarked") : t("doc.bookmark")}
-          </button>
-          <Link className="btn secondary small" to={`/templates/docs/${doc.id}/edit`}>
-            {t("common.edit")}
-          </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/templates/docs/${doc.id}/edit`}>{t("common.edit")}</Link>
+          </Button>
           <ConfirmButton
             label={t("common.delete")}
             confirmLabel={t("doc.deleteForGood")}
@@ -126,35 +136,44 @@ export function DocumentPage() {
       <ErrorFlash error={remove.error ? errorMessage(remove.error) : null} />
 
       {doc.blocks.length === 0 ? (
-        <p className="muted">{t("doc.noQuestions")}</p>
+        <p className="text-muted-foreground">{t("doc.noQuestions")}</p>
       ) : (
         <>
           {/* Long docs open with the question list expanded — the blue links
-              jump to each question (smooth scroll + `.qa` scroll-margin). It
-              stays a `<details>` so it can be collapsed, but shows on entry. */}
+              jump to each question (smooth scroll + scroll-margin on the
+              sections). It stays a `<details>` so it can be collapsed. */}
           {doc.blocks.length > TOC_THRESHOLD && (
-            <details className="toc" open>
-              <summary>{t("doc.questions", { count: doc.blocks.length })}</summary>
-              <ol>
+            <details className="my-4" open>
+              <summary className="cursor-pointer text-sm text-muted-foreground">
+                {t("doc.questions", { count: doc.blocks.length })}
+              </summary>
+              <ol className="mt-2.5 list-decimal space-y-1 pl-6 text-sm text-muted-foreground">
                 {doc.blocks.map((block, i) => (
                   <li key={i}>
-                    <a href={`#q${i + 1}`}>{block.question}</a>
+                    <a className="text-link hover:underline" href={`#q${i + 1}`}>
+                      {block.question}
+                    </a>
                   </li>
                 ))}
               </ol>
             </details>
           )}
 
-          {doc.blocks.map((block, i) => (
-            <section className="qa" key={i} id={`q${i + 1}`}>
-              <div className="q">
-                <span className="qnum">{i + 1}.</span>
-                {block.question}
-              </div>
-              {/* Server-rendered and server-sanitized — see the module note. */}
-              <div className="a" dangerouslySetInnerHTML={{ __html: block.answer_html }} />
-            </section>
-          ))}
+          <div className="divide-y">
+            {doc.blocks.map((block, i) => (
+              <section className="scroll-mt-20 py-5" key={i} id={`q${i + 1}`}>
+                <div className="mb-1.5 text-[17px] font-semibold">
+                  <span className="mr-1.5 font-medium text-muted-foreground">{i + 1}.</span>
+                  {block.question}
+                </div>
+                {/* Server-rendered and server-sanitized — see the module note. */}
+                <div
+                  className="answer-prose"
+                  dangerouslySetInnerHTML={{ __html: block.answer_html }}
+                />
+              </section>
+            ))}
+          </div>
         </>
       )}
     </>

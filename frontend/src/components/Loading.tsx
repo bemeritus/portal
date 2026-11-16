@@ -1,12 +1,18 @@
 /** The two shapes of "not yet": a spinner, and list placeholders. */
 
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function Spinner({ label }: { label?: string }) {
   const { t } = useTranslation();
   return (
-    <span className="loading-inline" role="status">
-      <span className="spinner" aria-hidden="true" />
+    <span
+      className="inline-flex items-center gap-2 text-[13px] text-muted-foreground"
+      role="status"
+    >
+      <Loader2 className="size-4 animate-spin text-link" aria-hidden="true" />
       {label ?? t("common.loading")}
     </span>
   );
@@ -20,9 +26,9 @@ export function Spinner({ label }: { label?: string }) {
  */
 export function Skeletons({ count = 3 }: { count?: number }) {
   return (
-    <div aria-hidden="true">
+    <div aria-hidden="true" className="space-y-3">
       {Array.from({ length: count }, (_, i) => (
-        <div className="skeleton" key={i} />
+        <Skeleton className="h-20" key={i} />
       ))}
     </div>
   );
@@ -31,8 +37,8 @@ export function Skeletons({ count = 3 }: { count?: number }) {
 /** A list with nothing in it — said in words, not left blank. */
 export function Empty({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <div className="empty">
-      <div className="empty-title">{title}</div>
+    <div className="rounded-xl border border-dashed bg-card px-5 py-10 text-center text-muted-foreground">
+      <div className="mb-1.5 font-semibold text-foreground">{title}</div>
       {children}
     </div>
   );

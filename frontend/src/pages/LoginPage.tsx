@@ -2,13 +2,18 @@
  * `/login` — the one public page (FR-1, FR-2).
  *
  * It renders no chrome: there is nothing to navigate to until you are in, so
- * it is a centred panel on an otherwise empty window.
+ * it is a centred card on an otherwise empty window.
  */
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { ErrorFlash } from "../components/Flash";
@@ -38,8 +43,12 @@ export function LoginPage() {
 
   if (loading) {
     return (
-      <div className="center-narrow panel">
-        <Spinner />
+      <div className="mx-auto mt-[10vh] max-w-sm px-4">
+        <Card>
+          <CardContent>
+            <Spinner />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -71,42 +80,46 @@ export function LoginPage() {
   }
 
   return (
-    <div className="center-narrow panel">
-      <h2 style={{ marginTop: 0 }}>{t("login.heading")}</h2>
-      <p className="muted">{t("login.subtitle")}</p>
-      <form onSubmit={(e) => void onSubmit(e)}>
-        <label htmlFor="u">{t("login.username")}</label>
-        {/* `type` is not optional: the stylesheet selects `input[type=text]`,
-            so an input without one gets none of the field styling and renders
-            at the browser's default size next to a correctly sized password
-            field. */}
-        <input
-          id="u"
-          type="text"
-          autoComplete="username"
-          autoFocus
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
+    <div className="mx-auto mt-[4vh] w-full max-w-sm px-4 sm:mt-[10vh]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-[22px]">{t("login.heading")}</CardTitle>
+          <CardDescription>{t("login.subtitle")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="u">{t("login.username")}</Label>
+              <Input
+                id="u"
+                type="text"
+                autoComplete="username"
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
 
-        <label htmlFor="p">{t("login.password")}</label>
-        <input
-          id="p"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+            <div className="space-y-1.5">
+              <Label htmlFor="p">{t("login.password")}</Label>
+              <Input
+                id="p"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
 
-        <ErrorFlash error={error} />
+            <ErrorFlash error={error} />
 
-        <div style={{ marginTop: 16 }}>
-          <button className="btn" type="submit" disabled={busy || incomplete}>
-            {busy && <span className="spinner" />}
-            {busy ? t("login.signingIn") : t("login.logIn")}
-          </button>
-        </div>
-      </form>
+            <Button className="w-full" type="submit" disabled={busy || incomplete}>
+              {busy && <Loader2 className="animate-spin" />}
+              {busy ? t("login.signingIn") : t("login.logIn")}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

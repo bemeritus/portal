@@ -11,13 +11,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+
 interface ConfirmButtonProps {
   /** Label in the resting state, e.g. "Delete". */
   label: string;
   /** Label of the armed button. */
   confirmLabel?: string;
-  /** Extra classes for the resting button (the armed one is always danger). */
-  className?: string;
+  /** Size shared by the resting and armed buttons. */
+  size?: "sm" | "default";
   /** Disables both buttons while the underlying action is in flight. */
   pending?: boolean;
   onConfirm: () => void;
@@ -26,7 +28,7 @@ interface ConfirmButtonProps {
 export function ConfirmButton({
   label,
   confirmLabel = "Confirm",
-  className = "btn small danger",
+  size = "sm",
   pending = false,
   onConfirm,
 }: ConfirmButtonProps) {
@@ -35,17 +37,24 @@ export function ConfirmButton({
 
   if (!armed) {
     return (
-      <button type="button" className={className} disabled={pending} onClick={() => setArmed(true)}>
+      <Button
+        type="button"
+        variant="destructive"
+        size={size}
+        disabled={pending}
+        onClick={() => setArmed(true)}
+      >
         {label}
-      </button>
+      </Button>
     );
   }
 
   return (
-    <span className="actions" style={{ gap: 6 }}>
-      <button
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <Button
         type="button"
-        className="btn small danger armed"
+        variant="destructive-solid"
+        size={size}
         disabled={pending}
         onClick={() => {
           setArmed(false);
@@ -53,10 +62,10 @@ export function ConfirmButton({
         }}
       >
         {confirmLabel}
-      </button>
-      <button type="button" className="btn small secondary" onClick={() => setArmed(false)}>
+      </Button>
+      <Button type="button" variant="outline" size={size} onClick={() => setArmed(false)}>
         {t("common.cancel")}
-      </button>
+      </Button>
     </span>
   );
 }

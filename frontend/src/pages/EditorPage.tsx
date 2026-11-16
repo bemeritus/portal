@@ -9,20 +9,22 @@
  * `position` from it.
  */
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowDown, ArrowLeft, ArrowUp, Loader2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { errorMessage } from "../api/client";
-import {
-  categories as categoriesApi,
-  documents as documentsApi,
-  uploads as uploadsApi,
-} from "../api/endpoints";
+import { categories as categoriesApi, documents as documentsApi } from "../api/endpoints";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash } from "../components/Flash";
 import { Spinner } from "../components/Loading";
+import { MarkdownEditor } from "../components/MarkdownEditor";
 import { Select } from "../components/Select";
 import type { DocumentBody, QaBlockInput } from "../api/types";
 
@@ -143,7 +145,11 @@ export function EditorPage() {
   if (isEdit && draftQuery.error) {
     return (
       <>
-        <Link className="backlink" to={backHref}>
+        <Link
+          className="mb-2.5 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-link"
+          to={backHref}
+        >
+          <ArrowLeft className="size-3.5" />
           {backLabel}
         </Link>
         <ErrorFlash error={errorMessage(draftQuery.error)} />
@@ -153,72 +159,80 @@ export function EditorPage() {
 
   return (
     <>
-      <Link className="backlink" to={backHref}>
+      <Link
+        className="mb-2.5 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-link"
+        to={backHref}
+      >
+        <ArrowLeft className="size-3.5" />
         {backLabel}
       </Link>
       <h1>{heading}</h1>
 
       <form onSubmit={onSubmit}>
-        <div className="panel">
-          <label htmlFor="title">{t("editor.title")}</label>
-          <input
-            id="title"
-            type="text"
-            placeholder={t("editor.titlePlaceholder")}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-
-          <div className="row">
-            <div>
-              <label htmlFor="cat">{t("editor.category")}</label>
-              <Select
-                id="cat"
-                ariaLabel={t("editor.category")}
-                value={categoryId}
-                onChange={setCategoryId}
-                options={[
-                  { value: "", label: t("editor.choose") },
-                  ...(categoriesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name })),
-                ]}
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="title">{t("editor.title")}</Label>
+              <Input
+                id="title"
+                type="text"
+                placeholder={t("editor.titlePlaceholder")}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
-              {/* Explains an empty picker, which otherwise looks broken. */}
-              {categoriesQuery.error && (
-                <ErrorFlash error={errorMessage(categoriesQuery.error)} />
-              )}
-              {categoriesQuery.data?.length === 0 && (
-                <p className="hint">{t("editor.noWritable")}</p>
-              )}
             </div>
 
-            <div>
-              <label htmlFor="status">{t("editor.status")}</label>
-              <Select
-                id="status"
-                ariaLabel={t("editor.status")}
-                value={status}
-                onChange={setStatus}
-                options={[
-                  { value: "draft", label: t("editor.statusDraft") },
-                  { value: "published", label: t("editor.statusPublished") },
-                ]}
-              />
-              {/* Says what status actually does. It marks the document; it does
-                  not restrict who can open it — see §12.9. */}
-              <p className="hint">{t("editor.statusHint")}</p>
-            </div>
-          </div>
-        </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="min-w-48 flex-1 space-y-1.5">
+                <Label htmlFor="cat">{t("editor.category")}</Label>
+                <Select
+                  id="cat"
+                  ariaLabel={t("editor.category")}
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  options={[
+                    { value: "", label: t("editor.choose") },
+                    ...(categoriesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+                {/* Explains an empty picker, which otherwise looks broken. */}
+                {categoriesQuery.error && (
+                  <ErrorFlash error={errorMessage(categoriesQuery.error)} />
+                )}
+                {categoriesQuery.data?.length === 0 && (
+                  <p className="text-[13px] text-muted-foreground">{t("editor.noWritable")}</p>
+                )}
+              </div>
 
-        <h3 style={{ marginTop: 24 }}>
+              <div className="min-w-48 flex-1 space-y-1.5">
+                <Label htmlFor="status">{t("editor.status")}</Label>
+                <Select
+                  id="status"
+                  ariaLabel={t("editor.status")}
+                  value={status}
+                  onChange={setStatus}
+                  options={[
+                    { value: "draft", label: t("editor.statusDraft") },
+                    { value: "published", label: t("editor.statusPublished") },
+                  ]}
+                />
+                {/* Says what status actually does. It marks the document; it
+                    does not restrict who can open it — see §12.9. */}
+                <p className="text-[13px] text-muted-foreground">{t("editor.statusHint")}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <h3 className="mt-6">
           {t("editor.qaBlocks")}
-          <span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>
-            {` (${blocks.length})`}
-          </span>
+          <span className="text-sm font-normal text-muted-foreground">{` (${blocks.length})`}</span>
         </h3>
-        <p className="muted">
+        <p className="mb-3 text-muted-foreground">
           {t("editor.markdownHint1")}
-          <code>![alt](/uploads/…)</code>
+          <code className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[13px]">
+            ![alt](/uploads/…)
+          </code>
           {t("editor.markdownHint2")}
         </p>
 
@@ -236,29 +250,25 @@ export function EditorPage() {
           />
         ))}
 
-        <button
-          type="button"
-          className="btn secondary"
-          onClick={() => setBlocks((prev) => [...prev, newBlock()])}
-        >
+        <Button type="button" variant="outline" onClick={() => setBlocks((prev) => [...prev, newBlock()])}>
           {t("editor.addBlock")}
-        </button>
+        </Button>
 
         <ErrorFlash error={error} />
 
-        <div className="form-bar">
-          <button className="btn" type="submit" disabled={busy || titleMissing || categoryMissing}>
-            {busy && <span className="spinner" />}
+        {/* Save / Cancel stay reachable without scrolling to the end of a long
+            form. */}
+        <div className="sticky bottom-0 z-10 mt-5 flex flex-wrap items-center gap-2.5 border-t bg-background py-3">
+          <Button type="submit" disabled={busy || titleMissing || categoryMissing}>
+            {busy && <Loader2 className="animate-spin" />}
             {busy ? t("common.saving") : t("common.save")}
-          </button>
-          <Link className="btn secondary" to={backHref}>
-            {t("common.cancel")}
-          </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={backHref}>{t("common.cancel")}</Link>
+          </Button>
           {/* Explains a disabled Save instead of leaving it a mystery. */}
           {disabledReason && (
-            <span className="muted" style={{ fontSize: 13 }}>
-              {disabledReason}
-            </span>
+            <span className="text-[13px] text-muted-foreground">{disabledReason}</span>
           )}
         </div>
       </form>
@@ -277,6 +287,7 @@ interface BlockEditorProps {
   onRemove: () => void;
 }
 
+
 function BlockEditor({
   block,
   number,
@@ -288,155 +299,49 @@ function BlockEditor({
   onRemove,
 }: BlockEditorProps) {
   const { t } = useTranslation();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const answerRef = useRef<HTMLTextAreaElement>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const upload = useMutation({
-    mutationFn: (file: File) => uploadsApi.image(file),
-    onSuccess: (result) => {
-      setUploadError(null);
-      // Insert at the caret if the answer has focus, otherwise append. The
-      // Leptos version could only open the upload in a new tab and leave the
-      // author to copy the URL back by hand; a JSON response makes this the
-      // obvious thing to do instead.
-      const textarea = answerRef.current;
-      const snippet = result.markdown;
-      if (textarea && document.activeElement === textarea) {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const next = block.answer.slice(0, start) + snippet + block.answer.slice(end);
-        onChange({ answer: next });
-      } else {
-        const separator = block.answer && !block.answer.endsWith("\n") ? "\n\n" : "";
-        onChange({ answer: block.answer + separator + snippet });
-      }
-    },
-    onError: (e) => setUploadError(errorMessage(e)),
-  });
-
-  // Live preview: the answer, rendered by the server's one sanitized path, so
-  // it always matches the published document. Debounced, and only asked for
-  // while the preview pane is open.
-  const [showPreview, setShowPreview] = useState(false);
-  const [debouncedAnswer, setDebouncedAnswer] = useState(block.answer);
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebouncedAnswer(block.answer), 400);
-    return () => window.clearTimeout(id);
-  }, [block.answer]);
-
-  // In the expanded (fullscreen) preview, Escape returns to the inline editor.
-  useEffect(() => {
-    if (!showPreview) return;
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") setShowPreview(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [showPreview]);
-  const previewQuery = useQuery({
-    queryKey: ["preview", debouncedAnswer],
-    queryFn: () => documentsApi.preview(debouncedAnswer),
-    enabled: showPreview && debouncedAnswer.trim() !== "",
-  });
-
-  // The toolbar operates on the answer textarea's current selection, then
-  // restores it so a formatting click never loses the caret.
-  function applyToAnswer(
-    transform: (val: string, s: number, e: number) => { value: string; selStart: number; selEnd: number },
-  ) {
-    const ta = answerRef.current;
-    if (!ta) return;
-    const { value, selStart, selEnd } = transform(block.answer, ta.selectionStart, ta.selectionEnd);
-    onChange({ answer: value });
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.selectionStart = selStart;
-      ta.selectionEnd = selEnd;
-    });
-  }
-  const surround = (before: string, after = before) =>
-    applyToAnswer((val, s, e) => {
-      const sel = val.slice(s, e);
-      return {
-        value: val.slice(0, s) + before + sel + after + val.slice(e),
-        selStart: s + before.length,
-        selEnd: sel ? e + before.length : s + before.length,
-      };
-    });
-  const linePrefix = (prefix: string) =>
-    applyToAnswer((val, s, e) => {
-      const lineStart = val.lastIndexOf("\n", s - 1) + 1;
-      const nl = val.indexOf("\n", e);
-      const lineEnd = nl === -1 ? val.length : nl;
-      const target = val.slice(lineStart, lineEnd);
-      const prefixed = target
-        .split("\n")
-        .map((l) => prefix + l)
-        .join("\n");
-      return {
-        value: val.slice(0, lineStart) + prefixed + val.slice(lineEnd),
-        selStart: lineStart,
-        selEnd: lineEnd + (prefixed.length - target.length),
-      };
-    });
-  const insertLink = () =>
-    applyToAnswer((val, s, e) => {
-      const sel = val.slice(s, e) || t("editor.linkText");
-      const snippet = `[${sel}](url)`;
-      const urlStart = s + sel.length + 3;
-      return { value: val.slice(0, s) + snippet + val.slice(e), selStart: urlStart, selEnd: urlStart + 3 };
-    });
-
-  const tools = [
-    { key: "bold", label: "B", title: t("editor.bold"), on: () => surround("**") },
-    { key: "italic", label: "I", title: t("editor.italic"), on: () => surround("*") },
-    { key: "heading", label: "H", title: t("editor.heading"), on: () => linePrefix("## ") },
-    { key: "list", label: "•", title: t("editor.bulletList"), on: () => linePrefix("- ") },
-    { key: "quote", label: "❝", title: t("editor.quote"), on: () => linePrefix("> ") },
-    { key: "code", label: "</>", title: t("editor.inlineCode"), on: () => surround("`") },
-    { key: "codeblock", label: "{ }", title: t("editor.codeBlock"), on: () => surround("```\n", "\n```") },
-    { key: "link", label: "🔗", title: t("editor.link"), on: insertLink },
-  ];
-
   const questionId = `q-${block.key}`;
   const answerId = `a-${block.key}`;
 
   return (
-    <div className="block-editor">
-      <div className="block-head">
-        <strong>{t("editor.question", { number })}</strong>
-        <div className="grow-0">
-          <button
+    <div className="mb-4 overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 border-b bg-muted/40 px-4 py-2">
+        <strong className="text-sm">{t("editor.question", { number })}</strong>
+        <div className="flex items-center gap-1">
+          <Button
             type="button"
-            className="btn icon secondary"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
             title={t("editor.moveUp")}
             aria-label={t("editor.moveUpAria")}
             disabled={isFirst}
             onClick={() => onMove(-1)}
           >
-            ↑
-          </button>
-          <button
+            <ArrowUp />
+          </Button>
+          <Button
             type="button"
-            className="btn icon secondary"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
             title={t("editor.moveDown")}
             aria-label={t("editor.moveDownAria")}
             disabled={isLast}
             onClick={() => onMove(1)}
           >
-            ↓
-          </button>
-          <span className="danger">
+            <ArrowDown />
+          </Button>
+          <span className="ml-2">
             {isOnly ? (
-              <button
+              <Button
                 type="button"
-                className="btn small danger"
+                variant="destructive"
+                size="sm"
                 title={t("editor.removeDisabledTitle")}
                 disabled
               >
                 {t("common.remove")}
-              </button>
+              </Button>
             ) : (
               // A block can hold a lot of typing — never drop it on a single
               // stray click.
@@ -450,93 +355,27 @@ function BlockEditor({
         </div>
       </div>
 
-      <label htmlFor={questionId}>{t("editor.questionLabel")}</label>
-      <input
-        id={questionId}
-        type="text"
-        placeholder={t("editor.questionPlaceholder")}
-        value={block.question}
-        onChange={(e) => onChange({ question: e.target.value })}
-      />
-
-      <div className={`md-region${showPreview ? " fullscreen" : ""}`}>
-        <div className="answer-head">
-          <label htmlFor={answerId}>{t("editor.answerLabel")}</label>
-          <div className="md-toolbar">
-            {tools.map((tool) => (
-              <button
-                key={tool.key}
-                type="button"
-                className="md-tool"
-                title={tool.title}
-                aria-label={tool.title}
-                // Keep the textarea's selection: prevent the button from taking focus.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={tool.on}
-              >
-                {tool.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`md-tool preview-toggle${showPreview ? " active" : ""}`}
-              aria-pressed={showPreview}
-              title={showPreview ? t("editor.exitPreview") : t("editor.preview")}
-              onClick={() => setShowPreview((v) => !v)}
-            >
-              {showPreview ? t("editor.exitPreview") : t("editor.preview")}
-            </button>
-          </div>
-        </div>
-        <div className={showPreview ? "md-split" : undefined}>
-          <textarea
-            id={answerId}
-            ref={answerRef}
-            className="md-editor"
-            placeholder={t("editor.answerPlaceholder")}
-            value={block.answer}
-            onChange={(e) => onChange({ answer: e.target.value })}
+      <div className="space-y-4 p-4">
+        <div className="space-y-1.5">
+          <Label htmlFor={questionId}>{t("editor.questionLabel")}</Label>
+          <Input
+            id={questionId}
+            type="text"
+            placeholder={t("editor.questionPlaceholder")}
+            value={block.question}
+            onChange={(e) => onChange({ question: e.target.value })}
           />
-          {showPreview && (
-            <div className="md-preview">
-              {debouncedAnswer.trim() === "" ? (
-                <p className="muted">{t("editor.previewEmpty")}</p>
-              ) : (
-                // Server-rendered and server-sanitized — the same path the
-                // document view uses, so preview and published never diverge.
-                <div className="a" dangerouslySetInnerHTML={{ __html: previewQuery.data?.html ?? "" }} />
-              )}
-            </div>
-          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor={answerId}>{t("editor.answerLabel")}</Label>
+          <MarkdownEditor
+            id={answerId}
+            value={block.answer}
+            onChange={(answer) => onChange({ answer })}
+          />
         </div>
       </div>
-
-      <div className="actions" style={{ marginTop: 8 }}>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            // Reset first: picking the same file twice in a row fires no
-            // change event otherwise.
-            e.target.value = "";
-            if (file) upload.mutate(file);
-          }}
-        />
-        <button
-          type="button"
-          className="btn secondary small"
-          disabled={upload.isPending}
-          onClick={() => fileInput.current?.click()}
-        >
-          {upload.isPending ? t("editor.uploading") : t("editor.insertImage")}
-        </button>
-        <span className="hint">{t("editor.uploadHint")}</span>
-      </div>
-
-      <ErrorFlash error={uploadError} />
     </div>
   );
 }

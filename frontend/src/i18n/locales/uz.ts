@@ -17,6 +17,8 @@ export const uz = {
       toggleSections: "Bo'limlarni ochish",
       sections: "Bo'limlar",
       newDocument: "Yangi hujjat",
+      admin: "Boshqaruv",
+      search: "Qidiruv",
     },
 
     menu: {
@@ -251,6 +253,9 @@ export const uz = {
       link: "Havola",
       linkText: "matn",
       preview: "Ko'rinish",
+      write: "Yozish",
+      expand: "Kengaytirish",
+      collapse: "Yig'ish",
       exitPreview: "Ko'rinishdan chiqish",
       previewEmpty: "Hozircha ko'rsatadigan narsa yo'q.",
       qaBlocks: "Savol–javob bloklari",

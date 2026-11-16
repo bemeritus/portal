@@ -4,21 +4,26 @@
  * The search filter is debounced: it fires a query per pause, not per
  * keystroke, and each new query cancels the one before it. Without that,
  * typing "postgres" is eight requests racing each other, and the list settles
- * on whichever happens to land last. Search now spans the title *and* every
+ * on whichever happens to land last. Search spans the title *and* every
  * Q&A block body (full-text on the server), not just the title.
  */
 
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { errorMessage } from "../api/client";
 import { categories as categoriesApi, documents as documentsApi } from "../api/endpoints";
+import { DocCard } from "../components/DocCard";
 import { ErrorFlash } from "../components/Flash";
 import { Empty, Skeletons } from "../components/Loading";
 import { Select } from "../components/Select";
-import { categoryTagClass, formatDate } from "../format";
 
 /** How long to wait after the last keystroke before asking the server. */
 const TYPING_PAUSE_MS = 250;
@@ -91,21 +96,18 @@ export function HomePage() {
 
   return (
     <>
-      <div
-        className="doc-header"
-        style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
-      >
-        <h1 style={{ flex: 1, minWidth: 0 }}>{t("nav.documents")}</h1>
-        <Link className="btn" to="/templates/docs/new">
-          {t("home.newDocument")}
-        </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="mb-0 min-w-0 flex-1">{t("nav.documents")}</h1>
+        <Button asChild>
+          <Link to="/templates/docs/new">{t("home.newDocument")}</Link>
+        </Button>
       </div>
 
-      <div className="panel" style={{ margin: "16px 0" }}>
-        <div className="row">
-          <div>
-            <label htmlFor="q">{t("home.searchLabel")}</label>
-            <input
+      <Card className="my-4">
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="min-w-48 flex-1 space-y-1.5">
+            <Label htmlFor="q">{t("home.searchLabel")}</Label>
+            <Input
               id="q"
               type="search"
               value={qInput}
@@ -113,8 +115,8 @@ export function HomePage() {
               onChange={(e) => setQInput(e.target.value)}
             />
           </div>
-          <div>
-            <label htmlFor="c">{t("home.category")}</label>
+          <div className="min-w-48 flex-1 space-y-1.5">
+            <Label htmlFor="c">{t("home.category")}</Label>
             <Select
               id="c"
               ariaLabel={t("home.category")}
@@ -128,17 +130,13 @@ export function HomePage() {
             {/* Explains an empty dropdown, which otherwise looks broken. */}
             {categoriesQuery.error && <ErrorFlash error={errorMessage(categoriesQuery.error)} />}
           </div>
-          {/* `.grow-0` opts this out of the row's equal-width split, so the
-              button keeps its own width and sits at the fields' baseline. */}
           {isFiltered && (
-            <div className="grow-0">
-              <button type="button" className="btn secondary" onClick={clearFilters}>
-                {t("common.clearFilters")}
-              </button>
-            </div>
+            <Button type="button" variant="outline" onClick={clearFilters}>
+              {t("common.clearFilters")}
+            </Button>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <ErrorFlash error={documentsQuery.error ? errorMessage(documentsQuery.error) : null} />
 
@@ -146,35 +144,30 @@ export function HomePage() {
         <Skeletons />
       ) : documents.length === 0 ? (
         <Empty title={isFiltered ? t("home.noMatchTitle") : t("home.noneTitle")}>
-          <p style={{ margin: "0 0 12px" }}>
-            {isFiltered ? t("home.tryOther") : t("home.willShow")}
-          </p>
+          <p className="mb-3">{isFiltered ? t("home.tryOther") : t("home.willShow")}</p>
           {isFiltered && (
-            <button type="button" className="btn secondary" onClick={clearFilters}>
-              Clear filters
-            </button>
+            <Button type="button" variant="outline" onClick={clearFilters}>
+              {t("common.clearFilters")}
+            </Button>
           )}
         </Empty>
       ) : (
         <>
           {/* aria-live so the count is announced when a filter changes the
               list, which is otherwise a silent update for a screen reader. */}
-          <div className="loading-inline" aria-live="polite" style={{ marginBottom: 10 }}>
+          <div
+            className="mb-2.5 inline-flex items-center gap-2 text-[13px] text-muted-foreground"
+            aria-live="polite"
+          >
             {t("home.count", { count: documents.length })}
-            {documentsQuery.isFetching && <span className="spinner" />}
+            {documentsQuery.isFetching && <Loader2 className="size-4 animate-spin" />}
           </div>
 
-          {documents.map((doc) => (
-            <Link className="card" key={doc.id} to={`/templates/docs/${doc.id}`}>
-              <h3>{doc.title}</h3>
-              <div className="meta">
-                <span className={`badge ${categoryTagClass(doc.category_id)}`}>{doc.category_name}</span>
-                <span>{doc.author_username}</span>
-                <span aria-hidden="true">·</span>
-                <span>{formatDate(doc.created_at)}</span>
-              </div>
-            </Link>
-          ))}
+          <div className="space-y-3.5">
+            {documents.map((doc) => (
+              <DocCard key={doc.id} doc={doc} />
+            ))}
+          </div>
         </>
       )}
     </>
