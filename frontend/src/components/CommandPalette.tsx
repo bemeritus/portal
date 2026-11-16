@@ -76,6 +76,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     items.push({ key: "new", label: t("nav.newDocument"), to: "/templates/docs/new" });
     items.push({ key: "categories", label: t("nav.categories"), to: "/templates/categories" });
     items.push({ key: "settings", label: t("menu.settings"), to: "/settings" });
+    items.push({ key: "port-check", label: t("nav.portChecker"), to: "/tools/port-check" });
     items.push({ key: "analytics", label: t("nav.analytics"), to: "/admin/analytics" });
     items.push({ key: "logs", label: t("nav.logs"), to: "/admin/logs" });
     if (user?.is_admin) {

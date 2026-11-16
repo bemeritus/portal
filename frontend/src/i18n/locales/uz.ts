@@ -19,6 +19,8 @@ export const uz = {
       newDocument: "Yangi hujjat",
       admin: "Boshqaruv",
       search: "Qidiruv",
+      tools: "Vositalar",
+      portChecker: "Port tekshirgich",
     },
 
     menu: {
@@ -227,6 +229,22 @@ export const uz = {
       passwordReset: "«{{name}}» uchun parol tiklandi.",
     },
 
+
+    tools: {
+      portHeading: "Port tekshirgich",
+      portSubtitle: "TCP port ilova serveridan ochiq yoki yopiqligini tekshiradi.",
+      host: "Host yoki IP",
+      hostPlaceholder: "masalan, 192.168.1.10 yoki db.example.com",
+      port: "Port",
+      check: "Tekshirish",
+      checking: "Tekshirilmoqda\u2026",
+      resultOpen: "{{host}}:{{port}} \u2014 OCHIQ",
+      resultClosed: "{{host}}:{{port}} \u2014 YOPIQ (ulanish rad etildi)",
+      resultTimeout: "{{host}}:{{port}} javob bermadi (taymaut \u2014 host o'chiq yoki firewall to'sgan)",
+      resultUnreachable: "{{host}}:{{port}} ga yo'l yo'q (unreachable)",
+      resolved: "IP: {{ip}} \u00b7 {{ms}} ms",
+      vantage: "Tekshiruv brauzeringizdan emas, ilova serveridan bajariladi.",
+    },
 
     editor: {
       editDocument: "Hujjatni tahrirlash",

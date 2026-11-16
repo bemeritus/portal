@@ -132,3 +132,12 @@ export interface CreateUserBody {
   password: string;
   is_admin: boolean;
 }
+
+/** One TCP connect attempt, as seen from the app server. */
+export interface PortCheckResult {
+  host: string;
+  port: number;
+  resolved_ip: string;
+  state: "open" | "closed" | "timeout" | "unreachable";
+  elapsed_ms: number;
+}

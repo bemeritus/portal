@@ -22,6 +22,7 @@ import { DraftsPage } from "./pages/DraftsPage";
 import { EditorPage } from "./pages/EditorPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { PortCheckerPage } from "./pages/PortCheckerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 function NotFound() {
@@ -47,6 +48,9 @@ export function App() {
 
           {/* Every signed-in user's own settings — theme and language. */}
           <Route path="settings" element={<SettingsPage />} />
+
+          {/* Small network utilities, open to any signed-in user. */}
+          <Route path="tools/port-check" element={<PortCheckerPage />} />
 
           {/* The category + Q&A world. Categories are managed by any user
               (adding and renaming); only deleting stays admin-only, enforced

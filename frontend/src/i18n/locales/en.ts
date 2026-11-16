@@ -18,6 +18,8 @@ export const en = {
       newDocument: "New document",
       admin: "Admin",
       search: "Search",
+      tools: "Tools",
+      portChecker: "Port checker",
     },
 
     menu: {
@@ -226,6 +228,22 @@ export const en = {
       passwordReset: "Password reset for “{{name}}”.",
     },
 
+
+    tools: {
+      portHeading: "Port checker",
+      portSubtitle: "Checks whether a TCP port is reachable from the app server.",
+      host: "Host or IP",
+      hostPlaceholder: "e.g. 192.168.1.10 or db.example.com",
+      port: "Port",
+      check: "Check",
+      checking: "Checking\u2026",
+      resultOpen: "{{host}}:{{port}} is OPEN",
+      resultClosed: "{{host}}:{{port}} is CLOSED (connection refused)",
+      resultTimeout: "{{host}}:{{port}} did not answer (timed out \u2014 host down or filtered)",
+      resultUnreachable: "{{host}}:{{port}} is unreachable (no route)",
+      resolved: "Resolved to {{ip}} \u00b7 {{ms}} ms",
+      vantage: "The check runs from the app server, not from your browser.",
+    },
 
     editor: {
       editDocument: "Edit document",

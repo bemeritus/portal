@@ -18,6 +18,7 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
+  PortCheckResult,
   UploadResponse,
   User,
   Uuid,
@@ -124,4 +125,10 @@ export const uploads = {
     form.append("file", file);
     return api.upload<UploadResponse>(`${BASE}/upload`, form);
   },
+};
+
+export const tools = {
+  /** Asks the server to try one TCP connect to host:port. */
+  portCheck: (host: string, port: number) =>
+    api.post<PortCheckResult>(`${BASE}/tools/port-check`, { host, port }),
 };

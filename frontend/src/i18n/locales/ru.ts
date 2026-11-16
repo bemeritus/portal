@@ -18,6 +18,8 @@ export const ru = {
       newDocument: "Новый документ",
       admin: "Администрирование",
       search: "Поиск",
+      tools: "Инструменты",
+      portChecker: "Проверка порта",
     },
 
     menu: {
@@ -234,6 +236,22 @@ export const ru = {
       passwordReset: "Пароль сброшен для «{{name}}».",
     },
 
+
+    tools: {
+      portHeading: "Проверка порта",
+      portSubtitle: "Проверяет, доступен ли TCP-порт с сервера приложения.",
+      host: "Хост или IP",
+      hostPlaceholder: "например, 192.168.1.10 или db.example.com",
+      port: "Порт",
+      check: "Проверить",
+      checking: "Проверка…",
+      resultOpen: "{{host}}:{{port}} — ОТКРЫТ",
+      resultClosed: "{{host}}:{{port}} — ЗАКРЫТ (соединение отклонено)",
+      resultTimeout: "{{host}}:{{port}} не отвечает (таймаут — хост выключен или фильтруется)",
+      resultUnreachable: "{{host}}:{{port}} недоступен (нет маршрута)",
+      resolved: "Адрес: {{ip}} · {{ms}} мс",
+      vantage: "Проверка выполняется с сервера приложения, а не из вашего браузера.",
+    },
 
     editor: {
       editDocument: "Изменить документ",

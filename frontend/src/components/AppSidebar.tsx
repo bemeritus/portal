@@ -15,6 +15,7 @@ import {
   BookOpen,
   FileText,
   FolderOpen,
+  Network,
   PencilLine,
   Plus,
   ScrollText,
@@ -174,6 +175,26 @@ export function AppSidebar({ onSearch }: AppSidebarProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>{t("nav.tools")}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={t("nav.portChecker")}
+                  isActive={path.startsWith("/tools/port-check")}
+                >
+                  <Link to="/tools/port-check">
+                    <Network />
+                    <span>{t("nav.portChecker")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
