@@ -11,11 +11,11 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::audit::{audit_now, Audit};
+use crate::audit::{Audit, audit_now};
 use crate::auth::{AdminUser, CurrentUser};
 use crate::content::slugify;
 use crate::db::AppState;
-use crate::error::{db_conflict, db_reference, internal, ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, db_conflict, db_reference, internal};
 use crate::models::Category;
 
 pub fn routes() -> Router<AppState> {

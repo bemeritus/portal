@@ -7,9 +7,9 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use tower_sessions::Session;
 
-use crate::auth::{verify_password, CurrentUser, SESSION_UID};
+use crate::auth::{CurrentUser, SESSION_UID, verify_password};
 use crate::db::AppState;
-use crate::error::{internal, ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, internal};
 use crate::models::User;
 
 pub fn routes() -> Router<AppState> {

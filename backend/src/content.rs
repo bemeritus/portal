@@ -10,7 +10,7 @@ use uuid::Uuid;
 /// is the thing standing between an authored `<script>` and every later reader.
 /// A sanitizer that ran on the client would be one the client could skip.
 pub fn render_markdown(markdown: &str) -> String {
-    use pulldown_cmark::{html, Options, Parser};
+    use pulldown_cmark::{Options, Parser, html};
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_STRIKETHROUGH);

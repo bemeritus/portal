@@ -10,10 +10,10 @@
 //! There are only two levels left: being signed in ([`CurrentUser`]) is enough
 //! to read and manage every document; the admin-only screens take [`AdminUser`].
 
-use argon2::password_hash::{
-    rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
-};
 use argon2::Argon2;
+use argon2::password_hash::{
+    PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng,
+};
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
 use sqlx::PgPool;
@@ -21,7 +21,7 @@ use tower_sessions::Session;
 use uuid::Uuid;
 
 use crate::db::AppState;
-use crate::error::{internal, ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, internal};
 use crate::models::User;
 
 /// Session key under which the authenticated user id is stored.

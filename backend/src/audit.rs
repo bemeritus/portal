@@ -9,7 +9,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::{internal, ApiResult};
+use crate::error::{ApiResult, internal};
 use crate::models::User;
 
 /// What to record about one change. The actor is passed separately because it

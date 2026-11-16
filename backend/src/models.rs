@@ -137,7 +137,6 @@ pub struct AuditEntry {
     pub details: Option<String>,
 }
 
-
 /// Anything not exactly `"published"` is a draft. The editor sends a select's
 /// value; a crafted request can send anything at all.
 pub fn normalize_status(status: &str) -> String {
@@ -146,4 +145,3 @@ pub fn normalize_status(status: &str) -> String {
         _ => "draft".to_string(),
     }
 }
-

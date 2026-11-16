@@ -11,10 +11,10 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::audit::{audit_now, Audit};
-use crate::auth::{hash_password, AdminUser};
+use crate::audit::{Audit, audit_now};
+use crate::auth::{AdminUser, hash_password};
 use crate::db::AppState;
-use crate::error::{db_conflict, internal, ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, db_conflict, internal};
 use crate::models::User;
 
 /// Shortest password the platform accepts, for creation and for resets alike.

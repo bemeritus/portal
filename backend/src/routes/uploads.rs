@@ -5,10 +5,10 @@ use axum::routing::post;
 use axum::{Json, Router};
 use serde::Serialize;
 
-use crate::audit::{audit_now, Audit};
+use crate::audit::{Audit, audit_now};
 use crate::auth::CurrentUser;
 use crate::db::AppState;
-use crate::error::{internal, ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, internal};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/", post(upload))
@@ -57,7 +57,7 @@ async fn upload(
                         ApiError::PayloadTooLarge("File exceeds the size limit".into())
                     }
                     _ => ApiError::BadRequest(e.body_text()),
-                })
+                });
             }
         };
         if field.name() != Some("file") {
@@ -80,7 +80,7 @@ async fn upload(
                         ApiError::PayloadTooLarge("File exceeds the size limit".into())
                     }
                     _ => ApiError::BadRequest(e.body_text()),
-                })
+                });
             }
         };
         if data.len() > max {

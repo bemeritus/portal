@@ -12,13 +12,13 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::audit::{audit_now, audit_tx, Audit};
+use crate::audit::{Audit, audit_now, audit_tx};
 use crate::auth::CurrentUser;
 use crate::content::render_markdown;
 use crate::db::AppState;
-use crate::error::{db_reference, internal, ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, db_reference, internal};
 use crate::models::{
-    normalize_status, DocumentDraft, DocumentSummary, DocumentWithBlocks, QaBlockInput, QaBlockView,
+    DocumentDraft, DocumentSummary, DocumentWithBlocks, QaBlockInput, QaBlockView, normalize_status,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -26,7 +26,10 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(list).post(create))
         .route("/{id}", get(get_one).put(update).delete(remove))
         .route("/{id}/draft", get(get_draft))
-        .route("/{id}/bookmark", axum::routing::post(add_bookmark).delete(remove_bookmark))
+        .route(
+            "/{id}/bookmark",
+            axum::routing::post(add_bookmark).delete(remove_bookmark),
+        )
 }
 
 #[derive(Deserialize)]
@@ -77,9 +80,7 @@ async fn list(
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty());
     // Only the two real statuses narrow the list; anything else means "all".
-    let status = params
-        .status
-        .filter(|s| s == "published" || s == "draft");
+    let status = params.status.filter(|s| s == "published" || s == "draft");
 
     // Full-text search over the title and, via EXISTS, every Q&A block body,
     // with an ILIKE fallback so a partial word typed mid-search ("postg") still
@@ -118,14 +119,14 @@ async fn list(
     // A deliberate search that found nothing is a content gap worth recording.
     // The length guard keeps the as-you-type single letters ("p", "po") out of
     // the log; a best-effort insert never fails the listing itself.
-    if docs.is_empty() {
-        if let Some(term) = q.as_deref().filter(|t| t.chars().count() >= 3) {
-            let _ = sqlx::query("INSERT INTO search_misses (query, user_id) VALUES ($1, $2)")
-                .bind(term)
-                .bind(user.id)
-                .execute(&state.pool)
-                .await;
-        }
+    if docs.is_empty()
+        && let Some(term) = q.as_deref().filter(|t| t.chars().count() >= 3)
+    {
+        let _ = sqlx::query("INSERT INTO search_misses (query, user_id) VALUES ($1, $2)")
+            .bind(term)
+            .bind(user.id)
+            .execute(&state.pool)
+            .await;
     }
 
     Ok(Json(docs))
@@ -184,12 +185,13 @@ async fn get_one(
 
     // Opening a document is what "a view" counts. Refreshes included: an
     // internal tool wants the honest "what gets read", not a deduplicated one.
-    let view_count: i64 =
-        sqlx::query_scalar("UPDATE documents SET view_count = view_count + 1 WHERE id = $1 RETURNING view_count")
-            .bind(id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| internal("counting a document view", e))?;
+    let view_count: i64 = sqlx::query_scalar(
+        "UPDATE documents SET view_count = view_count + 1 WHERE id = $1 RETURNING view_count",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| internal("counting a document view", e))?;
 
     let bookmarked: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE document_id = $1 AND user_id = $2)",
@@ -222,12 +224,11 @@ async fn add_bookmark(
     CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM documents WHERE id = $1)")
-            .bind(id)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e| internal("loading a document to bookmark", e))?;
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM documents WHERE id = $1)")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| internal("loading a document to bookmark", e))?;
     if !exists {
         return Err(ApiError::NotFound("Document not found".into()));
     }

@@ -10,7 +10,7 @@ use axum::{Json, Router};
 
 use crate::auth::CurrentUser;
 use crate::db::AppState;
-use crate::error::{internal, ApiResult};
+use crate::error::{ApiResult, internal};
 use crate::models::{AnalyticsOverview, PopularDoc, SearchMiss};
 
 /// How many rows each ranked list returns — enough to act on, short enough to
@@ -30,15 +30,14 @@ async fn overview(
     // go out together rather than one after the other. The page is admin-only
     // and infrequent, but there is no reason to pay serial round-trips when one
     // wall-clock's worth of them will do.
-    let total_documents = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM documents")
-        .fetch_one(&state.pool);
+    let total_documents =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM documents").fetch_one(&state.pool);
 
     // SUM over a bigint column comes back NUMERIC in Postgres; cast it back so
     // it decodes as i64.
-    let total_views = sqlx::query_scalar::<_, i64>(
-        "SELECT COALESCE(SUM(view_count), 0)::bigint FROM documents",
-    )
-    .fetch_one(&state.pool);
+    let total_views =
+        sqlx::query_scalar::<_, i64>("SELECT COALESCE(SUM(view_count), 0)::bigint FROM documents")
+            .fetch_one(&state.pool);
 
     // Most-read documents.
     let popular = sqlx::query_as::<_, PopularDoc>(

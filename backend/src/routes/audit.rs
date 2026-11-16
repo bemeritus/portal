@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::auth::CurrentUser;
 use crate::db::AppState;
-use crate::error::{internal, ApiResult};
+use crate::error::{ApiResult, internal};
 use crate::models::AuditEntry;
 
 /// The client decides how much of the table to pull in one request, within

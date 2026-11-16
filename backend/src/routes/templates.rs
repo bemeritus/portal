@@ -5,8 +5,8 @@
 //! manage documents, and the admin-only actions (managing categories) carry
 //! their own `AdminUser` guard.
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 
 use crate::db::AppState;
 

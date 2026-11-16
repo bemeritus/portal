@@ -13,9 +13,9 @@
 //! generic line, because none of that is actionable and some of it is a hint
 //! about the inside of the system.
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Serialize;
 
 /// What the client is told when the cause is ours rather than theirs.
