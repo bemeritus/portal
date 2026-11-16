@@ -102,6 +102,8 @@ ENV BIND_ADDR=0.0.0.0:3000 \
 #   DATABASE_URL     (required — the app panics on startup without it)
 #   ADMIN_USERNAME / ADMIN_PASSWORD  (seed admin, only used while `users` is empty)
 #   SECURE_COOKIE=1  (behind TLS — see DEPLOY.md)
+#   TELEGRAM_BOT_TOKEN  (optional — enables Telegram notifications)
+#   PUBLIC_BASE_URL     (optional — clickable links in those notifications)
 
 EXPOSE 3000
 

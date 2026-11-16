@@ -17,6 +17,7 @@ mod db;
 mod error;
 mod models;
 mod routes;
+mod telegram;
 
 use axum::Router;
 use axum::extract::Request;
@@ -58,9 +59,18 @@ async fn main() {
         );
     }
 
+    // Off unless TELEGRAM_BOT_TOKEN is set. The poller lives for the process:
+    // it only serves /start and /stop, so there is nothing to shut down early.
+    let telegram = telegram::Telegram::from_config(pool.clone(), &config);
+    if let Some(tg) = &telegram {
+        tg.spawn_poller();
+        tracing::info!("telegram notifications enabled");
+    }
+
     let state = AppState {
         pool,
         config: config.clone(),
+        telegram,
     };
 
     // Session cookies (SR-2). `Secure` comes from the environment rather than

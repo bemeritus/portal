@@ -63,6 +63,11 @@ services:
       # default because compose is most often reached over plain HTTP on
       # localhost, where a Secure cookie is simply never sent.
       SECURE_COOKIE: ${PORTAL_SECURE_COOKIE:-0}
+      # Telegram notifications (optional): a @BotFather token turns them on,
+      # empty leaves the whole integration off. PUBLIC_BASE_URL only makes the
+      # document titles in those messages clickable.
+      TELEGRAM_BOT_TOKEN: ${PORTAL_TELEGRAM_BOT_TOKEN:-}
+      PUBLIC_BASE_URL: ${PORTAL_PUBLIC_BASE_URL:-}
       # STATIC_DIR, UPLOADS_DIR and BIND_ADDR are already set in the image;
       # overriding BIND_ADDR here would break the published port below.
     ports:

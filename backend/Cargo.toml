@@ -28,6 +28,10 @@ sqlx = { version = "0.8", default-features = false, features = [
 # --- Auth ---
 argon2 = { version = "0.5", features = ["std"] }
 
+# --- Telegram notifications ---
+# rustls like sqlx, so the runtime image still needs no OpenSSL.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
 # --- Content ---
 # Answers are authored as Markdown and rendered here, not in the browser: the
 # sanitizer is a security control (SR-5-adjacent), and a control that runs on

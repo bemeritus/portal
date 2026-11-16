@@ -20,6 +20,7 @@ use crate::error::{ApiError, ApiResult, db_reference, internal};
 use crate::models::{
     DocumentDraft, DocumentSummary, DocumentWithBlocks, QaBlockInput, QaBlockView, normalize_status,
 };
+use crate::telegram::DocEvent;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -397,6 +398,12 @@ async fn create(
         .await
         .map_err(|e| internal("committing a new document", e))?;
 
+    // After the commit, never before: subscribers must not hear about a save
+    // that then rolled back. Fire-and-forget — a down Telegram cannot fail this.
+    if let Some(tg) = &state.telegram {
+        tg.notify_document(DocEvent::Created, doc_id, &title, &status, &user.username);
+    }
+
     Ok((StatusCode::CREATED, Json(CreatedDocument { id: doc_id })))
 }
 
@@ -512,6 +519,12 @@ async fn update(
     tx.commit()
         .await
         .map_err(|e| internal("committing an edited document", e))?;
+
+    // Same rule as in `create`: only a committed edit is worth announcing.
+    if let Some(tg) = &state.telegram {
+        tg.notify_document(DocEvent::Updated, id, &title, &status, &user.username);
+    }
+
     Ok(StatusCode::NO_CONTENT)
 }
 

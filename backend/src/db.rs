@@ -4,12 +4,15 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 
 use crate::auth::hash_password;
 use crate::config::Config;
+use crate::telegram::Telegram;
 
 /// Everything a handler needs, handed out by Axum's `State`.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub config: Config,
+    /// `None` unless TELEGRAM_BOT_TOKEN is configured.
+    pub telegram: Option<Telegram>,
 }
 
 /// Build the Postgres connection pool and run pending migrations.

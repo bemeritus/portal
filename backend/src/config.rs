@@ -20,6 +20,13 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     /// `Secure` on the session cookie. Off for local HTTP, on behind TLS.
     pub secure_cookie: bool,
+    /// Bot token from @BotFather. Absent means the whole Telegram integration
+    /// is off — no poller, no notifications, no new dependency on the API.
+    pub telegram_bot_token: Option<String>,
+    /// Where the app is reachable by a human (e.g. "https://kb.example.com").
+    /// Only used to put a clickable link into Telegram messages; without it
+    /// the messages still go out, just without the link.
+    pub public_base_url: Option<String>,
 }
 
 impl Config {
@@ -55,6 +62,14 @@ impl Config {
             secure_cookie: std::env::var("SECURE_COOKIE")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
+            telegram_bot_token: std::env::var("TELEGRAM_BOT_TOKEN")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty()),
+            public_base_url: std::env::var("PUBLIC_BASE_URL")
+                .ok()
+                .map(|v| v.trim().trim_end_matches('/').to_string())
+                .filter(|v| !v.is_empty()),
         }
     }
 }
