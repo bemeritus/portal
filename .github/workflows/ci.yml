@@ -1,0 +1,104 @@
+# Everything a change must pass before merging — the same gates as `just ci`,
+# plus a Docker build that proves the production image still assembles.
+#
+# Three independent jobs so a frontend lint failure doesn't hide a backend
+# test failure (and vice versa); the Docker build waits for both, since an
+# image of code that fails its own checks is not worth the build minutes.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend — fmt, clippy, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the same minor as the Dockerfile's RUST_VERSION, so CI and
+      # the image never drift apart — and a new stable's new clippy lints
+      # can't start failing PRs until the pin is bumped deliberately.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96"
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: rustfmt
+        run: cargo fmt --check
+
+      - name: clippy (warnings denied)
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Unit tests only — sqlx queries are runtime-checked and the tests touch
+      # no database, so no Postgres service is needed here.
+      - name: tests
+        run: cargo test
+
+  frontend:
+    name: Frontend — typecheck, lint, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Matches the Dockerfile's NODE_VERSION.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: lint
+        run: npm run lint
+
+      # `tsc -b && vite build` — catches anything typecheck's project
+      # references miss and proves the bundle actually assembles.
+      - name: build
+        run: npm run build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only — nothing is pushed. The GHA backend caches image *layers*
+      # between runs; the Dockerfile's RUN cache mounts are ephemeral on hosted
+      # runners, so the release compile reruns when backend sources change —
+      # acceptable for a merge gate, and it needs no registry or secrets.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: portal:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
