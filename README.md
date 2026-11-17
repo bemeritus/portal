@@ -19,6 +19,7 @@ The specification is [`docs/platform_doc.md`](./docs/platform_doc.md).
 | This file — setup, running, permissions | [`README.md`](./README.md) | [`docs/README.uz.md`](./docs/README.uz.md) |
 | Technical specification | [`docs/platform_doc.md`](./docs/platform_doc.md) | [`docs/platform_doc.uz.md`](./docs/platform_doc.uz.md) |
 | Production deployment | [`docs/DEPLOY.md`](./docs/DEPLOY.md) | [`docs/DEPLOY.uz.md`](./docs/DEPLOY.uz.md) |
+| Server room module (DC) | [`docs/dc.md`](./docs/dc.md) | — |
 
 ## Quick start
 
@@ -71,6 +72,11 @@ In production there is one origin and one process — `STATIC_DIR` points Axum a
 - **Change history** (`/admin/logs`, admin only): every user, permission,
   category, document and upload change is recorded with who, when, what action
   and what changed — append-only, and entries outlive what they describe.
+- **Server room (DC)** at `/dc`: the room in 3D from exact measurements, racks
+  with devices by unit, shelf cells, capacity finder, history with restore,
+  DXF/CSV exports and CSV import, and a catalog of equipment drawn from its
+  dimensions — behind its own tool permission. See [`docs/dc.md`](./docs/dc.md).
+- **UI language** (Русский, O'zbekcha, English) saved per user on the server.
 - **argon2** password hashing, **tower-sessions** cookie sessions, and a
   permission guard on every endpoint.
 
@@ -101,6 +107,23 @@ There is no third term. In particular:
 
 `frontend/src/permissions.ts` mirrors this rule to decide what to *show*. It
 never decides what is allowed: the server re-checks every request behind it.
+
+### «Внутренние инструменты» (internal tools)
+
+A second, independent family for internal tools, in
+`user_tool_permissions` and `backend/src/tool_access.rs`:
+
+```
+allowed(user, tool, level) = user.is_admin
+                          OR grant(user, tool, level)
+                          OR (level = use AND grant(user, tool, edit))
+```
+
+Tools: `port_checker`, `mail_tester`, `online_pinger`, `dns_checker` (level
+`use`) and `dc_room` (`use`, `edit`). Granted on `/admin/users` → *Internal
+tools*, audited, re-read on every request. A handler takes
+`RequireTool<DcRoom, Edit>` and cannot run without that grant. Only `dc_room`
+is enforced so far; the port checker page is still open to everyone.
 
 ## Prerequisites
 
@@ -164,6 +187,8 @@ just dev-api            # the API alone
 just dev-web            # the frontend alone
 just serve              # production shape: build the SPA, serve it from Axum on :3000
 just ci                 # fmt-check + clippy + eslint + tsc + tests
+just seed-dc            # load the server room and the cooling catalog (re-runnable)
+just test-db            # database-level server room rules, on a throwaway database
 ```
 
 `just` on its own lists every recipe: database start/stop/reset, migrations,
@@ -220,6 +245,9 @@ Everything is JSON, under `/api`, and every failure has the same shape:
 | `GET /api/users` · `POST` · `PUT /{id}/permissions` · `PUT /{id}/active` · `PUT /{id}/password` | admin |
 | `GET /api/audit?target_type=&search=&limit=` | change history (admin) |
 | `POST /api/upload` (multipart `file`) | images |
+| `PUT /api/auth/me/language` · `GET /api/auth/me/tools` | the caller's UI language; their internal-tool grants |
+| `GET /api/users/tool-registry` · `GET`/`PUT /api/users/{id}/tools` | internal-tool grants (admin) |
+| `/api/dc/*` | server room — see [`docs/dc.md`](./docs/dc.md#api) |
 | `GET /api/health` | liveness; does not touch the database |
 
 `/uploads/*` serves the stored files and requires a session.
@@ -242,8 +270,10 @@ backend/
     audit.rs               the two audit-writing helpers
     content.rs             markdown → sanitized HTML, slugify
     diff.rs                LCS line/block diffing for the document history
+    tool_access.rs         «Внутренние инструменты»: tool registry and guard
+    dc/                    server room: typed model, geometry, capacity, CSV, DXF, change sets, seed
     error.rs               ApiError → status + {"error": …}
-    routes/                auth, categories, documents, users, uploads, audit
+    routes/                auth, categories, documents, users, uploads, audit, dc
 frontend/
   src/
     main.tsx               React root, QueryClient
@@ -253,6 +283,7 @@ frontend/
     permissions.ts         the client's copy of the permission rule
     components/            Layout, RequireAuth, ConfirmButton, ThemeSelect, …
     pages/                 Login, Home, Document, History, Editor, Categories, AdminUsers, AuditLog
+    dc/                    server room: model/ (pure, tested), engine/ (three.js), ui/ (pages, panels)
     styles/main.css        the whole stylesheet, four themes
 ```
 
@@ -294,8 +325,10 @@ quietly fixed, because each is a decision for the project owner:
 3. **`draft` has no privacy meaning.** The editor now says so rather than
    claiming otherwise, but if drafts are meant to be author-only the listing
    and the fetch both need a status clause.
-4. **No CSRF token.** Sessions rely on `SameSite=Lax`. With the API and the SPA
-   on one origin that covers the ordinary cases, but it is not a token.
+4. **No CSRF token outside `/api/dc`.** State-changing server room requests
+   carry a per-session token (`X-CSRF-Token`); everything else still relies on
+   `SameSite=Lax`. With the API and the SPA on one origin that covers the
+   ordinary cases, but it is not a token.
 5. **No rate limiting on login** (SR-7).
 6. **Uploads are not scoped by category** — any signed-in user can fetch any
    `/uploads/…` URL they can guess.
