@@ -445,9 +445,16 @@ pub fn build(room: &Room, placed: &[Placed<'_>], lang: Language) -> Vec<u8> {
                 let len = if along_x { r.x1 - r.x0 } else { r.z1 - r.z0 } as f64;
                 let cell = len / s.cells_per_board as f64;
                 let mut at = 0;
+                let reversed = super::geometry::cells_reversed(p.solid.rotation_deg);
                 for sec in s.sections.iter().take(s.sections.len().saturating_sub(1)) {
                     at += sec;
-                    let d = cell * at as f64;
+                    // Sections are counted from the shelf's left as seen from
+                    // its front, like the cells.
+                    let d = if reversed {
+                        len - cell * at as f64
+                    } else {
+                        cell * at as f64
+                    };
                     if along_x {
                         w.line(l(layer), x0 + d, y0, x0 + d, y1);
                     } else {

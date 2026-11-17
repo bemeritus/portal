@@ -282,7 +282,8 @@ pub fn plan() -> Result<Plan, String> {
         x0: val(&s["x0"]),
         z0: val(&s["z0"]),
         y0: 0,
-        rotation_deg: 0,
+        // Against the shelf wall, its front facing into the room (+z).
+        rotation_deg: 180,
         instance: json!({}),
         note: String::new(),
     });

@@ -542,12 +542,20 @@ pub fn cell_info(p: &ShelfProps, cell_no: i32) -> Option<CellInfo> {
     })
 }
 
+/// Does column 0 sit at the high end of the shelf's long axis?
+pub fn cells_reversed(rotation_deg: i32) -> bool {
+    matches!(rotation_deg.rem_euclid(360), 0 | 90)
+}
+
 /// The plan rectangle of what would stand in a cell, given the shelf's solid.
 fn cell_item_rect(shelf: &Solid, p: &ShelfProps, column: i32) -> Rect {
     let r = shelf.rect;
     let along_x = shelf.rotation_deg.rem_euclid(180) == 0;
     let len = if along_x { r.x1 - r.x0 } else { r.z1 - r.z0 } as f64;
-    let reversed = matches!(shelf.rotation_deg.rem_euclid(360), 180 | 270);
+    // Cells run left to right as seen from the shelf's front. Facing a front
+    // that faces −z (rotation 0) your left is +x, so column 0 is at the far end;
+    // at 180 (front +z) it is at x0. Likewise 90 → z1, 270 → z0.
+    let reversed = cells_reversed(shelf.rotation_deg);
     let col = if reversed {
         p.cells_per_board - 1 - column
     } else {
@@ -625,7 +633,11 @@ mod tests {
     }
 
     fn shelf() -> Solid {
-        s("shelf", Kind::Shelf, Rect::new(200, 25, 4730, 935), 0, 1795)
+        // Against the z = 0 wall, its front facing into the room.
+        Solid {
+            rotation_deg: 180,
+            ..s("shelf", Kind::Shelf, Rect::new(200, 25, 4730, 935), 0, 1795)
+        }
     }
 
     #[test]
@@ -861,6 +873,13 @@ mod tests {
         let blocked = blocked_cells(&shelf(), &shelf_props(), &refs);
         // Same set as the prototype's `slotInfo`: eleven of the fourteen top cells.
         assert_eq!(blocked, vec![1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14]);
+        // Seen from the other side, the same cells carry the mirrored numbers.
+        let back = Solid {
+            rotation_deg: 0,
+            ..shelf()
+        };
+        let mirrored = blocked_cells(&back, &shelf_props(), &refs);
+        assert_eq!(mirrored, vec![1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14]);
         // A unit high enough above the board blocks nothing.
         let high = s(
             "hi",
