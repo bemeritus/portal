@@ -20,6 +20,7 @@ import { CategoriesPage } from "./pages/CategoriesPage";
 import { DocumentPage } from "./pages/DocumentPage";
 import { DraftsPage } from "./pages/DraftsPage";
 import { EditorPage } from "./pages/EditorPage";
+import { HistoryPage } from "./pages/HistoryPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { PortCheckerPage } from "./pages/PortCheckerPage";
@@ -63,6 +64,7 @@ export function App() {
             <Route path="docs/new" element={<EditorPage />} />
             <Route path="docs/:id" element={<DocumentPage />} />
             <Route path="docs/:id/edit" element={<EditorPage />} />
+            <Route path="docs/:id/history" element={<HistoryPage />} />
             <Route path="categories" element={<CategoriesPage />} />
           </Route>
 

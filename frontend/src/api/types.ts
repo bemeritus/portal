@@ -98,6 +98,71 @@ export interface DocumentDraft {
   blocks: QaBlockInput[];
 }
 
+/**
+ * What a revision changed, as counts and field names. The server deliberately
+ * sends no wording: this page says it in the reader's language.
+ */
+export interface RevisionChanges {
+  fields: FieldChange["field"][];
+  blocks_added: number;
+  blocks_removed: number;
+  blocks_edited: number;
+}
+
+/** One entry in a document's history, newest first. */
+export interface RevisionSummary {
+  revision: number;
+  kind: "created" | "edited" | "restored" | "baseline";
+  restored_from: number | null;
+  title: string;
+  status: string;
+  category_name: string | null;
+  edited_by: string | null;
+  edited_at: Timestamp;
+  block_count: number;
+  is_current: boolean;
+  changes: RevisionChanges;
+}
+
+/** A change to a document field rather than to its Q&A text. */
+export interface FieldChange {
+  field: "title" | "status" | "category";
+  old: string;
+  new: string;
+}
+
+/** One line of a unified diff. For `skip`, `text` is a count of folded lines. */
+export interface DiffLine {
+  kind: "context" | "added" | "removed" | "skip";
+  text: string;
+}
+
+export interface BlockDiff {
+  kind: "unchanged" | "added" | "removed" | "changed";
+  question: string;
+  /** Set only when the question itself was rewritten. */
+  question_old: string | null;
+  lines: DiffLine[];
+}
+
+/** One revision in full: what it changed, and what it said. */
+export interface RevisionDetail {
+  revision: number;
+  kind: RevisionSummary["kind"];
+  restored_from: number | null;
+  title: string;
+  status: string;
+  category_name: string | null;
+  edited_by: string | null;
+  edited_at: Timestamp;
+  is_current: boolean;
+  /** The revision diffed against, or null for the first one. */
+  compared_to: number | null;
+  fields: FieldChange[];
+  blocks: BlockDiff[];
+  rendered: QaBlockView[];
+}
+
 export interface AuditEntry {
   id: Uuid;
   at: Timestamp;

@@ -19,6 +19,8 @@ import type {
   DocumentSummary,
   DocumentWithBlocks,
   PortCheckResult,
+  RevisionDetail,
+  RevisionSummary,
   UploadResponse,
   User,
   Uuid,
@@ -84,6 +86,18 @@ export const documents = {
    * to the document, so refreshes and back-navigation stay out of the number.
    */
   view: (id: Uuid) => api.post<{ view_count: number }>(`${TEMPLATES}/documents/${id}/view`),
+  /** This document's history, newest revision first. */
+  revisions: (id: Uuid, signal?: AbortSignal) =>
+    api.get<RevisionSummary[]>(`${TEMPLATES}/documents/${id}/revisions`, signal),
+  /** One revision: its diff against the revision before it, and its content. */
+  revision: (id: Uuid, revision: number, signal?: AbortSignal) =>
+    api.get<RevisionDetail>(`${TEMPLATES}/documents/${id}/revisions/${revision}`, signal),
+  /**
+   * Put an older revision back. Nothing is rewound: the content is written
+   * again as a new revision, whose number comes back here.
+   */
+  restore: (id: Uuid, revision: number) =>
+    api.post<{ revision: number }>(`${TEMPLATES}/documents/${id}/revisions/${revision}/restore`),
   /** Bookmark / un-bookmark this document for the current user. */
   bookmark: (id: Uuid) => api.post<void>(`${TEMPLATES}/documents/${id}/bookmark`),
   unbookmark: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}/bookmark`),

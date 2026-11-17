@@ -9,7 +9,7 @@
 
 import { useEffect, useRef } from "react";
 import { Link, useNavigate, useNavigationType, useParams } from "react-router-dom";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, History, Star } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -147,6 +147,14 @@ export function DocumentPage() {
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link to={`/templates/docs/${doc.id}/edit`}>{t("common.edit")}</Link>
+          </Button>
+          {/* Every edit is kept, so the way back to an older wording is a link
+              rather than a support request. */}
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/templates/docs/${doc.id}/history`}>
+              <History className="size-3.5" aria-hidden="true" />
+              {t("history.open")}
+            </Link>
           </Button>
           <ConfirmButton
             label={t("common.delete")}

@@ -119,6 +119,109 @@ pub struct QaBlockInput {
     pub answer: String,
 }
 
+/// A Q&A block as a revision stores it: the question and the raw markdown, in
+/// display order. This is the shape frozen into `document_revisions.blocks`,
+/// which is why it is deserialized from JSON as well as serialized to it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RevisionBlock {
+    pub question: String,
+    pub answer: String,
+}
+
+/// What a revision changed, as counts and field names rather than as a
+/// sentence: the wording belongs to the client, which knows the reader's
+/// language.
+///
+/// Computed on read from the two snapshots rather than stored, so it can never
+/// drift from the content it describes.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct RevisionChanges {
+    /// Which document fields moved: `title`, `status`, `category`.
+    pub fields: Vec<String>,
+    pub blocks_added: i64,
+    pub blocks_removed: i64,
+    pub blocks_edited: i64,
+}
+
+/// One entry in a document's history list.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RevisionSummary {
+    pub revision: i32,
+    /// `created` | `edited` | `restored` | `baseline` — see the migration.
+    pub kind: String,
+    pub restored_from: Option<i32>,
+    pub title: String,
+    pub status: String,
+    /// `None` once the category has been deleted.
+    pub category_name: Option<String>,
+    /// `None` once the editor's account has been deleted.
+    pub edited_by: Option<String>,
+    pub edited_at: DateTime<Utc>,
+    pub block_count: i64,
+    /// Whether this is the document as it stands now.
+    pub is_current: bool,
+    pub changes: RevisionChanges,
+}
+
+/// One field of the document that this revision changed (title, status or
+/// category) — the part of a diff that is not Q&A text.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FieldChange {
+    /// `title` | `status` | `category`.
+    pub field: String,
+    pub old: String,
+    pub new: String,
+}
+
+/// One line of a unified diff.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DiffLine {
+    /// `context` | `added` | `removed` | `skip`.
+    pub kind: String,
+    /// The line itself, or — for `skip` — how many unchanged lines were folded
+    /// away, as a bare number the client words in its own language.
+    pub text: String,
+}
+
+/// How one Q&A block differs between two revisions.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BlockDiff {
+    /// `unchanged` | `added` | `removed` | `changed`.
+    pub kind: String,
+    /// The question as this revision has it (for `removed`, as it had it).
+    pub question: String,
+    /// Set only when the question itself was rewritten.
+    pub question_old: Option<String>,
+    /// The answer's line diff. Empty when the answer did not change; for an
+    /// added or removed block, every line is an addition or a removal.
+    pub lines: Vec<DiffLine>,
+}
+
+/// One revision in full: what it changed, and the content it holds.
+///
+/// Both halves travel together because the history page offers both views of
+/// the same revision — "what changed" and "what it said" — and a reader flips
+/// between them constantly.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RevisionDetail {
+    pub revision: i32,
+    pub kind: String,
+    pub restored_from: Option<i32>,
+    pub title: String,
+    pub status: String,
+    pub category_name: Option<String>,
+    pub edited_by: Option<String>,
+    pub edited_at: DateTime<Utc>,
+    pub is_current: bool,
+    /// The revision this one is compared against — the previous one, or `None`
+    /// for the first, which has nothing behind it.
+    pub compared_to: Option<i32>,
+    pub fields: Vec<FieldChange>,
+    pub blocks: Vec<BlockDiff>,
+    /// The revision's own content, rendered for reading.
+    pub rendered: Vec<QaBlockView>,
+}
+
 /// One recorded change to the platform, as the admin log shows it.
 ///
 /// The names are the ones stored with the entry rather than looked up now, so a

@@ -63,6 +63,11 @@ In production there is one origin and one process — `STATIC_DIR` points Axum a
 - **Filtering** on the home page by **title** (ILIKE) and **category**, live.
 - **Image uploads** (PNG/JPEG/GIF/WebP, ≤5 MB), inserted straight into the
   answer you are editing.
+- **Document history**: every save is kept as a full revision. The history page
+  (`/templates/docs/{id}/history`) lists them newest first with who changed
+  what, shows a line-by-line diff of any revision against the one before it,
+  and restores an older one — as a *new* revision, so nothing is ever rewound
+  and a mistaken restore is itself undoable.
 - **Change history** (`/admin/logs`, admin only): every user, permission,
   category, document and upload change is recorded with who, when, what action
   and what changed — append-only, and entries outlive what they describe.
@@ -210,6 +215,8 @@ Everything is JSON, under `/api`, and every failure has the same shape:
 | `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/me` | sessions |
 | `GET /api/categories` · `GET /api/categories/writable` · `POST` · `PUT /{id}` · `DELETE /{id}` | categories |
 | `GET /api/documents?title=&category=` · `POST` · `GET /{id}` · `GET /{id}/draft` · `PUT /{id}` · `DELETE /{id}` | documents |
+| `GET /api/templates/documents/{id}/revisions` · `GET …/revisions/{n}` · `POST …/revisions/{n}/restore` | document history |
+| `POST /api/templates/documents/{id}/view` | counts one read; the `GET` above does not |
 | `GET /api/users` · `POST` · `PUT /{id}/permissions` · `PUT /{id}/active` · `PUT /{id}/password` | admin |
 | `GET /api/audit?target_type=&search=&limit=` | change history (admin) |
 | `POST /api/upload` (multipart `file`) | images |
@@ -234,6 +241,7 @@ backend/
     auth.rs                argon2, sessions, and the CurrentUser/AdminUser guards
     audit.rs               the two audit-writing helpers
     content.rs             markdown → sanitized HTML, slugify
+    diff.rs                LCS line/block diffing for the document history
     error.rs               ApiError → status + {"error": …}
     routes/                auth, categories, documents, users, uploads, audit
 frontend/
@@ -244,7 +252,7 @@ frontend/
     auth/AuthContext.tsx   who is signed in
     permissions.ts         the client's copy of the permission rule
     components/            Layout, RequireAuth, ConfirmButton, ThemeSelect, …
-    pages/                 Login, Home, Document, Editor, Categories, AdminUsers, AuditLog
+    pages/                 Login, Home, Document, History, Editor, Categories, AdminUsers, AuditLog
     styles/main.css        the whole stylesheet, four themes
 ```
 

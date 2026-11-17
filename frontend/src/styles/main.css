@@ -249,6 +249,52 @@
 .answer-prose table { display: block; overflow-x: auto; border-collapse: collapse; margin: 0.75em 0; }
 .answer-prose th, .answer-prose td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
 
+/* A unified diff, as the document history shows it. Added and removed lines
+ * are tinted from the same --good / --bad inks the rest of the app uses, so the
+ * colours follow whichever theme is active instead of being hard-coded green
+ * and red. The mark column is what carries the meaning for anyone who cannot
+ * tell the two tints apart. */
+.diff-body {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.diff-line {
+  display: flex;
+  gap: 8px;
+  padding: 1px 10px;
+  white-space: pre;
+}
+.diff-mark {
+  flex: none;
+  width: 1ch;
+  color: var(--ink-muted);
+  user-select: none;
+}
+.diff-text { min-width: 0; }
+.diff-added {
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+  color: var(--ink);
+}
+.diff-added .diff-mark { color: var(--good); }
+.diff-removed {
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
+  color: var(--ink);
+}
+.diff-removed .diff-mark { color: var(--bad); }
+.diff-context { color: var(--ink-muted); }
+/* The fold marker is prose, not code: it may wrap and it is not monospaced. */
+.diff-skip {
+  background: var(--panel-2);
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: 12px;
+  white-space: normal;
+}
+
 /* Category badges carry one of six stable hues: the hue as ink on a 14% wash
  * of itself. The 1–6 index is derived from the category id in JS, so a
  * category keeps its colour across pages. */

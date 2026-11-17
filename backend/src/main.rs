@@ -14,6 +14,7 @@ mod auth;
 mod config;
 mod content;
 mod db;
+mod diff;
 mod error;
 mod models;
 mod routes;
