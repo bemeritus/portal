@@ -19,9 +19,16 @@ import {
   type ReactNode,
 } from "react";
 
+import i18n from "i18next";
+
 import { ApiError } from "../api/client";
 import { auth } from "../api/endpoints";
-import type { User } from "../api/types";
+import type { Lang, User } from "../api/types";
+
+/** Show the UI in the user's saved language, without a reload. */
+function applyLanguage(user: User | null) {
+  if (user && i18n.language !== user.language) void i18n.changeLanguage(user.language);
+}
 
 interface AuthState {
   user: User | null;
@@ -31,6 +38,11 @@ interface AuthState {
   logout: () => Promise<void>;
   /** Re-read the session after a change that could alter our own grants. */
   refresh: () => Promise<void>;
+  /**
+   * Switch the UI language now and, when signed in, save it with the user so
+   * it follows them to other browsers and into server-side exports.
+   */
+  setLanguage: (lang: Lang) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -44,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      setUser(await auth.me(signal));
+      const me = await auth.me(signal);
+      applyLanguage(me);
+      setUser(me);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       // 401 means "nobody is signed in", which is a normal outcome here.
@@ -72,7 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: async (username, password) => {
         // The login response carries the user, so there is no second request
         // and no window where the app is signed in but does not know by whom.
-        setUser(await auth.login(username, password));
+        const me = await auth.login(username, password);
+        applyLanguage(me);
+        setUser(me);
       },
       logout: async () => {
         try {
@@ -84,6 +100,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       refresh: () => load(),
+      setLanguage: async (lang) => {
+        // The UI switches first: a slow or failed save must not leave the
+        // user looking at the old language after they picked a new one.
+        await i18n.changeLanguage(lang);
+        if (user) setUser(await auth.setLanguage(lang));
+      },
     }),
     [user, loading, load],
   );

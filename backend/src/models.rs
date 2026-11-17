@@ -21,6 +21,28 @@ pub struct User {
     pub is_admin: bool,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
+    /// UI language: `ru`, `uz` (Latin) or `en`. See [`Language`].
+    pub language: String,
+}
+
+/// The three UI languages. Stored as text in `users.language`; this enum is
+/// the one place that decides which strings are valid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    Ru,
+    Uz,
+    En,
+}
+
+impl Language {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Language::Ru => "ru",
+            Language::Uz => "uz",
+            Language::En => "en",
+        }
+    }
 }
 
 /// A content category (§6.2).

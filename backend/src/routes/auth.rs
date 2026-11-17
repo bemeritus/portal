@@ -2,7 +2,7 @@
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::Deserialize;
 use tower_sessions::Session;
@@ -10,13 +10,38 @@ use tower_sessions::Session;
 use crate::auth::{CurrentUser, SESSION_UID, verify_password};
 use crate::db::AppState;
 use crate::error::{ApiError, ApiResult, internal};
-use crate::models::User;
+use crate::models::{Language, User};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
         .route("/logout", post(logout))
         .route("/me", get(me))
+        .route("/me/language", put(set_language))
+}
+
+#[derive(Deserialize)]
+pub struct LanguageBody {
+    language: Language,
+}
+
+/// Save the caller's UI language. A personal preference, so it is not an
+/// audited change; an unknown language is rejected by deserialization (422).
+async fn set_language(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Json(body): Json<LanguageBody>,
+) -> ApiResult<Json<User>> {
+    let user = sqlx::query_as::<_, User>(
+        "UPDATE users SET language = $2 WHERE id = $1
+         RETURNING id, username, is_admin, is_active, created_at, language",
+    )
+    .bind(user.id)
+    .bind(body.language.as_str())
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| internal("saving the user's language", e))?;
+    Ok(Json(user))
 }
 
 #[derive(Deserialize)]

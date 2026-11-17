@@ -23,7 +23,12 @@ export interface User {
   is_admin: boolean;
   is_active: boolean;
   created_at: Timestamp;
+  /** UI language, saved with the user (`users.language`). */
+  language: Lang;
 }
+
+/** The three UI languages; mirrors `models::Language`. */
+export type Lang = "ru" | "uz" | "en";
 
 export interface Category {
   id: Uuid;

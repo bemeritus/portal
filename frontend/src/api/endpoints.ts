@@ -18,6 +18,7 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
+  Lang,
   PortCheckResult,
   RevisionDetail,
   RevisionSummary,
@@ -44,6 +45,7 @@ export const auth = {
   logout: () => api.post<void>(`${BASE}/auth/logout`),
   /** 401 when there is no session — the caller treats that as "signed out". */
   me: (signal?: AbortSignal) => api.get<User>(`${BASE}/auth/me`, signal),
+  setLanguage: (language: Lang) => api.put<User>(`${BASE}/auth/me/language`, { language }),
 };
 
 // The templates section owns categories and documents; its routes moved under

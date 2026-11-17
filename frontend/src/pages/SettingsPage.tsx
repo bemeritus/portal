@@ -13,6 +13,8 @@ import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { useAuth } from "../auth/AuthContext";
+
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
@@ -67,6 +69,7 @@ function OptionTile({
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
+  const { setLanguage } = useAuth();
   const [theme, setTheme] = useTheme();
   const currentLang = i18n.language.split("-")[0];
 
@@ -110,7 +113,7 @@ export function SettingsPage() {
             <OptionTile
               key={l.value}
               selected={l.value === currentLang}
-              onClick={() => void i18n.changeLanguage(l.value)}
+              onClick={() => void setLanguage(l.value)}
             >
               <span className="flex-1">{l.label}</span>
             </OptionTile>

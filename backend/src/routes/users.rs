@@ -56,7 +56,7 @@ async fn list(
     AdminUser(_): AdminUser,
 ) -> ApiResult<Json<Vec<User>>> {
     let users = sqlx::query_as::<_, User>(
-        "SELECT id, username, is_admin, is_active, created_at FROM users ORDER BY created_at",
+        "SELECT id, username, is_admin, is_active, created_at, language FROM users ORDER BY created_at",
     )
     .fetch_all(&state.pool)
     .await

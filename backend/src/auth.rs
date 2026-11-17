@@ -61,7 +61,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 /// takes effect immediately rather than at the next login.
 pub async fn load_user(pool: &PgPool, uid: Uuid) -> ApiResult<Option<User>> {
     let user = sqlx::query_as::<_, User>(
-        "SELECT id, username, is_admin, is_active, created_at FROM users WHERE id = $1",
+        "SELECT id, username, is_admin, is_active, created_at, language FROM users WHERE id = $1",
     )
     .bind(uid)
     .fetch_optional(pool)
