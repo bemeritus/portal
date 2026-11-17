@@ -626,15 +626,17 @@ pub async fn apply(
                 state.annotations.push(super::model::Annotation {
                     id,
                     payload: annotation.clone(),
+                    author_id: Some(actor.id),
                     author_name: Some(actor.username.clone()),
                     created_at: chrono::Utc::now(),
                 });
             }
             Op::AnnotationDelete { id } => {
+                // Someone else's personal view does not exist for this user.
                 let idx = state
                     .annotations
                     .iter()
-                    .position(|a| a.id == *id)
+                    .position(|a| a.id == *id && a.visible_to(actor.id))
                     .ok_or_else(|| bad("No such annotation in this room"))?;
                 sqlx::query("DELETE FROM dc_annotations WHERE id = $1")
                     .bind(id)

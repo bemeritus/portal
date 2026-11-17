@@ -833,6 +833,31 @@ pub struct ViewPayload {
     /// Vertical field of view in degrees (perspective).
     pub fov: i32,
     pub ortho: bool,
+    /// The display mode the view was saved in (§11.4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ViewMode>,
+    /// The owner highlighted when it was saved.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    /// The selection, as its deep link (`obj-12`, `device-7`, `cell-5-16`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<String>,
+    /// Shared with everyone who can see the room, or personal.
+    #[serde(default = "yes")]
+    pub shared: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewMode {
+    Schema,
+    Realistic,
+    Fill,
+    Power,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -840,8 +865,28 @@ pub struct Annotation {
     pub id: i64,
     #[serde(flatten)]
     pub payload: AnnotationPayload,
+    #[serde(default)]
+    pub author_id: Option<uuid::Uuid>,
     pub author_name: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+impl Annotation {
+    /// Can `user` see it? Personal views are their author's only.
+    pub fn visible_to(&self, user: uuid::Uuid) -> bool {
+        match &self.payload {
+            AnnotationPayload::View(v) if !v.shared => self.author_id == Some(user),
+            _ => true,
+        }
+    }
+}
+
+impl Snapshot {
+    /// The snapshot as `user` may see it.
+    pub fn for_user(mut self, user: uuid::Uuid) -> Snapshot {
+        self.annotations.retain(|a| a.visible_to(user));
+        self
+    }
 }
 
 /// Everything in a room that a change set can touch, frozen into a revision.
@@ -974,6 +1019,29 @@ mod tests {
         assert!(m(1498, Some(1495), Some(1500), Some(1510)).disagrees());
         assert!(!m(600, Some(600), Some(605), Some(600)).disagrees());
         assert!(!m(600, None, None, None).disagrees());
+    }
+
+    #[test]
+    fn personal_views_are_their_authors_only() {
+        let (me, other) = (uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+        let view = |shared: bool| Annotation {
+            id: 1,
+            payload: serde_json::from_value(json!({"kind": "view", "payload": {
+                "name": "v", "position": [0, 0, 0], "target": [1, 1, 1], "fov": 45,
+                "ortho": false, "mode": "fill", "owner": "Клиент X", "shared": shared}}))
+            .unwrap(),
+            author_id: Some(me),
+            author_name: None,
+            created_at: chrono::Utc::now(),
+        };
+        assert!(view(false).visible_to(me));
+        assert!(!view(false).visible_to(other));
+        assert!(view(true).visible_to(other));
+        // Older views without the field are shared.
+        let old: AnnotationPayload = serde_json::from_value(json!({"kind": "view", "payload": {
+            "name": "v", "position": [0, 0, 0], "target": [1, 1, 1], "fov": 45, "ortho": false}}))
+        .unwrap();
+        assert!(matches!(old, AnnotationPayload::View(v) if v.shared && v.mode.is_none()));
     }
 
     #[test]

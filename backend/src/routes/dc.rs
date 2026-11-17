@@ -27,7 +27,7 @@ use crate::dc::csv::{self as dccsv, Change, ExportRow, RackRef};
 use crate::dc::diff::{SnapshotDiff, diff};
 use crate::dc::dxf::{self, Placed};
 use crate::dc::model::{
-    CatalogItem, CatalogProps, Face, Kind, RoomSummary, RoomView, Snapshot, parse_enum,
+    CatalogItem, CatalogProps, Face, Kind, RoomSummary, RoomView, Snapshot, enum_str, parse_enum,
 };
 use crate::dc::ops::{self, Analysis, Applied, ChangeSet, Failure, ObjectFields, Op};
 use crate::dc::store;
@@ -45,6 +45,7 @@ const CSRF_HEADER: &str = "x-csrf-token";
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/csrf", get(csrf_token))
+        .route("/settings", get(settings).put(set_settings))
         .route("/catalog", get(catalog))
         .route("/rooms", get(rooms))
         .route("/rooms/{id}", get(room))
@@ -121,6 +122,105 @@ async fn csrf_guard(session: Session, request: Request, next: Next) -> Response 
     }
 }
 
+// --- Personal settings ----------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DcTheme {
+    Studio,
+    Drawing,
+    Light,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LengthUnit {
+    Mm,
+    Cm,
+    M,
+}
+
+/// The caller's theme and length unit for this module.
+#[derive(Serialize)]
+struct Settings {
+    /// `None` = follow the app's light/dark preference.
+    dc_theme: Option<DcTheme>,
+    dc_unit: LengthUnit,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SettingsBody {
+    /// Absent = unchanged; `null` = back to following the app.
+    #[serde(default, deserialize_with = "some_or_null")]
+    dc_theme: Option<Option<DcTheme>>,
+    #[serde(default)]
+    dc_unit: Option<LengthUnit>,
+}
+
+/// Tell "field absent" from "field null" (`Option<Option<_>>`).
+fn some_or_null<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(d).map(Some)
+}
+
+async fn load_settings(pool: &sqlx::PgPool, user: uuid::Uuid) -> ApiResult<Settings> {
+    let row: Option<(Option<String>, String)> =
+        sqlx::query_as("SELECT dc_theme, dc_unit FROM user_settings WHERE user_id = $1")
+            .bind(user)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| internal("reading the user's DC settings", e))?;
+    Ok(match row {
+        Some((theme, unit)) => Settings {
+            dc_theme: theme.as_deref().and_then(parse_enum),
+            dc_unit: parse_enum(&unit).unwrap_or(LengthUnit::Cm),
+        },
+        None => Settings {
+            dc_theme: None,
+            dc_unit: LengthUnit::Cm,
+        },
+    })
+}
+
+async fn settings(
+    State(state): State<AppState>,
+    RequireTool(user, _): Viewer,
+) -> ApiResult<Json<Settings>> {
+    Ok(Json(load_settings(&state.pool, user.id).await?))
+}
+
+/// A personal preference: saved with the user, not audited.
+async fn set_settings(
+    State(state): State<AppState>,
+    RequireTool(user, _): Viewer,
+    Json(body): Json<SettingsBody>,
+) -> ApiResult<Json<Settings>> {
+    let current = load_settings(&state.pool, user.id).await?;
+    let theme = match body.dc_theme {
+        Some(t) => t,
+        None => current.dc_theme,
+    };
+    let unit = body.dc_unit.unwrap_or(current.dc_unit);
+    sqlx::query(
+        "INSERT INTO user_settings (user_id, dc_theme, dc_unit) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET dc_theme = EXCLUDED.dc_theme, dc_unit = EXCLUDED.dc_unit",
+    )
+    .bind(user.id)
+    .bind(theme.map(|t| enum_str(&t)))
+    .bind(enum_str(&unit))
+    .execute(&state.pool)
+    .await
+    .map_err(|e| internal("saving the user's DC settings", e))?;
+    Ok(Json(Settings {
+        dc_theme: theme,
+        dc_unit: unit,
+    }))
+}
+
 // --- Reading -----------------------------------------------------------------------
 
 #[derive(Deserialize)]
@@ -169,11 +269,12 @@ fn items_of(view: &RoomView) -> HashMap<i64, CatalogItem> {
 
 async fn room(
     State(state): State<AppState>,
-    _: Viewer,
+    RequireTool(user, _): Viewer,
     Path(id): Path<i64>,
 ) -> ApiResult<Json<RoomResponse>> {
     let mut conn = acquire(&state).await?;
-    let view = store::view(&mut conn, id).await?;
+    let mut view = store::view(&mut conn, id).await?;
+    view.contents = view.contents.for_user(user.id);
     let analysis = ops::analyse(&view.room, &items_of(&view), &view.contents)?;
     Ok(Json(RoomResponse { view, analysis }))
 }
@@ -335,14 +436,15 @@ fn revision_not_found() -> ApiError {
 
 async fn revision(
     State(state): State<AppState>,
-    _: Viewer,
+    RequireTool(user, _): Viewer,
     Path((id, n)): Path<(i64, i32)>,
 ) -> ApiResult<Json<RevisionDetail>> {
     let (summary, snapshot) = load_revision(&state.pool, id, n)
         .await?
         .ok_or_else(revision_not_found)?;
+    let snapshot = snapshot.for_user(user.id);
     let before = match load_revision(&state.pool, id, n - 1).await? {
-        Some((_, s)) => s,
+        Some((_, s)) => s.for_user(user.id),
         None => Snapshot::default(),
     };
     let diff = diff(&before, &snapshot);

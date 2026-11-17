@@ -185,6 +185,7 @@ type AnnotationRow = (
     i64,
     String,
     Value,
+    Option<Uuid>,
     Option<String>,
     chrono::DateTime<chrono::Utc>,
 );
@@ -269,7 +270,7 @@ pub async fn snapshot(conn: &mut PgConnection, room_id: i64) -> ApiResult<Snapsh
     .map_err(|e| internal("loading a room's shelf cells", e))?;
 
     let annotations: Vec<AnnotationRow> = sqlx::query_as(
-        "SELECT a.id, a.kind, a.payload, u.username, a.created_at
+        "SELECT a.id, a.kind, a.payload, a.author_id, u.username, a.created_at
                FROM dc_annotations a LEFT JOIN users u ON u.id = a.author_id
               WHERE a.room_id = $1 ORDER BY a.id",
     )
@@ -319,8 +320,9 @@ pub async fn snapshot(conn: &mut PgConnection, room_id: i64) -> ApiResult<Snapsh
                 Ok(Annotation {
                     id: r.0,
                     payload,
-                    author_name: r.3,
-                    created_at: r.4,
+                    author_id: r.3,
+                    author_name: r.4,
+                    created_at: r.5,
                 })
             })
             .collect::<ApiResult<_>>()?,
@@ -478,14 +480,13 @@ pub async fn replace_contents(
         upsert_cell(conn, c).await?;
     }
     for a in &s.annotations {
-        // The author is kept by name only in a snapshot; a restored note
-        // keeps its time but loses the link to the account.
+        // A restored note keeps its author and time.
         insert_annotation(
             conn,
             room_id,
             Some(a.id),
             &a.payload,
-            None,
+            a.author_id,
             Some(a.created_at),
         )
         .await?;
