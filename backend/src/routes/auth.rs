@@ -11,6 +11,7 @@ use crate::auth::{CurrentUser, SESSION_UID, verify_password};
 use crate::db::AppState;
 use crate::error::{ApiError, ApiResult, internal};
 use crate::models::{Language, User};
+use crate::tool_access::{ToolGrant, effective_grants};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -18,6 +19,7 @@ pub fn routes() -> Router<AppState> {
         .route("/logout", post(logout))
         .route("/me", get(me))
         .route("/me/language", put(set_language))
+        .route("/me/tools", get(my_tools))
 }
 
 #[derive(Deserialize)]
@@ -117,4 +119,13 @@ async fn logout(session: Session) -> ApiResult<StatusCode> {
 /// decides, on first load, whether to show the app or the login page.
 async fn me(CurrentUser(user): CurrentUser) -> Json<User> {
     Json(user)
+}
+
+/// The internal tools the caller may use, level by level — what navigation is
+/// built from. Admins get every level of every tool.
+async fn my_tools(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<Vec<ToolGrant>>> {
+    Ok(Json(effective_grants(&state.pool, &user).await?))
 }

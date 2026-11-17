@@ -30,6 +30,7 @@ import { errorMessage } from "../api/client";
 import { users as usersApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
 import { ConfirmButton } from "../components/ConfirmButton";
+import { ToolPermissions } from "../components/ToolPermissions";
 import { ErrorFlash, Flash } from "../components/Flash";
 import { Empty, Spinner } from "../components/Loading";
 import { formatDate } from "../format";
@@ -95,6 +96,8 @@ export function AdminUsersPage() {
           </TableBody>
         </Table>
       )}
+
+      {usersQuery.data && usersQuery.data.length > 0 && <ToolPermissions users={usersQuery.data} />}
     </>
   );
 }

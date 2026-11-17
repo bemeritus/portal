@@ -48,7 +48,7 @@ function actionColor(action: string): string {
   const verb = action.slice(action.lastIndexOf(".") + 1);
   if (verb === "delete") return "text-destructive";
   if (verb === "create") return "text-success";
-  if (verb.startsWith("permission")) return "text-tag-3";
+  if (verb.startsWith("permission") || verb === "grant" || verb === "revoke") return "text-tag-3";
   return "text-foreground";
 }
 

@@ -19,6 +19,7 @@ mod error;
 mod models;
 mod routes;
 mod telegram;
+mod tool_access;
 
 use axum::Router;
 use axum::extract::Request;

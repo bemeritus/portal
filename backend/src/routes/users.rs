@@ -11,11 +11,12 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::audit::{Audit, audit_now};
+use crate::audit::{Audit, audit_now, audit_tx};
 use crate::auth::{AdminUser, hash_password};
 use crate::db::AppState;
 use crate::error::{ApiError, ApiResult, db_conflict, internal};
 use crate::models::User;
+use crate::tool_access::{ToolGrant, ToolInfo, registry, stored_grants};
 
 /// Shortest password the platform accepts, for creation and for resets alike.
 const MIN_PASSWORD_LEN: usize = 6;
@@ -25,6 +26,8 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(list).post(create))
         .route("/{id}/active", put(set_active))
         .route("/{id}/password", put(reset_password))
+        .route("/tool-registry", get(tool_registry))
+        .route("/{id}/tools", get(get_tools).put(set_tools))
 }
 
 #[derive(Deserialize)]
@@ -209,4 +212,115 @@ async fn reset_password(
     )
     .await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// --- «Внутренние инструменты» ----------------------------------------------
+
+/// Every tool and the levels it can be granted at, for the admin page.
+async fn tool_registry(AdminUser(_): AdminUser) -> Json<Vec<ToolInfo>> {
+    Json(registry())
+}
+
+/// A user's stored grants (not the effective set: an admin's list is what was
+/// granted to them, which matters if they are later demoted).
+async fn get_tools(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Path(user_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<ToolGrant>>> {
+    Ok(Json(stored_grants(&state.pool, user_id).await?))
+}
+
+#[derive(Deserialize)]
+pub struct ToolsBody {
+    grants: Vec<ToolGrant>,
+}
+
+/// Replace a user's tool grants with exactly `grants`. One audit entry per
+/// grant added or removed, written in the same transaction as the change.
+async fn set_tools(
+    State(state): State<AppState>,
+    AdminUser(admin): AdminUser,
+    Path(user_id): Path<Uuid>,
+    Json(body): Json<ToolsBody>,
+) -> ApiResult<Json<Vec<ToolGrant>>> {
+    let mut wanted = body.grants;
+    for g in &wanted {
+        if !g.tool.levels().contains(&g.level) {
+            return Err(ApiError::BadRequest(
+                "That tool cannot be granted at that level".into(),
+            ));
+        }
+    }
+    wanted.sort();
+    wanted.dedup();
+
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| internal("starting a tool-permission change", e))?;
+    let username: Option<String> =
+        sqlx::query_scalar("SELECT username FROM users WHERE id = $1 FOR UPDATE")
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| internal("locking a user for a tool-permission change", e))?;
+    let username =
+        username.ok_or_else(|| ApiError::NotFound("That user no longer exists".into()))?;
+
+    let current = stored_grants(&state.pool, user_id).await?;
+    let added: Vec<_> = wanted
+        .iter()
+        .filter(|g| !current.contains(g))
+        .copied()
+        .collect();
+    let removed: Vec<_> = current
+        .iter()
+        .filter(|g| !wanted.contains(g))
+        .copied()
+        .collect();
+
+    for g in &removed {
+        sqlx::query(
+            "DELETE FROM user_tool_permissions WHERE user_id = $1 AND tool = $2 AND level = $3",
+        )
+        .bind(user_id)
+        .bind(g.tool.key())
+        .bind(g.level.key())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| internal("revoking a tool permission", e))?;
+    }
+    for g in &added {
+        sqlx::query("INSERT INTO user_tool_permissions (user_id, tool, level) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(g.tool.key())
+            .bind(g.level.key())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| internal("granting a tool permission", e))?;
+    }
+    for (action, g) in added
+        .iter()
+        .map(|g| ("tool_permission.grant", g))
+        .chain(removed.iter().map(|g| ("tool_permission.revoke", g)))
+    {
+        audit_tx(
+            &mut tx,
+            &admin,
+            Audit {
+                action,
+                target_type: "user",
+                target_id: Some(user_id),
+                target_name: &username,
+                details: Some(format!("{}:{}", g.tool.key(), g.level.key())),
+            },
+        )
+        .await?;
+    }
+    tx.commit()
+        .await
+        .map_err(|e| internal("committing a tool-permission change", e))?;
+    Ok(Json(wanted))
 }
