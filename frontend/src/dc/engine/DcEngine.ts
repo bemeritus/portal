@@ -533,10 +533,10 @@ export class DcEngine {
       else if (this.mode === "fill") tint = this.lib.tint(st.used / st.units);
       else if (st.unknownPower > 0) tint = this.lib.unknown();
       else {
+        // Against the budget; without one there is nothing to judge
+        // against, so every rack with known power gets the same colour.
         const budget = m.room.settings.rack_power_budget_w;
-        const max = Math.max(1, ...this.rackPowers());
-        const f = budget ? st.powerW / budget : st.powerW / max;
-        tint = budget && st.powerW > budget ? this.lib.over() : this.lib.tint(f);
+        tint = budget === null ? this.lib.known() : st.powerW > budget ? this.lib.over() : this.lib.tint(st.powerW / budget);
       }
     }
     e.built.group.traverse((o) => {
@@ -554,13 +554,6 @@ export class DcEngine {
       }
       mesh.material = tint && (role === "rackFrame" || role === "rackCap") ? tint : this.lib.role(role);
     });
-  }
-
-  private rackPowers(): number[] {
-    const m = this.model!;
-    return [...this.entries.values()]
-      .filter((e) => e.item.kind === "rack")
-      .map((e) => m.devices.filter((d) => d.rack_id === e.obj.id).reduce((a, d) => a + (d.power_w ?? 0), 0));
   }
 
   private labelEntry(e: Entry, devices: Device[]) {

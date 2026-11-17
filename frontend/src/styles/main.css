@@ -481,3 +481,16 @@
     transition: none;
   }
 }
+.dc-legend {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 4;
+  max-width: 320px;
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--line);
+}

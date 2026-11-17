@@ -452,5 +452,13 @@ export const dcEn = {
     tray_type: "Tray type",
     max_fill_pct: "Max fill, %",
     purpose: "Purpose",
+
+  },
+  legend: {
+    fill: "Racks by units used: green empty → red full; free runs on the front in green.",
+    power: "Racks by recorded power against the budget of {{w}}: green → red; over budget in the warning colour.",
+    powerNoBudget: "No per-rack power budget is set for this room: racks with known power are blue, not judged.",
+    notRecorded: "contents not recorded",
+    unknown: "some power unknown (never shown as zero)",
   },
 };

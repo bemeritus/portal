@@ -206,6 +206,19 @@ export function DcRoomPage() {
     }
   }, [selection, data]);
 
+  // A deep link followed while the room is open selects and flies, too.
+  useEffect(() => {
+    const onHash = () => {
+      const ref = parseHash(window.location.hash);
+      if (!ref) return;
+      setSelection(ref);
+      setTab("selection");
+      flewTo.current = false;
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   const select = useCallback((ref: SelRef, fly = true) => {
     setSelection(ref);
     setTab("selection");
@@ -468,6 +481,14 @@ export function DcRoomPage() {
       <div className="flex min-h-0 flex-1">
         <div ref={host} className="dc-host relative min-h-[420px] flex-1 overflow-hidden" aria-label={t("dc.canvasLabel")}>
           {walking && <div className="dc-walk-help">{t("dc.walk.help")}</div>}
+          {(mode === "fill" || mode === "power") && (
+            <div className="dc-legend">
+              {mode === "fill" ? t("dc.legend.fill") : data.room.settings.rack_power_budget_w === null ? t("dc.legend.powerNoBudget") : t("dc.legend.power", { w: fmt.w(data.room.settings.rack_power_budget_w) })}
+              <div className="mt-1 flex items-center gap-1">
+                <span className="dc-hatch inline-block size-3 rounded-sm border" /> {mode === "fill" ? t("dc.legend.notRecorded") : t("dc.legend.unknown")}
+              </div>
+            </div>
+          )}
           <div className="dc-status">
             {cursor ? `x ${fmt.mm(cursor.x)} · z ${fmt.mm(cursor.z)}` : t("dc.statusHint")}
             {" · "}

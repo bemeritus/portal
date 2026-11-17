@@ -453,4 +453,11 @@ export const dcUz = {
     max_fill_pct: "Maks. to'ldirish, %",
     purpose: "Vazifasi",
   },
+  legend: {
+    fill: "Stoykalar band yunitlar bo'yicha: yashil — bo'sh, qizil — to'la; old tomondagi bo'sh oraliqlar yashil.",
+    power: "Stoykalar yozilgan quvvat bo'yicha {{w}} byudjetga nisbatan: yashildan qizilgacha; byudjetdan ortig'i ogohlantirish rangida.",
+    powerNoBudget: "Bu xona uchun stoyka quvvat byudjeti belgilanmagan: quvvati ma'lum stoykalar ko'k va baholanmaydi.",
+    notRecorded: "tarkibi yozilmagan",
+    unknown: "ba'zi qurilmalar quvvati noma'lum (nol deb ko'rsatilmaydi)",
+  },
 };

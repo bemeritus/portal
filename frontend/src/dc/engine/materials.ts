@@ -349,6 +349,11 @@ export class MaterialLibrary {
     return this.memo("over", () => new THREE.MeshLambertMaterial({ color: this.theme.warn }));
   }
 
+  /** Known power when the room has no budget to judge it against. */
+  known(): THREE.Material {
+    return this.memo("known", () => new THREE.MeshLambertMaterial({ color: this.theme.dark ? "#3d6ea8" : "#5b8fd1" }));
+  }
+
   /** Unknown power: hatched, never a colour that reads as zero. */
   unknown(): THREE.Material {
     return this.memo("unknown", () => {
