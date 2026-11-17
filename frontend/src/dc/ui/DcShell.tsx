@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Lang } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
+import { registerDcLocales } from "../../i18n/dc";
 import { useToolAccess } from "../../auth/useToolAccess";
 import { Spinner } from "../../components/Loading";
 import { LANGUAGES } from "../../i18n";
@@ -44,6 +45,9 @@ import { applyTokens, clearTokens, THEMES, TOKENS } from "../theme/tokens";
 import "../theme/fonts";
 import "../theme/dc.css";
 import { CommandPalette, type RoomPalette } from "./CommandPalette";
+
+// Before any DC page renders: the module's strings live in its own chunk.
+registerDcLocales();
 
 interface Shell {
   openPalette: (query?: string) => void;

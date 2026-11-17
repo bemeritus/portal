@@ -7,11 +7,13 @@
 import "i18next";
 
 import type { en } from "./locales/en";
+import type { dcEn } from "./locales/dc/en";
 
 declare module "i18next" {
   interface CustomTypeOptions {
     defaultNS: "translation";
-    resources: (typeof en);
+    // `dc.*` is registered when the server room module loads (./dc.ts).
+    resources: { translation: (typeof en)["translation"] & { dc: typeof dcEn } };
     returnNull: false;
   }
 }

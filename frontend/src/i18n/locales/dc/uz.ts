@@ -679,4 +679,20 @@ export const dcUz = {
     keyRun: "bajarish",
     keyParams: "parametrlar",
   },
+  labels: {
+    toggle: "Yozuvlar va o'lchamlar: ko'rsatish / yashirish",
+  },
+  layout: {
+    reset: "Joylashuvni boshlang'ich holatga qaytarish",
+    resetConfirm:
+      "Barcha obyektlar xona birinchi yuklangandagi joyiga qaytarilsinmi? Qurilmalar, katakchalar, eslatmalar va ko'rinishlar o'zgarmaydi. Buni bekor qilish mumkin (Ctrl+Z).",
+    resetNothing: "Barcha obyektlar allaqachon boshlang'ich joyida.",
+    resetChange_one: "Boshlang'ich joylashuv: {{count}} ta obyekt",
+    resetChange_other: "Boshlang'ich joylashuv: {{count}} ta obyekt",
+    resetDone_one: "{{count}} ta obyekt boshlang'ich joyiga qaytarildi.",
+    resetDone_other: "{{count}} ta obyekt boshlang'ich joyiga qaytarildi.",
+  },
+  quality: {
+    lowered: "Kadrlar sekin chiqdi — ko'rinish silliq qolishi uchun 3D sifati pasaytirildi (soya effekti yo'q, kamroq yorug'lik va piksel).",
+  },
 };

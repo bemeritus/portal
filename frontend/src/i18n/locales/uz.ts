@@ -1,6 +1,5 @@
 /** Uzbek (Latin). Uzbek nouns do not inflect for number, so count keys share
     one form across _one/_other. */
-import { dcUz } from "./dc/uz";
 
 export const uz = {
   translation: {
@@ -369,8 +368,5 @@ export const uz = {
       notAllowed: "Ruxsat yo'q",
       adminsOnly: "Bu bo'lim faqat administratorlar uchun.",
     },
-
-
-    dc: dcUz,
   },
 };

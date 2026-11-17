@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import { en } from "./locales/en";
 import { ru } from "./locales/ru";
 import { uz } from "./locales/uz";
+import { DC_LOCALES } from "./dc";
 
 const PLURAL = /_(zero|one|two|few|many|other)$/;
 
@@ -33,11 +34,11 @@ function flatten(tree: Tree, prefix = "", out = new Map<string, Set<string>>()) 
   return out;
 }
 
-const source = flatten(en.translation);
+const source = flatten({ ...en.translation, dc: DC_LOCALES.en });
 
 describe.each([
-  ["ru", ru.translation],
-  ["uz", uz.translation],
+  ["ru", { ...ru.translation, dc: DC_LOCALES.ru }],
+  ["uz", { ...uz.translation, dc: DC_LOCALES.uz }],
 ])("locale %s", (_name, catalog) => {
   const target = flatten(catalog as Tree);
 

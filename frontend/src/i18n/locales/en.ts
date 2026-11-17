@@ -1,5 +1,4 @@
 /** English — the source strings, and the fallback for anything untranslated. */
-import { dcEn } from "./dc/en";
 
 export const en = {
   translation: {
@@ -368,9 +367,6 @@ export const en = {
       notAllowed: "Not allowed",
       adminsOnly: "This section is for administrators.",
     },
-
-
-    dc: dcEn,
   },
 };
 

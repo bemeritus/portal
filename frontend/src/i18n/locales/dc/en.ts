@@ -677,4 +677,20 @@ export const dcEn = {
     keyRun: "run",
     keyParams: "parameters",
   },
+  labels: {
+    toggle: "Labels and dimensions: show / hide",
+  },
+  layout: {
+    reset: "Reset the layout to the original",
+    resetConfirm:
+      "Put every object back where it was when the room was first loaded? Devices, cells, notes and views stay as they are. You can undo this (Ctrl+Z).",
+    resetNothing: "Every object is already in its original place.",
+    resetChange_one: "Original layout: {{count}} object",
+    resetChange_other: "Original layout: {{count}} objects",
+    resetDone_one: "{{count}} object put back in its original place.",
+    resetDone_other: "{{count}} objects put back in their original places.",
+  },
+  quality: {
+    lowered: "Frames were slow, so 3D quality was lowered (no ambient occlusion, fewer lights and pixels) to keep the view smooth.",
+  },
 };

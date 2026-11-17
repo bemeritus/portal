@@ -36,5 +36,25 @@ export default defineConfig({
     // so `npm run build` never writes outside its own directory.
     outDir: "dist",
     sourcemap: true,
+    // three.js's core is ~580 kB minified (145 kB gzip) and cannot be split
+    // further; it loads only with the server room. Everything else is far
+    // below this.
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        // Libraries in chunks of their own: they change far less often than
+        // the app, so browsers keep them cached across releases. three.js's
+        // core goes to "three" (server room only); its examples (ambient
+        // occlusion) stay with the code that loads them on demand.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("/node_modules/three/build/")) return "three";
+          if (/\/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom)\//.test(id)) return "react";
+          if (/\/node_modules\/(@radix-ui|radix-ui|cmdk|lucide-react|@floating-ui)\//.test(id)) return "ui";
+          if (/\/node_modules\/(i18next|react-i18next|@tanstack)\//.test(id)) return "data";
+          return undefined;
+        },
+      },
+    },
   },
 });
