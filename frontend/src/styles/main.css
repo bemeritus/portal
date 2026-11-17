@@ -326,3 +326,158 @@
   --sidebar-border: hsl(240 3.7% 15.9%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
+
+/* --- Server room (DC) 3D view -------------------------------------------------
+   Everything over the canvas takes its colours from the theme tokens, so the
+   3D view follows light / dark / gruvbox like the rest of the app. */
+
+.dc-host {
+  background: var(--bg);
+}
+.dc-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+.dc-canvas:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+.dc-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.dc-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: pre;
+  font-size: 11px;
+  line-height: 1.25;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--line);
+  will-change: transform;
+}
+.dc-label-dim {
+  color: var(--dc-dim, var(--brand));
+  border-color: transparent;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.dc-label-warn {
+  color: #fff;
+  background: var(--dc-warn, var(--bad));
+  border-color: transparent;
+}
+.dc-label-assumed {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--dc-assumed, var(--tag-3)) 35%, var(--panel));
+  border: 1px dashed var(--dc-assumed, var(--tag-3));
+}
+.dc-label-note {
+  background: color-mix(in srgb, var(--tag-3) 25%, var(--panel));
+}
+.dc-label-measure {
+  color: var(--dc-dim, var(--brand));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dc-status {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.dc-tooltip {
+  position: fixed;
+  z-index: 30;
+  max-width: 320px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+}
+.dc-walk-help {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid var(--line);
+}
+.dc-note-prompt {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 6;
+  width: 280px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.dc-cube-wrap {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 60px;
+  height: 60px;
+  perspective: 300px;
+  z-index: 4;
+}
+.dc-cube {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.dc-cube-face {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 60px;
+  height: 60px;
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.1;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border: 1px solid var(--line);
+  backface-visibility: hidden;
+  cursor: pointer;
+}
+.dc-cube-face:hover,
+.dc-cube-face:focus-visible {
+  background: color-mix(in srgb, var(--brand) 25%, var(--panel));
+}
+.dc-cube-face:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.dc-hatch {
+  background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--bad) 30%, transparent) 0 4px, transparent 4px 8px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dc-label {
+    transition: none;
+  }
+}

@@ -1,5 +1,7 @@
 /** Uzbek (Latin). Uzbek nouns do not inflect for number, so count keys share
     one form across _one/_other. */
+import { dcUz } from "./dc/uz";
+
 export const uz = {
   translation: {
     app: { name: "Bilimlar bazasi" },
@@ -21,6 +23,7 @@ export const uz = {
       search: "Qidiruv",
       tools: "Vositalar",
       portChecker: "Port tekshirgich",
+      serverRoom: "Server xonasi",
     },
 
     menu: {
@@ -81,6 +84,9 @@ export const uz = {
       clearFilters: "Filtrlarni tozalash",
       loadMore: "Ko'proq yuklash",
       loading: "Yuklanmoqda…",
+      close: "Yopish",
+      yes: "ha",
+      no: "yo'q",
     },
 
     login: {
@@ -363,5 +369,7 @@ export const uz = {
       adminsOnly: "Bu bo'lim faqat administratorlar uchun.",
     },
 
+
+    dc: dcUz,
   },
 };

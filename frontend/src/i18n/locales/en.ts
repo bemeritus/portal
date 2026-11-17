@@ -1,4 +1,6 @@
 /** English — the source strings, and the fallback for anything untranslated. */
+import { dcEn } from "./dc/en";
+
 export const en = {
   translation: {
     app: { name: "Knowledge Base" },
@@ -20,6 +22,7 @@ export const en = {
       search: "Search",
       tools: "Tools",
       portChecker: "Port checker",
+      serverRoom: "Server room",
     },
 
     menu: {
@@ -80,6 +83,9 @@ export const en = {
       clearFilters: "Clear filters",
       loadMore: "Load more",
       loading: "Loading…",
+      close: "Close",
+      yes: "yes",
+      no: "no",
     },
 
     login: {
@@ -362,6 +368,8 @@ export const en = {
       adminsOnly: "This section is for administrators.",
     },
 
+
+    dc: dcEn,
   },
 };
 

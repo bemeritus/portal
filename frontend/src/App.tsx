@@ -7,10 +7,13 @@
  * forwards to the documents list.
  */
 
+import { lazy, Suspense } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
+import { Spinner } from "./components/Loading";
+import { RequireDc } from "./dc/ui/RequireDc";
 import { RequireAdmin, RequireAuth } from "./components/RequireAuth";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -25,6 +28,13 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { PortCheckerPage } from "./pages/PortCheckerPage";
 import { SettingsPage } from "./pages/SettingsPage";
+
+// The server room pages carry three.js; they load on first visit, so the rest
+// of the app does not download a 3D engine it never uses.
+const DcRoomsPage = lazy(() => import("./dc/ui/DcRoomsPage").then((m) => ({ default: m.DcRoomsPage })));
+const DcRoomPage = lazy(() => import("./dc/ui/DcRoomPage").then((m) => ({ default: m.DcRoomPage })));
+const DcHistoryPage = lazy(() => import("./dc/ui/DcHistoryPage").then((m) => ({ default: m.DcHistoryPage })));
+const DcCatalogPage = lazy(() => import("./dc/ui/DcCatalogPage").then((m) => ({ default: m.DcCatalogPage })));
 
 function NotFound() {
   return (
@@ -49,6 +59,21 @@ export function App() {
 
           {/* Every signed-in user's own settings — theme and language. */}
           <Route path="settings" element={<SettingsPage />} />
+
+          {/* The server room module, behind «Внутренние инструменты» → dc_room. */}
+          <Route
+            path="dc"
+            element={
+              <Suspense fallback={<Spinner />}>
+                <RequireDc />
+              </Suspense>
+            }
+          >
+            <Route index element={<DcRoomsPage />} />
+            <Route path="catalog" element={<DcCatalogPage />} />
+            <Route path=":roomId" element={<DcRoomPage />} />
+            <Route path=":roomId/history" element={<DcHistoryPage />} />
+          </Route>
 
           {/* Small network utilities, open to any signed-in user. */}
           <Route path="tools/port-check" element={<PortCheckerPage />} />

@@ -72,3 +72,13 @@ export type TKey = import("i18next").ParseKeys;
 export function statusKey(status: string): "status.draft" | "status.published" {
   return status === "published" ? "status.published" : "status.draft";
 }
+
+/**
+ * `t()` for a key assembled at run time (`dc.subtype.${s}`) — the typed `t`
+ * cannot check those, and asking it to makes TypeScript recurse too deep. The
+ * locale tests still hold every language to the same key set; a key missing
+ * from all of them falls back to `defaultValue` or the key.
+ */
+export function tDyn(t: unknown, key: string, options?: Record<string, unknown>): string {
+  return (t as (k: string, o?: Record<string, unknown>) => string)(key, options);
+}

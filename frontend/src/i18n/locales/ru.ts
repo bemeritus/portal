@@ -1,4 +1,6 @@
 /** Russian. Count keys carry all four CLDR plural forms (one/few/many/other). */
+import { dcRu } from "./dc/ru";
+
 export const ru = {
   translation: {
     app: { name: "База знаний" },
@@ -20,6 +22,7 @@ export const ru = {
       search: "Поиск",
       tools: "Инструменты",
       portChecker: "Проверка порта",
+      serverRoom: "Серверная",
     },
 
     menu: {
@@ -80,6 +83,9 @@ export const ru = {
       clearFilters: "Сбросить фильтры",
       loadMore: "Показать ещё",
       loading: "Загрузка…",
+      close: "Закрыть",
+      yes: "да",
+      no: "нет",
     },
 
     login: {
@@ -380,5 +386,7 @@ export const ru = {
       adminsOnly: "Этот раздел только для администраторов.",
     },
 
+
+    dc: dcRu,
   },
 };
