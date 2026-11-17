@@ -16,6 +16,7 @@ pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod categories;
+pub mod dc;
 pub mod documents;
 pub mod templates;
 pub mod tools;
@@ -59,6 +60,7 @@ pub fn api(state: &AppState) -> Router<AppState> {
         .nest("/audit", audit::routes())
         .nest("/analytics", analytics::routes())
         .nest("/tools", tools::routes())
+        .nest("/dc", dc::routes())
         .nest(
             "/upload",
             uploads::routes().layer(DefaultBodyLimit::max(upload_limit)),

@@ -43,6 +43,16 @@ impl Language {
             Language::En => "en",
         }
     }
+
+    /// The stored value; the column's CHECK keeps it valid, and anything else
+    /// reads as Russian rather than failing a request.
+    pub fn from_db(s: &str) -> Language {
+        match s {
+            "uz" => Language::Uz,
+            "en" => Language::En,
+            _ => Language::Ru,
+        }
+    }
 }
 
 /// A content category (§6.2).

@@ -26,15 +26,24 @@ function rustFiles(dir: string): string[] {
   });
 }
 
-/** Strip `#[cfg(test)] mod tests { … }` — test fixtures are not messages. */
+/** Strip `#[cfg(test)] mod tests { … }` and comments — neither is a message sent. */
 function withoutTests(src: string): string {
   const i = src.indexOf("#[cfg(test)]");
-  return i < 0 ? src : src.slice(0, i);
+  const code = i < 0 ? src : src.slice(0, i);
+  // Comments quote messages as examples; they are not sent.
+  return code
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("//"))
+    .join("\n");
 }
 
 const VARIANT =
   /ApiError::(?:BadRequest|Unauthorized|Forbidden|NotFound|Conflict|PayloadTooLarge|Unprocessable)\(\s*(format!\(\s*)?"((?:[^"\\]|\\.)*)"/g;
 const HELPER = /db_(?:conflict|reference)\([^;]*?"((?:[^"\\]|\\.)*)",?\s*\)/g;
+/** The DC module's `bad("…")` shorthand for a 400. */
+const BAD = /\bbad\(\s*(format!\(\s*)?"((?:[^"\\]|\\.)*)"/g;
+/** Error bodies built by hand with extra fields (`"error": "…"`, `["error"] = json!("…")`). */
+const JSON_ERROR = /"error"\]?\s*(?::|=\s*json!\()\s*"((?:[^"\\]|\\.)*)"/g;
 /** Messages a module hands to a helper of its own, marked `// error-message`. */
 const MARKED = /"((?:[^"\\]|\\.)*)",?\s*\/\/ error-message/g;
 
@@ -45,6 +54,8 @@ function collect() {
     const src = withoutTests(readFileSync(file, "utf8"));
     for (const m of src.matchAll(VARIANT)) (m[1] ? formatted : exact).add(m[2]);
     for (const m of src.matchAll(HELPER)) exact.add(m[1]);
+    for (const m of src.matchAll(BAD)) (m[1] ? formatted : exact).add(m[2]);
+    for (const m of src.matchAll(JSON_ERROR)) exact.add(m[1]);
     for (const m of src.matchAll(MARKED)) (m[1].includes("{") ? formatted : exact).add(m[1]);
   }
   return { exact, formatted };

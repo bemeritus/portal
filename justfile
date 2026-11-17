@@ -170,6 +170,13 @@ migrate-info:
 seed:
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/seeds/technical_content.sql
 
+# Re-runnable: catalog items and the room are matched and left alone when
+# they exist, so this never overwrites edits made since.
+#
+# Load the server room (dc-handoff/data/room.json) and the cooling catalog.
+seed-dc:
+    cd backend && cargo run -q -- seed-dc
+
 # Database-level DC rules (no-overlap, rack fit, …) against a scratch
 # database that is created, migrated and dropped again. Needs the local
 # cluster running; the database in DATABASE_URL is not touched.

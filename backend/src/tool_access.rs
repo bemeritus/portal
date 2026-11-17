@@ -14,11 +14,17 @@
 //! that takes `RequireTool<DcRoom, Edit>` cannot run for someone without
 //! `dc_room:edit`.
 
+use std::marker::PhantomData;
+
+use axum::extract::{FromRef, FromRequestParts};
+use axum::http::request::Parts;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::{ApiResult, internal};
+use crate::auth::CurrentUser;
+use crate::db::AppState;
+use crate::error::{ApiError, ApiResult, internal};
 use crate::models::User;
 
 /// The registry. Adding a tool = a variant here, its key in [`Tool::key`], its
@@ -160,6 +166,79 @@ pub async fn effective_grants(pool: &PgPool, user: &User) -> ApiResult<Vec<ToolG
         }
     }
     Ok(out)
+}
+
+/// The check itself, in SQL, for the guard.
+pub async fn allowed(pool: &PgPool, user: &User, tool: Tool, level: Level) -> ApiResult<bool> {
+    if user.is_admin {
+        return Ok(true);
+    }
+    sqlx::query_scalar(
+        "SELECT EXISTS (
+             SELECT 1 FROM user_tool_permissions
+              WHERE user_id = $1 AND tool = $2
+                AND (level = $3 OR ($3 = 'use' AND level = 'edit')))",
+    )
+    .bind(user.id)
+    .bind(tool.key())
+    .bind(level.key())
+    .fetch_one(pool)
+    .await
+    .map_err(|e| internal("checking a tool permission", e))
+}
+
+// --- Type-level guard -------------------------------------------------------
+
+/// A tool, as a type, for [`RequireTool`].
+pub trait ToolMarker {
+    const TOOL: Tool;
+}
+
+/// A level, as a type, for [`RequireTool`].
+pub trait LevelMarker {
+    const LEVEL: Level;
+}
+
+/// `dc_room` — the server room module.
+pub struct DcRoom;
+impl ToolMarker for DcRoom {
+    const TOOL: Tool = Tool::DcRoom;
+}
+
+pub struct Use;
+impl LevelMarker for Use {
+    const LEVEL: Level = Level::Use;
+}
+
+pub struct Edit;
+impl LevelMarker for Edit {
+    const LEVEL: Level = Level::Edit;
+}
+
+/// A signed-in user allowed `L` on tool `T`. Extracting it *is* the 401/403
+/// guard; the inner user is the caller.
+pub struct RequireTool<T, L>(pub User, pub PhantomData<(T, L)>);
+
+impl<S, T, L> FromRequestParts<S> for RequireTool<T, L>
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+    T: ToolMarker + Send + Sync,
+    L: LevelMarker + Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let CurrentUser(user) = CurrentUser::from_request_parts(parts, state).await?;
+        let app = AppState::from_ref(state);
+        if allowed(&app.pool, &user, T::TOOL, L::LEVEL).await? {
+            Ok(RequireTool(user, PhantomData))
+        } else {
+            Err(ApiError::Forbidden(
+                "You do not have access to this tool".into(),
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
