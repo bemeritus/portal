@@ -61,3 +61,14 @@ i18n.on("languageChanged", (lng) => {
 document.documentElement.lang = i18n.language;
 
 export default i18n;
+
+/** Any key of the message catalog; `t()` accepts nothing else. */
+export type TKey = import("i18next").ParseKeys;
+
+/**
+ * The key for a document status as the API sends it. Statuses are free text on
+ * the wire, so an unknown one falls back to `draft` rather than to a raw key.
+ */
+export function statusKey(status: string): "status.draft" | "status.published" {
+  return status === "published" ? "status.published" : "status.draft";
+}

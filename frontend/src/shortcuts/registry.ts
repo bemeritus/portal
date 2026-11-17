@@ -12,12 +12,14 @@
  * Bindings the user has changed live in `ShortcutsContext` / `localStorage`.
  */
 
+import type { TKey } from "../i18n";
+
 export interface ShortcutDef {
   id: string;
   /** Normalised default combo; "" means unbound by default (none are). */
   defaultCombo: string;
   /** i18n key for the human label. */
-  labelKey: string;
+  labelKey: TKey;
   /** Fire even while a text field is focused (true only for Mod combos). */
   allowInInput: boolean;
 }

@@ -16,13 +16,13 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
-import { LANGUAGES } from "../i18n";
+import { LANGUAGES, type TKey } from "../i18n";
 import { THEMES, useTheme, type ThemeValue } from "../components/ThemeSelect";
 import { comboFromEvent, formatCombo, SHORTCUTS, type ShortcutDef } from "../shortcuts/registry";
 import { useShortcuts } from "../shortcuts/ShortcutsContext";
 
 /** i18n key for each theme's display name, keyed by its stored value. */
-const THEME_LABEL: Record<ThemeValue, string> = {
+const THEME_LABEL: Record<ThemeValue, TKey> = {
   dark: "settings.themeDark",
   light: "settings.themeLight",
   gruvbox: "settings.themeGruvbox",

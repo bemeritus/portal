@@ -77,6 +77,10 @@ jobs:
       - name: lint
         run: npm run lint
 
+      # Unit tests, including the check that every locale has every key.
+      - name: tests
+        run: npm test
+
       # `tsc -b && vite build` — catches anything typecheck's project
       # references miss and proves the bundle actually assembles.
       - name: build

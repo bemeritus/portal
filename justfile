@@ -82,9 +82,16 @@ ports:
 
 # --- Checks -----------------------------------------------------------------
 
+# Unit tests, both halves.
+test: test-api test-web
+
 # Backend unit tests.
-test:
+test-api:
     cd backend && cargo test
+
+# Frontend unit tests (Vitest), including the locale key-parity check.
+test-web:
+    cd frontend && npm test
 
 # Type-check both halves.
 check: check-api check-web
