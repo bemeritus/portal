@@ -15,7 +15,7 @@
 type Lang = string;
 
 /** Exact-match sentences: English source → { ru, uz }. */
-const EXACT: Record<string, { ru: string; uz: string }> = {
+export const EXACT: Record<string, { ru: string; uz: string }> = {
   // auth.rs
   "Not signed in": { ru: "Вы не вошли в систему", uz: "Tizimga kirilmagan" },
   "Your session has ended": { ru: "Ваша сессия завершена", uz: "Sessiyangiz tugadi" },
@@ -77,6 +77,59 @@ const EXACT: Record<string, { ru: string; uz: string }> = {
     uz: "O'z hisobingizni o'chira olmaysiz",
   },
 
+  // auth.rs (routes)
+  "Please enter a username and password": {
+    ru: "Введите имя пользователя и пароль",
+    uz: "Foydalanuvchi nomi va parolni kiriting",
+  },
+
+  // documents.rs (history)
+  "Revision not found": { ru: "Ревизия не найдена", uz: "Reviziya topilmadi" },
+  "The category this version belonged to has been deleted. Edit the document and pick a category instead.":
+    {
+      ru: "Категория этой версии удалена. Откройте документ на правку и выберите категорию.",
+      uz: "Bu versiya tegishli bo'lgan kategoriya o'chirilgan. Hujjatni tahrirlab, kategoriyani tanlang.",
+    },
+
+  // tools.rs (port checker)
+  "Host is required": { ru: "Укажите хост", uz: "Hostni kiriting" },
+  "Enter a hostname or IP address, not a URL": {
+    ru: "Введите имя хоста или IP-адрес, а не URL",
+    uz: "URL emas, host nomi yoki IP manzilni kiriting",
+  },
+  "Port must be between 1 and 65535": {
+    ru: "Порт должен быть от 1 до 65535",
+    uz: "Port 1 dan 65535 gacha bo'lishi kerak",
+  },
+  "Checking the server's own loopback addresses is not allowed": {
+    ru: "Проверять собственные loopback-адреса сервера нельзя",
+    uz: "Serverning o'z loopback manzillarini tekshirish mumkin emas",
+  },
+
+  // uploads.rs
+  "File exceeds the size limit": {
+    ru: "Файл превышает допустимый размер",
+    uz: "Fayl ruxsat etilgan hajmdan katta",
+  },
+  "Only PNG, JPEG, GIF or WebP images are allowed": {
+    ru: "Разрешены только изображения PNG, JPEG, GIF или WebP",
+    uz: "Faqat PNG, JPEG, GIF yoki WebP rasmlarga ruxsat beriladi",
+  },
+  "No 'file' field in the request": {
+    ru: "В запросе нет поля «file»",
+    uz: "So'rovda 'file' maydoni yo'q",
+  },
+
+  // tool_access.rs, users.rs («Внутренние инструменты»)
+  "You do not have access to this tool": {
+    ru: "У вас нет доступа к этому инструменту",
+    uz: "Bu vositaga ruxsatingiz yo'q",
+  },
+  "That tool cannot be granted at that level": {
+    ru: "Этот инструмент нельзя выдать на таком уровне",
+    uz: "Bu vositani bunday darajada berib bo'lmaydi",
+  },
+
   // client.ts (transport failures described on this side)
   "Could not reach the server. Check your connection.": {
     ru: "Не удалось связаться с сервером. Проверьте подключение.",
@@ -84,9 +137,37 @@ const EXACT: Record<string, { ru: string; uz: string }> = {
   },
 };
 
-/** Sentences with a number in them, matched by pattern. */
-const PASSWORD_RE = /^Password must be at least (\d+) characters$/;
-const REQUEST_FAILED_RE = /^Request failed \((\d+)\)$/;
+/**
+ * Sentences with a value in them, matched by pattern. Each capture group is
+ * substituted into the translation as `$1`, `$2`, ….
+ */
+export const PATTERNS: { re: RegExp; ru: string; uz: string }[] = [
+  {
+    re: /^Password must be at least (\d+) characters$/,
+    ru: "Пароль должен содержать не менее $1 символов",
+    uz: "Parol kamida $1 ta belgidan iborat bo'lishi kerak",
+  },
+  {
+    re: /^Request failed \((\d+)\)$/,
+    ru: "Запрос не выполнен ($1)",
+    uz: "So'rov bajarilmadi ($1)",
+  },
+  {
+    re: /^'(.+)' did not resolve — check the spelling$/,
+    ru: "«$1» не разрешается — проверьте написание",
+    uz: "'$1' manzilga aylanmadi — yozilishini tekshiring",
+  },
+  {
+    re: /^Resolving '(.+)' timed out$/,
+    ru: "Разрешение «$1» превысило время ожидания",
+    uz: "'$1' ni aniqlash vaqti tugadi",
+  },
+  {
+    re: /^'(.+)' did not resolve to any address$/,
+    ru: "«$1» не разрешается ни в один адрес",
+    uz: "'$1' hech qanday manzilga aylanmadi",
+  },
+];
 
 /**
  * Translate a server error sentence into `lang`, or return it unchanged when
@@ -99,18 +180,11 @@ export function translateApiError(message: string, lang: Lang): string {
   const exact = EXACT[message];
   if (exact && (code === "ru" || code === "uz")) return exact[code];
 
-  const pw = PASSWORD_RE.exec(message);
-  if (pw) {
-    const n = pw[1];
-    if (code === "ru") return `Пароль должен содержать не менее ${n} символов`;
-    if (code === "uz") return `Parol kamida ${n} ta belgidan iborat bo'lishi kerak`;
-  }
-
-  const rf = REQUEST_FAILED_RE.exec(message);
-  if (rf) {
-    const n = rf[1];
-    if (code === "ru") return `Запрос не выполнен (${n})`;
-    if (code === "uz") return `So'rov bajarilmadi (${n})`;
+  if (code === "ru" || code === "uz") {
+    for (const p of PATTERNS) {
+      const m = p.re.exec(message);
+      if (m) return p[code].replace(/\$(\d)/g, (_, i: string) => m[Number(i)] ?? "");
+    }
   }
 
   return message;
