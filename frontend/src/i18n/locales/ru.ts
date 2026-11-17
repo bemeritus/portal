@@ -112,7 +112,7 @@ export const ru = {
     },
 
     doc: {
-      back: "← Документы",
+      back: "Документы",
       deleteForGood: "Удалить навсегда",
       noQuestions: "В этом документе пока нет вопросов.",
       questions_one: "{{count}} вопрос",
@@ -256,8 +256,8 @@ export const ru = {
     editor: {
       editDocument: "Изменить документ",
       newDocument: "Новый документ",
-      backToDocument: "← Назад к документу",
-      allDocuments: "← Все документы",
+      backToDocument: "Назад к документу",
+      allDocuments: "Все документы",
       title: "Название",
       titlePlaceholder: "О чём этот документ?",
       category: "Категория",

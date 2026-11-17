@@ -111,7 +111,7 @@ export const uz = {
     },
 
     doc: {
-      back: "← Hujjatlar",
+      back: "Hujjatlar",
       deleteForGood: "Butunlay o'chirish",
       noQuestions: "Bu hujjatda hali savollar yo'q.",
       questions_one: "{{count}} ta savol",
@@ -249,8 +249,8 @@ export const uz = {
     editor: {
       editDocument: "Hujjatni tahrirlash",
       newDocument: "Yangi hujjat",
-      backToDocument: "← Hujjatga qaytish",
-      allDocuments: "← Barcha hujjatlar",
+      backToDocument: "Hujjatga qaytish",
+      allDocuments: "Barcha hujjatlar",
       title: "Sarlavha",
       titlePlaceholder: "Bu hujjat nima haqida?",
       category: "Kategoriya",

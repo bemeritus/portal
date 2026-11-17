@@ -110,7 +110,7 @@ export const en = {
     },
 
     doc: {
-      back: "← Documents",
+      back: "Documents",
       deleteForGood: "Delete for good",
       noQuestions: "This document has no questions yet.",
       questions_one: "{{count}} question",
@@ -248,8 +248,8 @@ export const en = {
     editor: {
       editDocument: "Edit document",
       newDocument: "New document",
-      backToDocument: "← Back to document",
-      allDocuments: "← All documents",
+      backToDocument: "Back to document",
+      allDocuments: "All documents",
       title: "Title",
       titlePlaceholder: "What is this document about?",
       category: "Category",
