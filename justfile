@@ -170,6 +170,19 @@ migrate-info:
 seed:
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/seeds/technical_content.sql
 
+# Database-level DC rules (no-overlap, rack fit, …) against a scratch
+# database that is created, migrated and dropped again. Needs the local
+# cluster running; the database in DATABASE_URL is not touched.
+test-db:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db=portal_dc_test_$$
+    url="postgres://{{pguser}}@127.0.0.1:{{pgport}}/$db"
+    createdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} "$db"
+    trap 'dropdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} --if-exists "$db"' EXIT
+    (cd backend && DATABASE_URL="$url" sqlx migrate run > /dev/null)
+    psql "$url" -q -v ON_ERROR_STOP=1 -f backend/tests/dc_constraints.sql
+
 # Drop, recreate and re-migrate the database — DESTROYS all local data.
 db-reset:
     @printf 'This deletes every row in "%s". Ctrl-C to abort, Enter to continue: ' {{pgdb}} && read _
