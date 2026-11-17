@@ -27,6 +27,7 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(list).post(create))
         .route("/{id}", get(get_one).put(update).delete(remove))
         .route("/{id}/draft", get(get_draft))
+        .route("/{id}/view", axum::routing::post(record_view))
         .route(
             "/{id}/bookmark",
             axum::routing::post(add_bookmark).delete(remove_bookmark),
@@ -66,6 +67,11 @@ pub struct PreviewBody {
 #[derive(Serialize)]
 pub struct PreviewResult {
     html: String,
+}
+
+#[derive(Serialize)]
+pub struct ViewCount {
+    view_count: i64,
 }
 
 /// FR-17: the document list, narrowed in SQL to the caller's `READ`
@@ -150,13 +156,14 @@ async fn get_one(
         author_username: String,
         created_at: chrono::DateTime<chrono::Utc>,
         updated_at: chrono::DateTime<chrono::Utc>,
+        view_count: i64,
     }
 
     let meta = sqlx::query_as::<_, MetaRow>(
         "SELECT d.id, d.title, d.status, d.category_id,
                 c.name AS category_name,
                 d.author_id, u.username AS author_username,
-                d.created_at, d.updated_at
+                d.created_at, d.updated_at, d.view_count
          FROM documents d
          JOIN categories c ON c.id = d.category_id
          JOIN users u ON u.id = d.author_id
@@ -184,16 +191,6 @@ async fn get_one(
         })
         .collect();
 
-    // Opening a document is what "a view" counts. Refreshes included: an
-    // internal tool wants the honest "what gets read", not a deduplicated one.
-    let view_count: i64 = sqlx::query_scalar(
-        "UPDATE documents SET view_count = view_count + 1 WHERE id = $1 RETURNING view_count",
-    )
-    .bind(id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| internal("counting a document view", e))?;
-
     let bookmarked: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE document_id = $1 AND user_id = $2)",
     )
@@ -214,9 +211,31 @@ async fn get_one(
         created_at: meta.created_at,
         updated_at: meta.updated_at,
         blocks,
-        view_count,
+        view_count: meta.view_count,
         bookmarked,
     }))
+}
+
+/// Count one view. Deliberately **not** done by `get_one`: that handler also
+/// serves a page refresh and a back-button return, neither of which is someone
+/// choosing to read the document. The client calls this only when the reader
+/// arrived by clicking through to the document, so the number answers "how
+/// often was this opened" rather than "how often was it fetched".
+async fn record_view(
+    State(state): State<AppState>,
+    CurrentUser(_user): CurrentUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<ViewCount>> {
+    let view_count: Option<i64> = sqlx::query_scalar(
+        "UPDATE documents SET view_count = view_count + 1 WHERE id = $1 RETURNING view_count",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| internal("counting a document view", e))?;
+
+    let view_count = view_count.ok_or_else(|| ApiError::NotFound("Document not found".into()))?;
+    Ok(Json(ViewCount { view_count }))
 }
 
 /// Bookmark this document for the caller, or remove the bookmark.

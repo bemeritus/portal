@@ -7,8 +7,8 @@
  * cannot skip it.
  */
 
-import { useEffect } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Link, useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { ArrowLeft, Star } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "../api/client";
 import { documents as documentsApi } from "../api/endpoints";
+import type { DocumentWithBlocks } from "../api/types";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { ErrorFlash } from "../components/Flash";
 import { Spinner } from "../components/Loading";
@@ -42,6 +43,7 @@ export function DocumentPage() {
   const { id = "" } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const queryClient = useQueryClient();
 
   const { data: doc, isPending, error } = useQuery({
@@ -52,6 +54,28 @@ export function DocumentPage() {
   useEffect(() => {
     if (doc) document.title = t("docTitle", { page: doc.title, app: t("app.name") });
   }, [doc, t]);
+
+  // Counting a view is a separate call, and only a click-through makes it. The
+  // navigation type is what distinguishes the cases: following a link anywhere
+  // in the app is a PUSH, while a refresh, a pasted URL and the back button are
+  // all POP, and the editor's post-save redirect is a REPLACE. The ref keeps it
+  // to one count per document per mount — StrictMode runs this effect twice.
+  const countedId = useRef("");
+  useEffect(() => {
+    if (!id || navigationType !== "PUSH" || countedId.current === id) return;
+    countedId.current = id;
+    documentsApi
+      .view(id)
+      .then(({ view_count }) => {
+        queryClient.setQueryData<DocumentWithBlocks>(["document", id], (prev) =>
+          prev ? { ...prev, view_count } : prev,
+        );
+      })
+      .catch(() => {
+        // A view count is telemetry; failing to record one must not surface as
+        // an error over the document the reader came here for.
+      });
+  }, [id, navigationType, queryClient]);
 
   // Bookmarking flips the cached document's flag immediately and invalidates
   // the bookmarks list so it reflects the change on next visit.

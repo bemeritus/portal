@@ -78,6 +78,12 @@ export const documents = {
   create: (body: DocumentBody) => api.post<{ id: Uuid }>(`${TEMPLATES}/documents`, body),
   update: (id: Uuid, body: DocumentBody) => api.put<void>(`${TEMPLATES}/documents/${id}`, body),
   remove: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}`),
+  /**
+   * Count one view and return the new total. Fetching the document does not
+   * count — only the page calls this, and only when the reader clicked through
+   * to the document, so refreshes and back-navigation stay out of the number.
+   */
+  view: (id: Uuid) => api.post<{ view_count: number }>(`${TEMPLATES}/documents/${id}/view`),
   /** Bookmark / un-bookmark this document for the current user. */
   bookmark: (id: Uuid) => api.post<void>(`${TEMPLATES}/documents/${id}/bookmark`),
   unbookmark: (id: Uuid) => api.del<void>(`${TEMPLATES}/documents/${id}/bookmark`),
