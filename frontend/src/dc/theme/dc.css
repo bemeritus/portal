@@ -5,7 +5,7 @@
    follow the module's theme while it is open. */
 :root.dc-active {
   --bg: var(--dc-bg);
-  --panel: var(--dc-bg);
+  --panel: var(--dc-surface);
   --panel-2: color-mix(in srgb, var(--dc-text) 6%, var(--dc-bg));
   --line: var(--dc-line);
   --ink: var(--dc-text);
@@ -17,6 +17,15 @@
   --btn-bg: var(--dc-accent);
   --btn-fg: var(--dc-accent-text);
   --ring-c: var(--dc-accent);
+}
+:root.dc-active[data-dc-theme="studio"] {
+  --dc-surface: #232428;
+}
+:root.dc-active[data-dc-theme="drawing"] {
+  --dc-surface: #fbfaf7;
+}
+:root.dc-active[data-dc-theme="light"] {
+  --dc-surface: #ffffff;
 }
 :root.dc-active body {
   font-family: var(--dc-font-ui);
@@ -190,10 +199,22 @@
   margin: 12px;
   border-radius: var(--dc-radius);
 }
-.dc-page {
+.dc-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 24px 32px 48px;
+}
+.dc-page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+@media (min-width: 768px) {
+  .dc-page {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
 }
 
 /* Floating panels (Студия, Светлая) or docked ones (Чертёж). */
@@ -703,16 +724,28 @@
   word-break: break-all;
 }
 @media print {
+  .dc-scroll {
+    overflow: visible;
+  }
+  .dc-page {
+    max-width: none;
+    padding: 0;
+  }
   @page {
     size: A4;
     margin: 0;
   }
-  :root.dc-active body {
+  :root.dc-active[data-dc-theme="studio"] {
+  --dc-surface: #232428;
+}
+:root.dc-active[data-dc-theme="drawing"] {
+  --dc-surface: #fbfaf7;
+}
+:root.dc-active[data-dc-theme="light"] {
+  --dc-surface: #ffffff;
+}
+:root.dc-active body {
     background: #fff;
-  }
-  .dc-page {
-    padding: 0;
-    overflow: visible;
   }
   .dc-qr-sheet {
     padding: 10mm;

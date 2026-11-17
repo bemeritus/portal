@@ -8,7 +8,15 @@
  * (objects, actions) through `useShell().setRoomPalette`.
  */
 
-import { createContext, Suspense, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { Link, Outlet, useLocation, useMatch } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -80,12 +88,21 @@ function DcShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const settings = useDcSettings();
   const tokens = TOKENS[settings.theme];
-  const [palette, setPalette] = useState<{ open: boolean; query: string }>({ open: false, query: "" });
+  const [palette, setPalette] = useState<{ open: boolean; query: string }>({
+    open: false,
+    query: "",
+  });
   const [room, setRoom] = useState<RoomPalette | null>(null);
   const location = useLocation();
   const roomMatch = useMatch("/dc/:roomId/*");
-  const roomId = roomMatch && /^\d+$/.test(roomMatch.params.roomId ?? "") ? Number(roomMatch.params.roomId) : null;
-  const rooms = useQuery({ queryKey: ["dc", "rooms"], queryFn: ({ signal }) => dcApi.rooms(signal) });
+  const roomId =
+    roomMatch && /^\d+$/.test(roomMatch.params.roomId ?? "")
+      ? Number(roomMatch.params.roomId)
+      : null;
+  const rooms = useQuery({
+    queryKey: ["dc", "rooms"],
+    queryFn: ({ signal }) => dcApi.rooms(signal),
+  });
   const roomName = rooms.data?.find((r) => r.id === roomId)?.name;
 
   // On the document, so that dialogs and menus (portalled to <body>) are
@@ -122,16 +139,19 @@ function DcShell({ children }: { children: ReactNode }) {
     [],
   );
 
+  const roomPage = roomId !== null && /^\/dc\/\d+\/?$/.test(location.pathname);
   const view = new URLSearchParams(location.search).get("view");
   const tab = location.pathname.endsWith("/racks")
     ? "racks"
     : location.pathname.startsWith("/dc/catalog")
       ? "catalog"
-      : roomId !== null && view === "plan"
-        ? "plan"
-        : roomId !== null
-          ? "3d"
-          : null;
+      : roomId !== null && !roomPage
+        ? null
+        : roomId !== null && view === "plan"
+          ? "plan"
+          : roomId !== null
+            ? "3d"
+            : null;
   const target = roomId ?? rooms.data?.[0]?.id ?? null;
 
   return (
@@ -139,48 +159,91 @@ function DcShell({ children }: { children: ReactNode }) {
       <div className="dc-root" data-dc-framed={tokens.framed} data-own-keys>
         <header className="dc-top">
           <div className="dc-top-left">
-            <Link to="/" className="dc-sub no-print" title={t("dc.shell.back")} aria-label={t("dc.shell.back")}>
+            <Link
+              to="/"
+              className="dc-sub no-print"
+              title={t("dc.shell.back")}
+              aria-label={t("dc.shell.back")}
+            >
               <ArrowLeft className="size-4" />
             </Link>
             <Link to="/dc" className="dc-brand">
               {t("dc.shell.brand")}
             </Link>
-            {roomName && roomName !== t("dc.shell.brand") && <span className="dc-sub">{roomName}</span>}
+            {roomName && roomName !== t("dc.shell.brand") && (
+              <span className="dc-sub">{roomName}</span>
+            )}
           </div>
           <nav className="dc-seg" aria-label={t("dc.shell.views")}>
             {target !== null && (
               <>
-                <Link to={`/dc/${target}`} aria-current={tab === "3d" ? "page" : undefined}>
+                <Link
+                  to={`/dc/${target}`}
+                  aria-current={tab === "3d" ? "page" : undefined}
+                >
                   3D
                 </Link>
-                <Link to={`/dc/${target}?view=plan`} aria-current={tab === "plan" ? "page" : undefined}>
+                <Link
+                  to={`/dc/${target}?view=plan`}
+                  aria-current={tab === "plan" ? "page" : undefined}
+                >
                   {t("dc.shell.plan")}
                 </Link>
-                <Link to={`/dc/${target}/racks`} aria-current={tab === "racks" ? "page" : undefined}>
+                <Link
+                  to={`/dc/${target}/racks`}
+                  aria-current={tab === "racks" ? "page" : undefined}
+                >
                   {t("dc.shell.racks")}
                 </Link>
               </>
             )}
-            <Link to={`/dc/catalog${target !== null ? `?room=${target}` : ""}`} aria-current={tab === "catalog" ? "page" : undefined}>
+            <Link
+              to={`/dc/catalog${target !== null ? `?room=${target}` : ""}`}
+              aria-current={tab === "catalog" ? "page" : undefined}
+            >
               {t("dc.shell.catalog")}
             </Link>
           </nav>
           <div className="dc-top-right">
-            <button type="button" className="dc-search" onClick={() => shell.openPalette()}>
+            <button
+              type="button"
+              className="dc-search"
+              onClick={() => shell.openPalette()}
+            >
               <Search className="size-4" />
               <span className="truncate">{t("dc.shell.search")}</span>
               <kbd>⌘K</kbd>
             </button>
-            <div className="dc-seg" role="radiogroup" aria-label={t("dc.shell.unit")}>
+            <div
+              className="dc-seg"
+              role="radiogroup"
+              aria-label={t("dc.shell.unit")}
+            >
               {UNITS.map((u) => (
-                <button key={u} type="button" role="radio" aria-checked={settings.unit === u} onClick={() => settings.setUnit(u)}>
+                <button
+                  key={u}
+                  type="button"
+                  role="radio"
+                  aria-checked={settings.unit === u}
+                  onClick={() => settings.setUnit(u)}
+                >
                   {t(`dc.unitWord.${u}`)}
                 </button>
               ))}
             </div>
-            <div className="dc-seg" role="radiogroup" aria-label={t("dc.shell.theme")}>
+            <div
+              className="dc-seg"
+              role="radiogroup"
+              aria-label={t("dc.shell.theme")}
+            >
               {THEMES.map((th) => (
-                <button key={th} type="button" role="radio" aria-checked={settings.theme === th} onClick={() => settings.setTheme(th)}>
+                <button
+                  key={th}
+                  type="button"
+                  role="radio"
+                  aria-checked={settings.theme === th}
+                  onClick={() => settings.setTheme(th)}
+                >
                   {t(`dc.theme.${th}`)}
                 </button>
               ))}
@@ -188,7 +251,15 @@ function DcShell({ children }: { children: ReactNode }) {
             <UserButton />
           </div>
         </header>
-        {children}
+        {/* The room is full-bleed; every other page scrolls under the top
+            bar in the portal's usual column (1200 px, the same padding). */}
+        {roomPage ? (
+          children
+        ) : (
+          <main className="dc-scroll">
+            <div className="dc-page">{children}</div>
+          </main>
+        )}
         <CommandPalette
           open={palette.open}
           initialQuery={palette.query}
@@ -214,7 +285,10 @@ function UserButton() {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>{user.username}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={i18n.language.split("-")[0]} onValueChange={(v) => void setLanguage(v as Lang)}>
+        <DropdownMenuRadioGroup
+          value={i18n.language.split("-")[0]}
+          onValueChange={(v) => void setLanguage(v as Lang)}
+        >
           {LANGUAGES.map((l) => (
             <DropdownMenuRadioItem key={l.value} value={l.value}>
               {l.label}

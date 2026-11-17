@@ -31,7 +31,7 @@ export function DcLabelsPage() {
   if (room.isPending) return <Spinner />;
   if (!data) return <ErrorFlash error={errorMessage(room.error)} />;
   return (
-    <div className="dc-page">
+    <div>
       <div className="no-print mb-4 flex items-center gap-3">
         <h1 className="dc-heading m-0 text-xl">{t("dc.qr.title")}</h1>
         <span style={{ color: "var(--dc-muted)" }}>{t("dc.qr.count", { count: labels.length })}</span>

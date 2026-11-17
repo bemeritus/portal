@@ -51,7 +51,7 @@ export function DcRacksPage() {
   if (room.isPending) return <Spinner />;
   if (!data) return <ErrorFlash error={errorMessage(room.error)} />;
   return (
-    <div className="dc-page">
+    <div>
       <h1 className="dc-heading mb-4 text-xl">{t("dc.shell.racks")}</h1>
       <ErrorFlash error={error} />
       <div className="dc-racks">
