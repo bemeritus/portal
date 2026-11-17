@@ -14,8 +14,13 @@
 
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 
-import type { Annotation, CatalogItem, DcObject, Device, RackProps, Room, ShelfCell } from "../types";
+import type { Annotation, CatalogItem, DcObject, Device, Measurement, RackProps, Room, ShelfCell } from "../types";
+import { candidates, measure as rulerMeasure, objectGap, pickSnap, wallGap, type Box, type Result, type Snap, type SnapKind, type Vec3 } from "../model/ruler";
 import {
   bounds,
   clearances,
@@ -37,7 +42,8 @@ import { Labels } from "./labels";
 import { MaterialLibrary, type Mode } from "./materials";
 import { RENDERERS } from "./renderers";
 import type { Built, Pick } from "./renderers/types";
-import { readTheme, watchTheme, type DcTheme } from "./theme";
+import { themeFromTokens, type DcTheme } from "./theme";
+import type { DcTokens } from "../theme/tokens";
 import { ViewCube } from "./viewCube";
 
 export type { Mode } from "./materials";
@@ -65,12 +71,15 @@ export interface EngineText {
   unknownPower: string;
   mm: (v: number) => string;
   range: (lo: number, hi: number) => string;
+  /** A measurement's dimension text, tooltip, and whether to mark it. */
+  measurement: (m: Measurement) => { text: string; title: string; mark: boolean };
+  /** A ruler result: `face ⟂ face · 59,5 см`. */
+  ruler: (r: Result) => string;
+  snap: (k: SnapKind) => string;
 }
 
-export interface Measure {
-  a: THREE.Vector3;
-  b: THREE.Vector3;
-}
+export type Measure = Result;
+export type RulerMode = "points" | "objects";
 
 interface Entry {
   sig: string;
@@ -83,6 +92,8 @@ interface Entry {
   doorTarget: number;
   outline: THREE.LineSegments;
   assumedOutline: THREE.LineSegments | null;
+  /** Thin outline of the object's box in Схема (dashed when overhead). */
+  edges: THREE.LineSegments;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -117,8 +128,14 @@ export class DcEngine {
   private envMap: THREE.Texture | null = null;
   private selection: SelRef = null;
   private hover: SelRef = null;
-  private measures: Measure[] = [];
-  private pendingMeasure: THREE.Vector3 | null = null;
+  private measures: Result[] = [];
+  /** The first pick of a measurement in progress. */
+  private pending: { snap: Snap; box: Box | null } | null = null;
+  private rulerMode: RulerMode = "points";
+  private readonly snapMarker: HTMLDivElement;
+  private showAssumptions = false;
+  private highlightOwner: string | null = null;
+  private composer: { fx: EffectComposer; render: RenderPass; ao: GTAOPass } | null = null;
   private drag: null | { id: number; dx: number; dz: number; x0: number; z0: number; moved: boolean; pointerId: number } = null;
   private grid = 10;
   private dirty = true;
@@ -127,7 +144,6 @@ export class DcEngine {
   private readonly ray = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
   private readonly ro: ResizeObserver;
-  private readonly unwatch: () => void;
   private down: { x: number; y: number; t: number } | null = null;
   private ledMats = new Map<string, THREE.MeshBasicMaterial>();
   text: EngineText;
@@ -144,9 +160,10 @@ export class DcEngine {
   constructor(
     private readonly host: HTMLElement,
     text: EngineText,
+    tokens: DcTokens,
   ) {
     this.text = text;
-    this.theme = readTheme();
+    this.theme = themeFromTokens(tokens);
     this.lib = new MaterialLibrary(this.theme);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -163,6 +180,10 @@ export class DcEngine {
     };
     this.rig.controls.addEventListener("change", () => (this.dirty = true));
     this.labels = new Labels(host);
+    this.snapMarker = document.createElement("div");
+    this.snapMarker.className = "dc-snap";
+    this.snapMarker.hidden = true;
+    host.appendChild(this.snapMarker);
     this.cube = new ViewCube(host, (p) => this.preset(p));
     this.scene.add(this.roomGroup, this.objectsGroup, this.overlay, this.dims, this.ledGroup, this.lights);
     this.setupLights();
@@ -171,12 +192,6 @@ export class DcEngine {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
     this.resize();
-    this.unwatch = watchTheme((t) => {
-      this.theme = t;
-      this.lib.reset(this.mode, t);
-      this.applyTheme();
-      this.rebuildAll();
-    });
     this.loop();
   }
 
@@ -217,6 +232,18 @@ export class DcEngine {
     this.mode = mode;
     this.lib.reset(mode, this.theme);
     this.renderer.shadowMap.enabled = mode === "realistic";
+    // Ambient occlusion: post-processing only in the mode that needs it.
+    if (mode === "realistic" && !this.composer) {
+      const fx = new EffectComposer(this.renderer);
+      const render = new RenderPass(this.scene, this.rig.cam);
+      const ao = new GTAOPass(this.scene, this.rig.cam, this.host.clientWidth, this.host.clientHeight);
+      ao.updateGtaoMaterial({ radius: 400, distanceExponent: 1, thickness: 200, scale: 1 });
+      fx.addPass(render);
+      fx.addPass(ao);
+      fx.addPass(new OutputPass());
+      fx.setSize(this.host.clientWidth, this.host.clientHeight);
+      this.composer = { fx, render, ao };
+    }
     this.scene.environment = mode === "realistic" ? this.env() : null;
     this.lights.children.forEach((l) => (l.visible = mode === "realistic" ? l.userData.realistic : l.userData.schema));
     this.labels.showNames = mode !== "realistic";
@@ -225,15 +252,77 @@ export class DcEngine {
     this.rebuildAll();
   }
 
+  /** The module's theme (SPEC §10.1): every colour of the scene comes from it. */
+  setTheme(tokens: DcTokens) {
+    if (tokens === this.theme.tokens) return;
+    this.theme = themeFromTokens(tokens);
+    this.lib.reset(this.mode, this.theme);
+    this.applyTheme();
+    this.rebuildAll();
+  }
+
   setTool(tool: Tool) {
     this.tool = tool;
-    this.pendingMeasure = null;
+    this.pending = null;
+    this.snapMarker.hidden = true;
     this.renderer.domElement.style.cursor = tool === "ruler" || tool === "note" ? "crosshair" : "";
     this.refreshOverlays();
   }
 
   setGrid(mm: number) {
     this.grid = mm;
+  }
+
+  /** «Показать допущения»: outline and badge objects with assumed values. */
+  setShowAssumptions(on: boolean) {
+    this.showAssumptions = on;
+    for (const e of this.entries.values()) {
+      if (e.assumedOutline) e.assumedOutline.visible = on;
+      this.labelEntry(e, this.model?.devices.filter((d) => d.rack_id === e.obj.id) ?? []);
+    }
+    this.dirty = true;
+  }
+
+  /** Colour one owner's devices and cells, dim everything else (§11.4). */
+  setHighlight(owner: string | null) {
+    this.highlightOwner = owner;
+    for (const e of this.entries.values()) this.applyMaterials(e);
+    this.dirty = true;
+  }
+
+  /** Ruler: between snapped points/faces, or between two objects. */
+  setRulerMode(mode: RulerMode) {
+    this.rulerMode = mode;
+    this.pending = null;
+    this.refreshOverlays();
+  }
+
+  /** Change an end of a finished measurement (typed coordinates). */
+  setMeasureEnd(i: number, end: "a" | "b", p: Vec3) {
+    const m = this.measures[i];
+    if (!m) return;
+    m[end] = p;
+    m.distance = Math.hypot(m.b[0] - m.a[0], m.b[1] - m.a[1], m.b[2] - m.a[2]);
+    m.how = "points";
+    m.axis = null;
+    this.onRuler(this.measures);
+    this.refreshOverlays();
+  }
+
+  /** Project a room point to viewport pixels (tests, popovers). */
+  /** An object's box by name, mm (for the ruler's end-to-end test). */
+  boxNamed(name: string): { min: Vec3; max: Vec3 } | null {
+    for (const e of this.entries.values())
+      if (e.obj.name === name) {
+        const r = e.solid.rect;
+        return { min: [r.x0, e.solid.y0, r.z0], max: [r.x1, e.solid.y1, r.z1] };
+      }
+    return null;
+  }
+
+  project(p: Vec3): [number, number] {
+    const v = new THREE.Vector3(...p).project(this.rig.cam);
+    return [((v.x + 1) / 2) * this.host.clientWidth, ((1 - v.y) / 2) * this.host.clientHeight];
   }
 
   select(ref: SelRef, fly = false) {
@@ -257,6 +346,9 @@ export class DcEngine {
     if (!e) return;
     const r = e.solid.rect;
     const centre = new THREE.Vector3((r.x0 + r.x1) / 2, (e.solid.y0 + e.solid.y1) / 2, (r.z0 + r.z1) / 2);
+    this.updatePlanView();
+    // On the plan the whole room is already in view: selecting is enough.
+    if (this.planView) return;
     if (ref.type === "device") {
       const mesh = this.findPickMesh(ref);
       if (mesh) {
@@ -280,7 +372,29 @@ export class DcEngine {
   }
 
   preset(p: Preset, dur?: number) {
-    this.rig.preset(p);
+    const m = this.model;
+    if ((p === "aisle" || p === "racks") && m) {
+      // The front aisle: between the shelf's front and the racks' fronts.
+      const b = bounds(m.room.floor_plan);
+      const solids = [...this.entries.values()].map((e) => e.solid);
+      const racks = solids.filter((s) => s.kind === "rack");
+      const shelfFront = Math.max(b.z0, ...solids.filter((s) => s.kind === "shelf").map((s) => s.rect.z1));
+      const rackFront = racks.length ? Math.min(...racks.map((s) => s.rect.z0)) : (b.z0 + b.z1) / 2;
+      if (p === "aisle") {
+        // From the door corner toward the far end of the racks, at eye
+        // height — photo 03's camera.
+        const racksX0 = racks.length ? Math.min(...racks.map((s) => s.rect.x0)) : b.x0;
+        const racksX1 = racks.length ? Math.max(...racks.map((s) => s.rect.x1)) : b.x1;
+        this.rig.go({
+          position: [b.x1 - 350, 1550, Math.max(shelfFront + 150, rackFront - 900)],
+          target: [racksX0 + (racksX1 - racksX0) * 0.3, 1050, rackFront + 250],
+          fov: 72,
+          ortho: false,
+        });
+      } else {
+        this.rig.go({ position: [(b.x0 + b.x1) / 2, 1500, shelfFront + 150], target: [(b.x0 + b.x1) / 2, 1000, rackFront + 500], fov: 75, ortho: false });
+      }
+    } else this.rig.preset(p);
     if (dur === 0) this.rig.update(performance.now() + 10000, 0, false);
     this.dirty = true;
   }
@@ -305,7 +419,7 @@ export class DcEngine {
 
   clearMeasures() {
     this.measures = [];
-    this.pendingMeasure = null;
+    this.pending = null;
     this.onRuler(this.measures);
     this.refreshOverlays();
   }
@@ -318,8 +432,29 @@ export class DcEngine {
    * The current view as a PNG, with the visible labels drawn onto it (they
    * are HTML above the canvas, so a plain canvas grab would lose them).
    */
+  /** Looking straight down in orthographic projection: the plan. */
+  private planView = false;
+
+  private updatePlanView() {
+    const down = this.rig.isOrtho && this.rig.cam.getWorldDirection(new THREE.Vector3()).y < -0.97;
+    if (down === this.planView) return;
+    this.planView = down;
+    for (const e of this.entries.values())
+      if (e.edges.userData.overhead) e.edges.material = this.lib.line(this.theme.tokens.objectEdge, down);
+  }
+
+  private renderFrame() {
+    this.updatePlanView();
+    if (this.mode === "realistic" && this.composer) {
+      // The camera may have switched between perspective and orthographic.
+      this.composer.render.camera = this.rig.cam;
+      this.composer.ao.camera = this.rig.cam;
+      this.composer.fx.render();
+    } else this.renderer.render(this.scene, this.rig.cam);
+  }
+
   snapshotPng(): string {
-    this.renderer.render(this.scene, this.rig.cam);
+    this.renderFrame();
     const src = this.renderer.domElement;
     const out = document.createElement("canvas");
     out.width = src.width;
@@ -348,13 +483,13 @@ export class DcEngine {
   dispose() {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
-    this.unwatch();
     for (const id of [...this.entries.keys()]) this.dropEntry(id);
     disposeTree(this.roomGroup);
     disposeTree(this.overlay);
     disposeTree(this.dims);
     disposeTree(this.ledGroup);
     this.lib.dispose();
+    this.composer?.fx.dispose();
     this.envMap?.dispose();
     this.rig.dispose();
     this.labels.dispose();
@@ -374,9 +509,9 @@ export class DcEngine {
     const flatDir = new THREE.DirectionalLight(0xffffff, 0.9);
     flatDir.position.set(-3000, 8000, 5000);
     flatDir.userData = { schema: true, realistic: false };
-    const amb = new THREE.HemisphereLight(0xfffaf2, 0x52565c, 0.6);
+    const amb = new THREE.HemisphereLight(0xfffaf2, 0x8a6a50, 1.1);
     amb.userData = { schema: false, realistic: true };
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.1);
     sun.position.set(2000, 6000, 3500);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -419,6 +554,7 @@ export class DcEngine {
     const floorGeo = new THREE.ShapeGeometry(shape);
     floorGeo.rotateX(Math.PI / 2);
     const floor = new THREE.Mesh(floorGeo, this.lib.role("floor"));
+    floor.userData.floor = true;
     floor.userData.role = "floor";
     floor.receiveShadow = true;
     floor.material.side = THREE.DoubleSide;
@@ -443,7 +579,8 @@ export class DcEngine {
         // Face the room's centre.
         wall.lookAt(cx, h / 2, cz);
       } else {
-        wall = new THREE.Mesh(new THREE.BoxGeometry(len, h, 60), this.lib.role("wall"));
+        // Чертёж draws walls hatched, as on a drawing (mockup Drawing.png).
+        wall = new THREE.Mesh(new THREE.BoxGeometry(len, h, 60), this.theme.tokens.name === "drawing" ? this.lib.hatch(len, 60) : this.lib.role("wall"));
         wall.position.set(mx, h / 2, mz);
         wall.rotation.y = -Math.atan2(bz - az, bx - ax);
         const nx = -(bz - az) / len,
@@ -452,8 +589,33 @@ export class DcEngine {
         wall.position.z -= nz * 30;
       }
       wall.userData.role = "wall";
+      wall.userData.wall = { axis: ax === bx ? 0 : 2, coord: ax === bx ? ax : az };
       wall.receiveShadow = realistic;
       this.roomGroup.add(wall);
+    }
+    if (realistic) {
+      // White ceiling — the floor's outline, whose front face already looks
+      // down (culled from above) — and fluorescent tube
+      // lights along the room — lighting of the photos, not equipment: they
+      // are not objects, not selectable, not exported.
+      const H = m.room.height_mm;
+      const ceil = new THREE.Mesh(floorGeo.clone(), this.lib.role("ceiling"));
+      ceil.position.y = H;
+      ceil.userData.role = "ceiling";
+      this.roomGroup.add(ceil);
+      const b = bounds(poly);
+      const tubes = Math.max(1, Math.round((b.z1 - b.z0) / 1300));
+      for (let i = 0; i < tubes; i++) {
+        const z = b.z0 + ((i + 0.5) * (b.z1 - b.z0)) / tubes;
+        const tube = new THREE.Mesh(new THREE.BoxGeometry(1200, 30, 60), this.lib.tube());
+        tube.position.set((b.x0 + b.x1) / 2, H - 20, z);
+        tube.userData.role = "light";
+        tube.userData.fixedMaterial = true;
+        this.roomGroup.add(tube);
+        const light = new THREE.PointLight(0xffffff, 0.5, 0, 0);
+        light.position.set((b.x0 + b.x1) / 2, H - 120, z);
+        this.roomGroup.add(light);
+      }
     }
     const grid = new THREE.GridHelper(Math.max(bounds(poly).x1, bounds(poly).z1) * 2, 40, this.theme.line, this.theme.line);
     grid.position.set(0, 1, 0);
@@ -466,7 +628,8 @@ export class DcEngine {
   private buildEntry(obj: DcObject, item: CatalogItem, devices: Device[], cells: ShelfCell[], blocked: number[], sig: string) {
     const m = this.model!;
     const dims = objectDims(item, obj.instance);
-    const built = RENDERERS[item.kind].build(obj, item, { lib: this.lib, mode: this.mode, devices, cells, blocked, dims });
+    const ceilingAbove = Math.max(0, m.room.height_mm - (obj.y0_mm + dims[2]));
+    const built = RENDERERS[item.kind].build(obj, item, { lib: this.lib, mode: this.mode, devices, cells, blocked, dims, ceilingAbove });
     const s = solid(obj, item, m.room.floor_plan);
     const g = built.group;
     g.position.set((s.rect.x0 + s.rect.x1) / 2, obj.y0_mm, (s.rect.z0 + s.rect.z1) / 2);
@@ -488,9 +651,22 @@ export class DcEngine {
       assumedOutline.computeLineDistances();
       assumedOutline.position.set(0, h / 2, 0);
       assumedOutline.renderOrder = 997;
+      assumedOutline.visible = this.showAssumptions;
       g.add(assumedOutline);
     }
-    const entry: Entry = { sig, obj, item, solid: s, built, doorAngle: 0, doorTarget: 0, outline, assumedOutline };
+    // Схема: a thin outline of every object, dashed for what hangs overhead
+    // — on the plan only (a drawing convention); in 3D the height shows it.
+    // (as on the drawing). Not in Реалистичный.
+    const overhead = obj.y0_mm > 0 && item.kind !== "structure";
+    const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, Math.max(d, 1)));
+    const edges = new THREE.LineSegments(edgesGeo, this.lib.line(this.theme.tokens.objectEdge, overhead && this.planView));
+    edges.userData.overhead = overhead;
+    if (overhead) edges.computeLineDistances();
+    edges.position.set(0, h / 2, 0);
+    edges.visible = this.mode !== "realistic";
+    edges.renderOrder = 2;
+    g.add(edges);
+    const entry: Entry = { sig, obj, item, solid: s, built, doorAngle: 0, doorTarget: 0, outline, assumedOutline, edges };
     const prevSel = this.selection;
     if (prevSel) {
       entry.outline.visible =
@@ -544,6 +720,12 @@ export class DcEngine {
       if (!mesh.isMesh || mesh.userData.fixedMaterial) return;
       const role = mesh.userData.role as string | undefined;
       if (!role) return;
+      const h = this.highlightOwner;
+      if (h !== null) {
+        const owner = (mesh.userData.device?.owner ?? mesh.userData.owner) as string | undefined;
+        mesh.material = owner === h ? this.lib.highlight() : this.lib.dimmed();
+        return;
+      }
       if (mesh.userData.device) {
         const d = mesh.userData.device as { kind: Device["kind"]; units: number; name: string; rear: boolean };
         const side = this.lib.role("deviceSide");
@@ -561,7 +743,8 @@ export class DcEngine {
     g.updateMatrixWorld(true);
     const p = g.localToWorld(e.built.labelAt.clone());
     let text = e.obj.name;
-    if (e.item.kind === "rack") {
+    // Fill and power are about contents; Схема stays calm with names only.
+    if (e.item.kind === "rack" && (this.mode === "fill" || this.mode === "power")) {
       const st = rackStats(devices, (e.item.props as RackProps).units, e.obj.contents_known);
       text += st.known
         ? `\n${this.text.units(st.used, st.units)}${st.powerW ? ` · ${this.text.powerW(st.powerW)}` : ""}${st.unknownPower ? ` · ${this.text.unknownPower}` : ""}`
@@ -569,7 +752,8 @@ export class DcEngine {
     }
     this.labels.set(`obj:${e.obj.id}:name`, text, p, { priority: e.item.kind === "rack" ? 6 : 4 });
     const keys = this.model!.assumed.get(e.obj.name);
-    if (keys) {
+    this.labels.remove(`obj:${e.obj.id}:assumed`);
+    if (keys && this.showAssumptions) {
       this.labels.set(`obj:${e.obj.id}:assumed`, `≈ ${this.text.assumed}`, p.clone().add(new THREE.Vector3(0, -260, 0)), {
         kind: "assumed",
         priority: 5,
@@ -589,6 +773,7 @@ export class DcEngine {
     this.labels.clear("gap");
     this.labels.clear("note");
     this.labels.clear("ruler");
+    this.labels.clear("meas");
     const m = this.model;
     if (!m) return;
     const solids = [...this.entries.values()].map((e) => e.solid);
@@ -620,9 +805,11 @@ export class DcEngine {
         this.overlay.add(line);
       }
 
-    // Service clearance zones: in Схема and while editing.
+    // Service clearance: a violation is a thin red zone on the floor with
+    // one label; zones that are fine show only while editing.
     if (schema || this.tool === "edit") {
       for (const c of clearances(solids, poly, m.room.settings)) {
+        if (c.ok && this.tool !== "edit") continue;
         const z = c.zone;
         const geo = new THREE.PlaneGeometry(z.x1 - z.x0, z.z1 - z.z0);
         geo.rotateX(-Math.PI / 2);
@@ -630,8 +817,22 @@ export class DcEngine {
         mesh.position.set((z.x0 + z.x1) / 2, 3, (z.z0 + z.z1) / 2);
         mesh.renderOrder = 5;
         this.overlay.add(mesh);
+        const rim = new THREE.LineSegments(new THREE.EdgesGeometry(geo), this.lib.line(c.ok ? this.theme.good : this.theme.warn));
+        rim.position.copy(mesh.position);
+        rim.renderOrder = 6;
+        this.overlay.add(rim);
         if (!c.ok) {
-          this.labels.set(`gap:${c.objectId}:${c.side}`, `${this.text.mm(c.gap.mm)} < ${this.text.mm(c.required)}`, new THREE.Vector3((z.x0 + z.x1) / 2, 30, (z.z0 + z.z1) / 2), {
+          // Towards the zone's far end, clear of the tape dimension that
+          // usually runs through its middle.
+          const o = this.entries.get(c.objectId)?.solid.rect;
+          const [mx, mz] = [(z.x0 + z.x1) / 2, (z.z0 + z.z1) / 2];
+          let [lx, lz] = [mx, mz];
+          if (o) {
+            const [ox, oz] = [(o.x0 + o.x1) / 2, (o.z0 + o.z1) / 2];
+            if (Math.abs(mz - oz) >= Math.abs(mx - ox)) lz = mz + Math.sign(mz - oz) * (z.z1 - z.z0) * 0.3;
+            else lx = mx + Math.sign(mx - ox) * (z.x1 - z.x0) * 0.3;
+          }
+          this.labels.set(`gap:${c.objectId}:${c.side}`, `${this.text.mm(c.gap.mm)} < ${this.text.mm(c.required)}`, new THREE.Vector3(lx, 30, lz), {
             kind: "warn",
             priority: 8,
           });
@@ -639,8 +840,10 @@ export class DcEngine {
       }
     }
 
-    // Dimensions in Схема: the room, rack rows, the selected object's gaps.
-    if (schema) this.roomDims(solids);
+    // Схема: every measurement as a dimension, with the value as read (and a
+    // dot where the model disagrees); the selected object's clear distances
+    // to its neighbours, live while it moves.
+    if (schema) this.measurementDims();
     const sel = this.selectedEntry();
     if (sel && (schema || this.tool === "edit")) this.gapDims(sel.solid, solids);
 
@@ -676,10 +879,10 @@ export class DcEngine {
       }
 
     // Ruler.
-    this.measures.forEach((ms, i) => this.drawMeasure(ms.a, ms.b, `ruler:${i}`));
-    if (this.pendingMeasure) {
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(25, 12, 8), new THREE.MeshBasicMaterial({ color: this.theme.dim, depthTest: false }));
-      dot.position.copy(this.pendingMeasure);
+    this.measures.forEach((ms, i) => this.drawMeasure(ms, `ruler:${i}`));
+    if (this.pending) {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(22, 12, 8), new THREE.MeshBasicMaterial({ color: this.theme.dim, depthTest: false }));
+      dot.position.set(...this.pending.snap.p);
       dot.renderOrder = 1000;
       this.overlay.add(dot);
     }
@@ -693,42 +896,39 @@ export class DcEngine {
   }
 
   /** A dimension line with ticks and a label, on the floor or at a height. */
-  private dim(key: string, a: THREE.Vector3, b: THREE.Vector3, text: string, priority = 3) {
+  private dim(key: string, a: THREE.Vector3, b: THREE.Vector3, text: string, priority = 3, extra: { title?: string; mark?: boolean } = {}) {
     const dir = b.clone().sub(a);
     const len = dir.length();
     if (len < 1) return;
     dir.normalize();
-    const n = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(60);
+    // Ticks across the line: horizontal for horizontal lines, along x for
+    // vertical ones.
+    const n = (Math.abs(dir.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-dir.z, 0, dir.x)).multiplyScalar(60);
     const pts = [a, b, a.clone().add(n), a.clone().sub(n), b.clone().add(n), b.clone().sub(n)];
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     geo.setIndex([0, 1, 2, 3, 4, 5]);
     const line = new THREE.LineSegments(geo, this.lib.line(this.theme.dim));
     line.renderOrder = 999;
     this.dims.add(line);
-    this.labels.set(key, text, a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 40, 0)), { kind: "dim", priority });
+    this.labels.set(key, text, a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 40, 0)), {
+      kind: "dim",
+      priority,
+      title: extra.title,
+      className: extra.mark ? "dc-label-mark" : undefined,
+      span: [a, b],
+    });
   }
 
-  private measureText(key: string, computed: number): string {
-    const e = this.model!.room.measurements.entries.find((m) => m.key === key);
-    if (e && e.min !== undefined && e.max !== undefined && e.min !== e.max) return this.text.range(e.min, e.max);
-    return this.text.mm(computed);
-  }
-
-  private roomDims(solids: Solid[]) {
-    const b = bounds(this.model!.room.floor_plan);
-    const y = 10;
-    this.dim("dim:room:x", new THREE.Vector3(b.x0, y, b.z1 + 300), new THREE.Vector3(b.x1, y, b.z1 + 300), this.measureText("room.length_x", b.x1 - b.x0), 6);
-    this.dim("dim:room:z", new THREE.Vector3(b.x0 - 300, y, b.z0), new THREE.Vector3(b.x0 - 300, y, b.z1), this.measureText("room.width_z", b.z1 - b.z0), 6);
-    // Racks in a row facing −z: gaps along x, as on the plan.
-    const row = solids.filter((s) => s.kind === "rack" && s.rotation === 0).sort((a, c) => a.rect.x0 - c.rect.x0);
-    if (row.length) {
-      const z = Math.min(...row.map((s) => s.rect.z0)) - 160;
-      let prev = b.x0;
-      row.forEach((s, i) => {
-        this.dim(`dim:row:${i}`, new THREE.Vector3(prev, y, z), new THREE.Vector3(s.rect.x0, y, z), this.text.mm(s.rect.x0 - prev));
-        prev = s.rect.x1;
-      });
-      this.dim("dim:row:end", new THREE.Vector3(prev, y, z), new THREE.Vector3(b.x1, y, z), this.text.mm(b.x1 - prev));
+  /** Every measurement of the room that has a place to be drawn. */
+  private measurementDims() {
+    const m = this.model!;
+    for (const e of m.room.measurements.entries) {
+      if (!e.line) continue;
+      const [p, q] = e.line;
+      const t = this.text.measurement(e);
+      // Room-level numbers first, then the ones the drawing marks.
+      const priority = e.key.startsWith("room.") ? 7 : t.mark ? 6 : 4;
+      this.dim(`meas:${e.key}`, new THREE.Vector3(...p), new THREE.Vector3(...q), t.text, priority, { title: t.title, mark: t.mark });
     }
   }
 
@@ -743,14 +943,12 @@ export class DcEngine {
     }
   }
 
-  private drawMeasure(a: THREE.Vector3, b: THREE.Vector3, key: string) {
-    const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
-    const line = new THREE.Line(geo, this.lib.line(this.theme.dim));
-    line.renderOrder = 999;
-    this.overlay.add(line);
-    const d = a.distanceTo(b);
-    const t = `${this.text.mm(Math.round(d))}  Δx ${Math.round(Math.abs(a.x - b.x))} · Δy ${Math.round(Math.abs(a.y - b.y))} · Δz ${Math.round(Math.abs(a.z - b.z))}`;
-    this.labels.set(key, t, a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 60, 0)), { kind: "measure", priority: 10, always: true });
+  private drawMeasure(r: Result, key: string) {
+    const a = new THREE.Vector3(...r.a),
+      b = new THREE.Vector3(...r.b);
+    this.dim(`${key}:line`, a, b, "", 0);
+    this.labels.remove(`${key}:line`);
+    this.labels.set(key, this.text.ruler(r), a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 80, 0)), { kind: "measure", priority: 10, always: true });
   }
 
   // --- LEDs and doors --------------------------------------------------------------
@@ -888,7 +1086,7 @@ export class DcEngine {
     const d: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
     const [x, z] = d[frontDir(rotation)];
     // From the front, a little above: over whatever stands in the aisle.
-    return new THREE.Vector3(x, 0.55, z);
+    return new THREE.Vector3(x, 0.85, z);
   }
 
   private floorPoint(ev: { clientX: number; clientY: number }): THREE.Vector3 | null {
@@ -897,30 +1095,131 @@ export class DcEngine {
     return this.ray.ray.intersectPlane(FLOOR, p) ? p : null;
   }
 
-  /** Corner snapping for the ruler: object footprint corners near the hit. */
-  private snapCorner(p: THREE.Vector3): THREE.Vector3 {
-    const camDist = this.rig.cam.position.distanceTo(p);
-    const thresh = Math.max(40, camDist * 0.025);
-    let best: THREE.Vector3 | null = null,
-      bestD = thresh;
-    for (const e of this.entries.values()) {
-      const r = e.solid.rect;
-      for (const [x, z] of [
-        [r.x0, r.z0],
-        [r.x1, r.z0],
-        [r.x0, r.z1],
-        [r.x1, r.z1],
-      ])
-        for (const y of [e.solid.y0, e.solid.y1]) {
-          const c = new THREE.Vector3(x, y, z);
-          const dd = c.distanceTo(p);
-          if (dd < bestD) {
-            bestD = dd;
-            best = c;
-          }
-        }
+  // --- Ruler ------------------------------------------------------------------
+
+  /** Walls as boxes whose inner face is the floor line. */
+  private wallBox(axis: 0 | 2, coord: number): Box {
+    const b = bounds(this.model!.room.floor_plan);
+    const H = this.model!.room.height_mm;
+    const t = 60;
+    if (axis === 0) {
+      const outside = coord <= b.x0 ? -t : t;
+      return { id: -1 - Math.round(coord), min: [Math.min(coord, coord + outside), 0, b.z0], max: [Math.max(coord, coord + outside), H, b.z1] };
     }
-    return best ?? p;
+    const outside = coord <= b.z0 ? -t : t;
+    return { id: -100000 - Math.round(coord), min: [b.x0, 0, Math.min(coord, coord + outside)], max: [b.x1, H, Math.max(coord, coord + outside)] };
+  }
+
+  private boxOf(e: Entry): Box {
+    const r = e.solid.rect;
+    return { id: e.obj.id, min: [r.x0, e.solid.y0, r.z0], max: [r.x1, e.solid.y1, r.z1] };
+  }
+
+  /** In an orthographic view from above, measure in the floor plane. */
+  private planar(ev: { altKey: boolean }): boolean {
+    if (ev.altKey || !this.rig.isOrtho) return false;
+    const dir = new THREE.Vector3();
+    this.rig.cam.getWorldDirection(dir);
+    return dir.y < -0.9;
+  }
+
+  /** What the ruler would pick under the pointer: the snap, and the box. */
+  private rulerPick(ev: { clientX: number; clientY: number }): { snap: Snap; box: Box | null } | null {
+    this.setNdc(ev);
+    // Objects are measured by their envelope — an open frame or a glass door
+    // still has faces — and the room by its walls and floor.
+    const ray = this.ray.ray;
+    let objHit: { e: Entry; point: THREE.Vector3; d: number } | null = null;
+    for (const e of this.entries.values()) {
+      const b = this.boxOf(e);
+      const q = ray.intersectBox(new THREE.Box3(new THREE.Vector3(...b.min), new THREE.Vector3(...b.max)), new THREE.Vector3());
+      if (q) {
+        const d = q.distanceTo(ray.origin);
+        if (!objHit || d < objHit.d) objHit = { e, point: q, d };
+      }
+    }
+    const room: THREE.Object3D[] = [];
+    this.roomGroup.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && (o.userData.wall || o.userData.floor)) room.push(o);
+    });
+    const roomHit = this.ray.intersectObjects(room, false)[0];
+    if (objHit && (!roomHit || objHit.d <= roomHit.distance)) {
+      const r = this.renderer.domElement.getBoundingClientRect();
+      const project = (q: Vec3): [number, number] => {
+        const [x, y] = this.project(q);
+        return [x + r.left, y + r.top];
+      };
+      const box = this.boxOf(objHit.e);
+      const p: Vec3 = [objHit.point.x, objHit.point.y, objHit.point.z];
+      return { snap: pickSnap(candidates(box, p), project, [ev.clientX, ev.clientY]), box };
+    }
+    const hit = roomHit;
+    if (!hit) return null;
+    const p: Vec3 = [hit.point.x, hit.point.y, hit.point.z];
+    const wall = hit.object.userData.wall as { axis: 0 | 2; coord: number } | undefined;
+    if (wall) {
+      // A wall is its plane at the floor line, wherever it was clicked.
+      const box = this.wallBox(wall.axis, wall.coord);
+      const q: Vec3 = [...p];
+      q[wall.axis] = wall.coord;
+      const face = { boxId: box.id, axis: wall.axis, side: (box.min[wall.axis] === wall.coord ? -1 : 1) as 1 | -1, coord: wall.coord, lo: [box.min[wall.axis === 0 ? 1 : 0], box.min[wall.axis === 0 ? 2 : 1]] as [number, number], hi: [box.max[wall.axis === 0 ? 1 : 0], box.max[wall.axis === 0 ? 2 : 1]] as [number, number] };
+      return { snap: { kind: "face", p: q, face, boxId: box.id }, box };
+    }
+    if (hit.object.userData.floor) {
+      const b = bounds(this.model!.room.floor_plan);
+      const face = { boxId: 0, axis: 1 as const, side: 1 as const, coord: 0, lo: [b.x0, b.z0] as [number, number], hi: [b.x1, b.z1] as [number, number] };
+      return { snap: { kind: "face", p: [p[0], 0, p[2]], face, boxId: 0 }, box: null };
+    }
+    return null;
+  }
+
+  /** The active snap, shown before the click. */
+  private showSnap(ev: PointerEvent) {
+    const pick = this.rulerPick(ev);
+    if (!pick) {
+      this.snapMarker.hidden = true;
+      return;
+    }
+    const [x, y] = this.project(pick.snap.p);
+    this.snapMarker.hidden = false;
+    this.snapMarker.className = `dc-snap dc-snap-${this.rulerMode === "objects" ? "centre" : pick.snap.kind}`;
+    this.snapMarker.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    this.snapMarker.dataset.label = this.rulerMode === "objects" ? "" : this.text.snap(pick.snap.kind);
+  }
+
+  private rulerClick(ev: PointerEvent) {
+    const pick = this.rulerPick(ev);
+    if (!pick) return;
+    if (!this.pending) {
+      if (this.rulerMode === "objects" && !pick.box) return;
+      this.pending = pick;
+      this.refreshOverlays();
+      return;
+    }
+    const first = this.pending;
+    this.pending = null;
+    let result: Result | null = null;
+    if (this.rulerMode === "objects") {
+      const a = first.box,
+        b = pick.box;
+      if (!a || !b || a.id === b.id) return this.refreshOverlays();
+      const rect = (x: Box) => ({ x0: x.min[0], z0: x.min[2], x1: x.max[0], z1: x.max[2] });
+      const y = Math.max(a.min[1], b.min[1]) + 20;
+      if (a.id < 0 && b.id < 0) result = null;
+      else if (a.id < 0 || b.id < 0) {
+        const wall = a.id < 0 ? first.snap : pick.snap;
+        const obj = a.id < 0 ? b : a;
+        const axis = wall.face!.axis as 0 | 2;
+        result = wallGap(rect(obj), axis, wall.face!.coord, y);
+      } else result = objectGap(rect(a), rect(b), y);
+    } else {
+      result = rulerMeasure(first.snap, pick.snap, { planar: this.planar(ev), lockAxis: ev.shiftKey });
+    }
+    if (result) {
+      this.measures.push(result);
+      this.onRuler(this.measures);
+    }
+    this.refreshOverlays();
   }
 
   private bindInput() {
@@ -984,6 +1283,10 @@ export class DcEngine {
       const fp = this.floorPoint(ev);
       this.onCursor(fp ? { x: Math.round(fp.x), z: Math.round(fp.z) } : null);
       if (ev.buttons) return;
+      if (this.tool === "ruler") {
+        this.showSnap(ev);
+        return;
+      }
       const hit = this.pick(ev);
       const h = hit?.pick ?? null;
       if (JSON.stringify(h) !== JSON.stringify(this.hover)) {
@@ -1025,24 +1328,7 @@ export class DcEngine {
         return;
       }
       if (this.tool === "ruler") {
-        const hit = this.pick(ev);
-        let p = hit?.point ?? this.floorPoint(ev);
-        if (!p) return;
-        p = this.snapCorner(p);
-        if (this.pendingMeasure) {
-          const a = this.pendingMeasure;
-          if (ev.shiftKey) {
-            const dx = Math.abs(p.x - a.x),
-              dy = Math.abs(p.y - a.y),
-              dz = Math.abs(p.z - a.z);
-            const max = Math.max(dx, dy, dz);
-            p = new THREE.Vector3(max === dx ? p.x : a.x, max === dy ? p.y : a.y, max === dz ? p.z : a.z);
-          }
-          this.measures.push({ a, b: p });
-          this.pendingMeasure = null;
-          this.onRuler(this.measures);
-        } else this.pendingMeasure = p;
-        this.refreshOverlays();
+        this.rulerClick(ev);
         return;
       }
       if (this.tool === "note") {
@@ -1119,6 +1405,7 @@ export class DcEngine {
     const w = Math.max(1, this.host.clientWidth),
       h = Math.max(1, this.host.clientHeight);
     this.renderer.setSize(w, h, false);
+    this.composer?.fx.setSize(w, h);
     this.rig.resize(w, h);
     this.dirty = true;
   }
@@ -1135,7 +1422,7 @@ export class DcEngine {
     if (blinking) this.tickLeds(now);
     if (!(moving || blinking || this.dirty)) return;
     this.dirty = false;
-    this.renderer.render(this.scene, this.rig.cam);
+    this.renderFrame();
     this.labels.update(this.rig.cam, this.host.clientWidth, this.host.clientHeight);
     this.cube.update(this.rig.cam);
   };

@@ -5,7 +5,7 @@
  * and pre-fills the add form.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -16,7 +16,7 @@ import { errorMessage } from "../../api/client";
 import { ErrorFlash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
 import { dcApi } from "../api";
-import { makeFmt } from "../format";
+import { useFmt } from "../settings";
 import type { CapacityCandidate, Face } from "../types";
 
 export interface CapacityRequest {
@@ -25,13 +25,33 @@ export interface CapacityRequest {
   power: number | null;
 }
 
-export function CapacityPanel({ roomId, revision, canEdit, onPick }: { roomId: number; revision: number; canEdit: boolean; onPick: (c: CapacityCandidate, req: CapacityRequest) => void }) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+export function CapacityPanel({
+  roomId,
+  revision,
+  canEdit,
+  initial,
+  onPick,
+}: {
+  roomId: number;
+  revision: number;
+  canEdit: boolean;
+  /** A request from the command palette: fill the form and ask at once. */
+  initial?: CapacityRequest | null;
+  onPick: (c: CapacityCandidate, req: CapacityRequest) => void;
+}) {
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const [u, setU] = useState(2);
   const [power, setPower] = useState<string>("");
   const [face, setFace] = useState<Face>("front");
-  const [asked, setAsked] = useState<CapacityRequest | null>(null);
+  const [asked, setAsked] = useState<CapacityRequest | null>(initial ?? null);
+  useEffect(() => {
+    if (!initial) return;
+    setU(initial.u);
+    setPower(initial.power === null ? "" : String(initial.power));
+    setFace(initial.face);
+    setAsked(initial);
+  }, [initial]);
   const q = useQuery({
     queryKey: ["dc", "capacity", roomId, revision, asked],
     queryFn: ({ signal }) => dcApi.capacity(roomId, asked!.u, asked!.face, asked!.power, signal),

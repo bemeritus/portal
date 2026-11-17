@@ -2,8 +2,10 @@
 export const dcUz = {
   title: "Server xonalari",
   rooms: "Server xonalari",
-  noRooms: "Hozircha xonalar yo'q. Administrator mavjud xonani `just seed-dc` buyrug'i bilan yuklaydi.",
-  noAccess: "Server xonasiga ruxsatingiz yo'q. Administrator uni «Foydalanuvchilar → Ichki vositalar» bo'limida beradi.",
+  noRooms:
+    "Hozircha xonalar yo'q. Administrator mavjud xonani `just seed-dc` buyrug'i bilan yuklaydi.",
+  noAccess:
+    "Server xonasiga ruxsatingiz yo'q. Administrator uni «Foydalanuvchilar → Ichki vositalar» bo'limida beradi.",
   roomStats: "stoykalar: {{racks}} · qurilmalar: {{devices}}",
   revision: "reviziya {{n}}",
   canvasLabel: "Xonaning 3D ko'rinishi",
@@ -18,9 +20,25 @@ export const dcUz = {
   undoNothing: "Bekor qilinadigan o'zgarishingiz yo'q",
   redoNothing: "Qaytariladigan narsa yo'q",
 
-  unit: { mm: "{{v}} mm", w: "{{v}} Vt", kw: "{{v}} kVt", m3h: "{{v}} m³/soat", kg: "{{v}} kg" },
+  unit: {
+    mm: "{{v}} mm",
+    cm: "{{v}} sm",
+    m: "{{v}} m",
+    w: "{{v}} Vt",
+    kw: "{{v}} kVt",
+    m3h: "{{v}} m³/soat",
+    kg: "{{v}} kg",
+  },
 
-  mode: { label: "Rejim", schema: "Sxema", realistic: "Realistik", fill: "To'lish", power: "Quvvat" },
+  unitWord: { mm: "mm", cm: "sm", m: "m" },
+
+  mode: {
+    label: "Rejim",
+    schema: "Sxema",
+    realistic: "Realistik",
+    fill: "To'lish",
+    power: "Quvvat",
+  },
   tool: {
     label: "Vosita",
     view: "Ko'rish",
@@ -28,8 +46,10 @@ export const dcUz = {
     ruler: "Chizg'ich",
     note: "Eslatma",
     viewHint: "Ko'zdan kechirish, tanlash, qidirish",
-    editHint: "Obyektlarni pol bo'ylab torting; strelkalar — 10 mm (Shift — 100 mm), R — 90° burish",
-    rulerHint: "Ikki nuqtani bosing; burchaklar tortadi; Shift — bitta o'q bo'ylab",
+    editHint:
+      "Obyektlarni pol bo'ylab torting; strelkalar — 10 mm (Shift — 100 mm), R — 90° burish",
+    rulerHint:
+      "Kursorni olib boring: belgi nimaga yopishishini ko'rsatadi (uch, qirra o'rtasi, qirra, yuz, markaz); odatda yuz ⟂ yuz. Alt — yuqoridan ko'rinishda 3D; Shift — bitta o'q bo'ylab",
     noteHint: "Eslatma qo'yiladigan joyni bosing",
   },
   view: {
@@ -43,24 +63,57 @@ export const dcUz = {
     bottom: "Pastdan",
     ortho: "Ortogonal",
     persp: "Perspektiva",
-    projectionHint: "Perspektiva va ortogonalni kadrni yo'qotmasdan almashtirish",
+    projectionHint:
+      "Perspektiva va ortogonalni kadrni yo'qotmasdan almashtirish",
+    aisle: "O'tish joyi",
+    racks: "Stoykalar",
   },
   walk: {
     label: "Sayr",
     hint: "Xona bo'ylab yurish",
     help: "W A S D — yurish · Q E — burilish · sichqoncha bilan tortish — qarash · polni bosish — borish · g'ildirak — yaqinlashtirish · Esc — chiqish",
   },
-  ruler: { clear: "O'lchovlarni tozalash" },
-  export: { label: "Eksport", dxf: "Reja, DXF (CAD)", csv: "Inventar, CSV", png: "Joriy ko'rinish, PNG" },
+  ruler: {
+    clear: "O'lchovlarni tozalash",
+    mode: "Nimani o'lchash",
+    points: "Nuqtalar va yuzlar",
+    objects: "Obyektlar orasidagi oraliq",
+    pointsHelp:
+      "Ikki marta bosing. Yuzdan yuzgacha qayerni bosmang, perpendikulyar o'lchanadi.",
+    objectsHelp:
+      "Ikki obyektni (yoki devorni) bosing: poldagi eng kichik oraliq ko'rsatiladi.",
+    none: "O'lchovlar yo'q.",
+    faceFace: "yuz ⟂ yuz",
+    objectGap: "obyektlar oralig'i",
+  },
+  export: {
+    label: "Eksport",
+    dxf: "Reja, DXF (CAD)",
+    csv: "Inventar, CSV",
+    png: "Joriy ko'rinish, PNG",
+  },
 
-  tab: { selection: "Tanlangan", capacity: "Joy", measure: "O'lchovlar", views: "Ko'rinishlar" },
+  tab: {
+    selection: "Tanlangan",
+    capacity: "Joy",
+    measure: "O'lchovlar",
+    views: "Ko'rinishlar",
+    object: "Obyekt",
+    ruler: "Chizg'ich",
+  },
 
   selection: {
     none: "Xonadagi biror narsani bosing yoki qidiruvdan foydalaning. Ikki marta bosish — yaqinlashish.",
     gone: "Bu endi xonada yo'q.",
     show: "3D da ko'rsatish",
   },
-  kind: { rack: "Stoyka", shelf: "Stellaj", cooling: "Sovutish", cable_tray: "Kabel lotogi", structure: "Konstruksiya" },
+  kind: {
+    rack: "Stoyka",
+    shelf: "Stellaj",
+    cooling: "Sovutish",
+    cable_tray: "Kabel lotogi",
+    structure: "Konstruksiya",
+  },
   dims: { wdh: "E × Ch × B", position: "Joylashuv", rotation: "Burilish" },
   problem: {
     outside: "Xonaga sig'maydi",
@@ -81,16 +134,21 @@ export const dcUz = {
   edit: {
     title: "O'zgartirish",
     name: "Nomi",
-    x0_mm: "x, mm",
-    z0_mm: "z, mm",
-    y0_mm: "balandlik, mm",
+    x0_mm: "x, {{unit}}",
+    z0_mm: "z, {{unit}}",
+    y0_mm: "balandlik, {{unit}}",
     door_front: "Old eshik",
     door_rear: "Orqa eshik",
     doorAsType: "stoyka turidagidek",
     note: "Izoh",
     dragHint: "Yoki «Tahrir» rejimida torting",
   },
-  door: { glass: "shisha", perforated: "teshikli", solid: "yaxlit", none: "yo'q" },
+  door: {
+    glass: "shisha",
+    perforated: "teshikli",
+    solid: "yaxlit",
+    none: "yo'q",
+  },
   rack: {
     notRecorded: "tarkibi yozilmagan",
     notRecordedLong: "Tarkibi yozilmagan — bu «bo'sh» degani emas.",
@@ -117,7 +175,7 @@ export const dcUz = {
     powerSrc: "Quvvat manbai",
     owner: "Kimniki (mijoz yoki xizmat)",
     serial: "Seriya raqami",
-    depth: "Chuqurlik, mm",
+    depth: "Chuqurlik, {{unit}}",
     depthTypical: "odatiy",
     rack: "Stoyka",
     note: "Izoh",
@@ -139,21 +197,33 @@ export const dcUz = {
     blank: "Qopqoq",
     other: "Boshqa",
   },
-  status: { active: "ishlamoqda", reserved: "band qilingan", planned: "rejalashtirilgan", decommissioning: "chiqarilmoqda" },
-  powerSrc: { nameplate: "yorliq bo'yicha", measured: "o'lchangan", estimated: "taxminiy" },
+  status: {
+    active: "ishlamoqda",
+    reserved: "band qilingan",
+    planned: "rejalashtirilgan",
+    decommissioning: "chiqarilmoqda",
+  },
+  powerSrc: {
+    nameplate: "yorliq bo'yicha",
+    measured: "o'lchangan",
+    estimated: "taxminiy",
+  },
   text: {
     button: "Matn bilan tahrirlash",
     help: "Har qatorda bitta qurilma: yunitlar, nomi, so'ng | orqali: quvvat (450 Vt, 1,2 kVt), kimniki, izoh=…, tur=switch.",
     label: "Qurilmalar, {{face}}, matn ko'rinishida",
-    placeholder: "10-11 DELL R740 | 450 W | Mijoz X\n40 Huawei S5720 | tur=switch",
+    placeholder:
+      "10-11 DELL R740 | 450 W | Mijoz X\n40 Huawei S5720 | tur=switch",
     format: "{{line}}-qator: «10-11 Nomi» ko'rinishida yozing",
     range: "{{line}}-qator: yunitlar 1–{{units}} oralig'ida bo'lishi kerak",
     emptyName: "{{line}}-qator: nomi bo'sh",
     overlap: "{{line}}-qator: «{{a}}» va «{{b}}» bitta yunitni egallaydi",
-    otherFace: "{{line}}-qator: «{{name}}» boshqa tomondagi qurilma bilan kesishadi",
+    otherFace:
+      "{{line}}-qator: «{{name}}» boshqa tomondagi qurilma bilan kesishadi",
   },
   shelf: {
-    summary: "Band kataklar: {{used}} / {{total}}; konditsioner ostida: {{blocked}}",
+    summary:
+      "Band kataklar: {{used}} / {{total}}; konditsioner ostida: {{blocked}}",
     map: "Stellaj kataklari",
     cell: "{{n}}-katak",
     cellEmpty: "{{n}}-katak: bo'sh",
@@ -178,7 +248,8 @@ export const dcUz = {
     overBudget: "stoyka byudjetidan ortiq",
     notRecorded: "Hisobga olinmadi (tarkibi yozilmagan): {{racks}}",
     noSpace: "Joy yo'q: {{racks}}",
-    noBudget: "Bu xona uchun stoyka quvvat byudjeti belgilanmagan, shuning uchun quvvat ko'rsatiladi, lekin baholanmaydi.",
+    noBudget:
+      "Bu xona uchun stoyka quvvat byudjeti belgilanmagan, shuning uchun quvvat ko'rsatiladi, lekin baholanmaydi.",
   },
   measure: {
     modelValue: "model {{v}}",
@@ -193,6 +264,7 @@ export const dcUz = {
     remeasure: "Qayta o'lchash kerak",
     notModelled: "Modellashtirilmagan yoki faqat suratdan",
     dataNote: "Izohlar va ro'yxatlar o'lchov yozuvidan o'zgarishsiz olingan.",
+    diff: "Farq: {{v}}",
   },
   measureKey: {
     racks_width_n: "{{n}}-stoyka: eni",
@@ -200,7 +272,8 @@ export const dcUz = {
     racks_height_n: "{{n}}-stoyka: balandligi",
     tray_extent_x: "Lotok: devor bo'ylab uzunligi",
     item_subtype: "Turi (katalog)",
-    item_supply_outlets: "Havo chiqish joylari: tur uchun standart, o'lchanmagan",
+    item_supply_outlets:
+      "Havo chiqish joylari: tur uchun standart, o'lchanmagan",
     gap: "Oraliq {{a}} – {{b}}",
     leftWall: "chap devor",
     rightWall: "o'ng devor",
@@ -252,17 +325,42 @@ export const dcUz = {
     assumed: "taxmin",
     datasheet: "pasport",
     measuredHint: "Joyida ruletka bilan o'lchangan",
-    rangeHint: "Ikki o'lchov farq qildi; ikkalasi saqlangan, geometriyada o'rtasi ishlatiladi",
+    rangeHint:
+      "Ikki o'lchov farq qildi; ikkalasi saqlangan, geometriyada o'rtasi ishlatiladi",
     derivedHint: "O'lchangan qiymatlardan hisoblangan",
-    assumedHint: "Surat yoki odatiy o'lchamlardan taxmin qilingan — ishonishdan oldin qayta o'lchang",
+    assumedHint:
+      "Surat yoki odatiy o'lchamlardan taxmin qilingan — ishonishdan oldin qayta o'lchang",
   },
-  notes: { title: "Eslatmalar", none: "Eslatmalar yo'q.", howTo: "«Eslatma» vositasini tanlang va xonada bosing." },
+  notes: {
+    title: "Eslatmalar",
+    none: "Eslatmalar yo'q.",
+    howTo: "«Eslatma» vositasini tanlang va xonada bosing.",
+  },
   note: { prompt: "Eslatma matni" },
-  views: { title: "Saqlangan ko'rinishlar", none: "Saqlangan ko'rinishlar yo'q.", name: "Ko'rinish nomi", save: "Joriy ko'rinishni saqlash" },
-  search: { label: "Xonadan qidirish", placeholder: "Qurilma, egasi, seriya raqami…", none: "Hech narsa topilmadi", object: "obyekt" },
+  views: {
+    title: "Saqlangan ko'rinishlar",
+    none: "Saqlangan ko'rinishlar yo'q.",
+    name: "Ko'rinish nomi",
+    save: "Joriy ko'rinishni saqlash",
+    copyLink: "Shu ko'rinish havolasini nusxalash",
+    linkCopied: "Havola nusxalandi.",
+    savedCopied: "Ko'rinish saqlandi, havola nusxalandi.",
+    defaultName: "Ko'rinish {{date}}",
+    shared: "Umumiy",
+    personal: "Shaxsiy",
+    who: "Kimga ko'rinadi",
+  },
+  search: {
+    label: "Xonadan qidirish",
+    placeholder: "Qurilma, egasi, seriya raqami…",
+    none: "Hech narsa topilmadi",
+    object: "obyekt",
+  },
   conflict: {
-    title: "Xonani boshqa kishi o'zgartirdi; o'zgarishingiz saqlanmadi, kiritganlaringiz yo'qolmadi. Xonani tekshirib, qayta urinib ko'ring.",
-    reapplied: "Siz ishlayotganda xonani boshqa kishi o'zgartirdi; o'zgarishingiz hali ham mos edi va ustidan qo'llandi.",
+    title:
+      "Xonani boshqa kishi o'zgartirdi; o'zgarishingiz saqlanmadi, kiritganlaringiz yo'qolmadi. Xonani tekshirib, qayta urinib ko'ring.",
+    reapplied:
+      "Siz ishlayotganda xonani boshqa kishi o'zgartirdi; o'zgarishingiz hali ham mos edi va ustidan qo'llandi.",
   },
   change: {
     move: "ko'chirish: {{name}}",
@@ -285,7 +383,8 @@ export const dcUz = {
     help: "Inventar shabloni formati: «;» bilan ajratilgan, UTF-8. Stoykasi, tomoni va pastki yuniti qurilmaga mos keladigan qator uni yangilaydi; qolganlari yangisini qo'shadi; hech narsa o'chirilmaydi. Avval tekshiruv nima o'zgarishini ko'rsatadi.",
     file: "CSV fayl",
     checking: "Tekshirilmoqda…",
-    summary: "yangi: {{created}}, o'zgargan: {{updated}}, o'zgarmagan: {{unchanged}}, xatolar: {{errors}}",
+    summary:
+      "yangi: {{created}}, o'zgargan: {{updated}}, o'zgarmagan: {{unchanged}}, xatolar: {{errors}}",
     fix: "Bularni faylda tuzating; xatolar bor ekan, hech narsa import qilinmaydi.",
     line: "{{line}}-qator",
     action: "Amal",
@@ -294,8 +393,10 @@ export const dcUz = {
     update: "o'zgargan",
     unchanged: "o'zgarmagan",
     apply: "{{n}} qatorni import qilish",
-    applied: "Import qilindi: yangi {{created}}, o'zgargan {{updated}} (reviziya {{revision}}).",
-    atomic: "Barcha qatorlar bitta reviziyada import qilinadi — yoki hech biri.",
+    applied:
+      "Import qilindi: yangi {{created}}, o'zgargan {{updated}} (reviziya {{revision}}).",
+    atomic:
+      "Barcha qatorlar bitta reviziyada import qilinadi — yoki hech biri.",
     error: {
       unclosed_quote: "qo'shtirnoq yopilmagan",
       empty_file: "fayl bo'sh",
@@ -340,7 +441,12 @@ export const dcUz = {
     restore: "Tiklash",
     restoreConfirm: "{{n}}-reviziyani yangi reviziya sifatida tiklash",
     restored: "{{from}}-reviziya {{to}}-reviziya sifatida tiklandi.",
-    section: { objects: "Obyektlar", devices: "Qurilmalar", cells: "Stellaj kataklari", annotations: "Eslatmalar va ko'rinishlar" },
+    section: {
+      objects: "Obyektlar",
+      devices: "Qurilmalar",
+      cells: "Stellaj kataklari",
+      annotations: "Eslatmalar va ko'rinishlar",
+    },
   },
   field: {
     name: "nomi",
@@ -367,7 +473,8 @@ export const dcUz = {
   catalog: {
     title: "Uskunalar katalogi",
     button: "Katalog",
-    intro: "Har bir pozitsiya o'z o'lchamlari va xususiyatlari bo'yicha chizilgan. Hozircha faqat ko'rish: joylashtirish va katalogni tahrirlash xona konstruktori bilan birga keladi.",
+    intro:
+      "Har bir pozitsiya o'z o'lchamlari va xususiyatlari bo'yicha chizilgan. Hozircha faqat ko'rish: joylashtirish va katalogni tahrirlash xona konstruktori bilan birga keladi.",
     search: "Katalogdan qidirish",
     subtype: "Turi",
     allSubtypes: "Barcha turlar",
@@ -384,7 +491,8 @@ export const dcUz = {
     compare: "Solishtirish ({{n}})",
     compareTitle: "Solishtirish",
     toCompare: "Solishtirish",
-    emptySection: "Bu bo'limda hozircha hech narsa yo'q — u xona konstruktori bilan keladi.",
+    emptySection:
+      "Bu bo'limda hozircha hech narsa yo'q — u xona konstruktori bilan keladi.",
     noMatch: "Filtrlarga mos hech narsa yo'q.",
     open: "{{model}} ni ochish",
     noBrand: "brendsiz",
@@ -404,14 +512,23 @@ export const dcUz = {
     refRack: "42U stoyka",
     refPerson: "1,75 m",
     previewLabel: "3D ko'rinish",
-    previewNote: "Katalogdagi o'lchamlar bo'yicha chizilgan; beriladigan havo ko'k, so'riladigani qizil. Bu rasm, hisob-kitob emas.",
+    previewNote:
+      "Katalogdagi o'lchamlar bo'yicha chizilgan; beriladigan havo ko'k, so'riladigani qizil. Bu rasm, hisob-kitob emas.",
     notPublished: "e'lon qilinmagan",
     sources: "Manbalar",
-    advisory: "Ishlab chiqaruvchi sharoitidagi pasport qiymatlari. Sotib olishdan oldin pasport bilan solishtiring.",
+    advisory:
+      "Ishlab chiqaruvchi sharoitidagi pasport qiymatlari. Sotib olishdan oldin pasport bilan solishtiring.",
     place: "Xonaga qo'yish",
     placeLater: "Xona konstruktori bilan (2-bosqich)",
   },
-  section: { racks: "Stoykalar", cooling: "Sovutish", power: "Elektr ta'minoti", floor: "Ko'tarilgan pol", trays: "Kabel trassalari", structures: "Konstruksiyalar" },
+  section: {
+    racks: "Stoykalar",
+    cooling: "Sovutish",
+    power: "Elektr ta'minoti",
+    floor: "Ko'tarilgan pol",
+    trays: "Kabel trassalari",
+    structures: "Konstruksiyalar",
+  },
   subtype: {
     locker: "Metall shkaf",
     split_wall: "Devorga o'rnatiladigan split",
@@ -464,9 +581,102 @@ export const dcUz = {
   },
   legend: {
     fill: "Stoykalar band yunitlar bo'yicha: yashil — bo'sh, qizil — to'la; old tomondagi bo'sh oraliqlar yashil.",
-    power: "Stoykalar yozilgan quvvat bo'yicha {{w}} byudjetga nisbatan: yashildan qizilgacha; byudjetdan ortig'i ogohlantirish rangida.",
-    powerNoBudget: "Bu xona uchun stoyka quvvat byudjeti belgilanmagan: quvvati ma'lum stoykalar ko'k va baholanmaydi.",
+    power:
+      "Stoykalar yozilgan quvvat bo'yicha {{w}} byudjetga nisbatan: yashildan qizilgacha; byudjetdan ortig'i ogohlantirish rangida.",
+    powerNoBudget:
+      "Bu xona uchun stoyka quvvat byudjeti belgilanmagan: quvvati ma'lum stoykalar ko'k va baholanmaydi.",
     notRecorded: "tarkibi yozilmagan",
     unknown: "ba'zi qurilmalar quvvati noma'lum (nol deb ko'rsatilmaydi)",
+  },
+  shell: {
+    brand: "Server xonasi",
+    back: "Portalga qaytish",
+    views: "Bo'limlar",
+    plan: "Reja",
+    racks: "Stoykalar",
+    catalog: "Katalog",
+    search: "Topish yoki bajarish…",
+    unit: "Uzunlik birligi",
+    theme: "Mavzu",
+  },
+  theme: {
+    studio: "Studiya",
+    drawing: "Chizma",
+    light: "Yorug'",
+  },
+  assumptions: {
+    toggle: "Taxminlarni ko'rsatish",
+  },
+  highlight: {
+    label: "Ajratish:",
+    clear: "Ajratishni olib tashlash",
+  },
+  inspector: {
+    label: "Inspektor",
+    open: "Inspektor",
+    unitsUsed: "yunit band",
+    unitsFree: "yunit bo'sh",
+    power: "quvvat",
+    powerPartial: "quvvat, {{n}} ta noma’lum",
+    devices: "qurilma",
+    openRack: "Stoykani ochish",
+    findSpace: "Joy topish",
+    dims: "O'lchamlar: ruletka / model",
+  },
+  snap: {
+    vertex: "uch",
+    midpoint: "qirra o'rtasi",
+    edge: "qirra",
+    face: "yuz",
+    centre: "markaz",
+    free: "nuqta",
+  },
+  plan: {
+    overhead: "pol ustida (konditsionerlar, lotok)",
+    tapeDiffers: "ruletka modeldan 5 mm dan ko'p farq qiladi",
+    clearance: "xizmat oralig'i buzilgan",
+    sheet: "Xona rejasi",
+    units: "O'lchamlar {{unit}} da",
+  },
+  qr: {
+    title: "QR-yorliqlar",
+    all: "QR-yorliqlar, A4",
+    forObject: "QR-yorliqlar: {{name}}",
+    print: "Chop etish / PDF",
+    back: "Xonaga qaytish",
+    count_one: "{{count}} ta yorliq",
+    count_other: "{{count}} ta yorliq",
+    hint: "Har bir kod xonadagi obyektga havola. «Chop etish» → «PDF sifatida saqlash» PDF beradi; A4, qatorda 3 ta.",
+  },
+  palette: {
+    title: "Buyruqlar",
+    description: "Server xonasi obyektlari va amallari",
+    placeholder: "Stoyka, qurilma, seriya, egasi — yoki «bo'sh 2U 0,8 kVt»",
+    ownerPlaceholder: "Egasi…",
+    actions: "Amallar",
+    objects: "Obyektlar",
+    owners: "Egalar",
+    none: "Hech narsa topilmadi",
+    findSpace: "Bo'sh joy topish: {{u}}U{{power}}",
+    findSpaceHint: "barcha stoykalarda",
+    kwSpace: "bo'sh joy topish",
+    highlight: "Mijozni ajratish…",
+    highlightHint: "egasi",
+    kwOwner: "mijoz egasi ajratish",
+    noHighlight: "Ajratmasdan",
+    ownerCount_one: "{{count}} ta obyekt",
+    ownerCount_other: "{{count}} ta obyekt",
+    compare: "Reviziya bilan solishtirish…",
+    compareHint: "tarix",
+    saveView: "Ko'rinishni saqlash va havolani nusxalash",
+    saveViewHint: "umumiy",
+    mode: "Rejim: {{mode}}",
+    theme: "Mavzu: {{theme}}",
+    unit: "Birlik: {{unit}}",
+    ruler: "Chizg'ich",
+    catalog: "Katalogni ochish",
+    keySelect: "tanlash",
+    keyRun: "bajarish",
+    keyParams: "parametrlar",
   },
 };

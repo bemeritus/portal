@@ -149,17 +149,72 @@ function deviceFront(kind: DeviceKind, units: number, name: string): HTMLCanvasE
   return c;
 }
 
+/** Honeycomb perforation (photos 03, 05): white = metal, black = hole. */
 function perforated(): HTMLCanvasElement {
-  const [c, g] = canvas(64, 64);
+  const [c, g] = canvas(64, 56);
   g.fillStyle = "#ffffff";
-  g.fillRect(0, 0, 64, 64);
+  g.fillRect(0, 0, 64, 56);
   g.fillStyle = "#000000";
-  for (let r = 0; r < 8; r++)
-    for (let q = 0; q < 8; q++) {
-      g.beginPath();
-      g.arc(q * 8 + (r % 2 ? 4 : 0) + 2, r * 8 + 2, 2.4, 0, 7);
-      g.fill();
+  const hex = (cx: number, cy: number, r: number) => {
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i + Math.PI / 6;
+      g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
     }
+    g.closePath();
+    g.fill();
+  };
+  // Two rows of a hex grid, tiling seamlessly (pitch 16 × 14).
+  for (let row = 0; row < 5; row++)
+    for (let col = -1; col < 5; col++) hex(col * 16 + (row % 2 ? 8 : 0) + 8, row * 14, 6.2);
+  return c;
+}
+
+/**
+ * The floor of the photos: terracotta tiles with an interlocking lighter
+ * pattern. One canvas is one 300 mm tile.
+ */
+function tiles(): HTMLCanvasElement {
+  const n = 256;
+  const [c, g] = canvas(n, n);
+  g.fillStyle = "#b47a4b";
+  g.fillRect(0, 0, n, n);
+  g.strokeStyle = "#c79466";
+  g.lineWidth = n * 0.06;
+  g.lineCap = "round";
+  // Interlocking arcs, as on the tiles.
+  for (const [cx, cy, a0] of [
+    [0, 0, 0],
+    [n, 0, Math.PI / 2],
+    [n, n, Math.PI],
+    [0, n, -Math.PI / 2],
+  ]) {
+    g.beginPath();
+    g.arc(cx, cy, n * 0.42, a0, a0 + Math.PI / 2);
+    g.stroke();
+  }
+  g.strokeStyle = "#a9713f";
+  g.lineWidth = n * 0.025;
+  g.beginPath();
+  g.arc(n / 2, n / 2, n * 0.18, 0, Math.PI * 2);
+  g.stroke();
+  // Grout.
+  g.fillStyle = "#9c6a40";
+  g.fillRect(0, 0, n, 3);
+  g.fillRect(0, 0, 3, n);
+  return c;
+}
+
+/** A white number plate, as on the shelf's boards (photo 02). */
+function plate(n: number): HTMLCanvasElement {
+  const [c, g] = canvas(64, 40);
+  g.fillStyle = "#f4f4f2";
+  g.fillRect(0, 0, 64, 40);
+  g.fillStyle = "#111111";
+  g.font = "600 26px sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(String(n), 32, 21);
   return c;
 }
 
@@ -196,43 +251,29 @@ function uStrip(units: number): HTMLCanvasElement {
   return c;
 }
 
-/** Schema colours per role, in a light and a dark variant. */
-const SCHEMA: Record<string, [string, string]> = {
-  floor: ["#e6e9ed", "#24272d"],
-  wall: ["#cfd4da", "#3a3f47"],
-  rackFrame: ["#8b95a1", "#5b6573"],
-  rackCap: ["#7a838e", "#4f5864"],
-  rail: ["#a8b0b9", "#6b7480"],
-  shelf: ["#b7a68a", "#7d6f58"],
-  board: ["#c9b99d", "#8e7f66"],
-  cooling: ["#9fc6d8", "#3f6f86"],
-  coolingPrecision: ["#7fb0a0", "#2f6b5a"],
-  louvre: ["#6e8fa0", "#2a4a5a"],
-  tray: ["#b0a080", "#7a6c50"],
-  door: ["#c8a27a", "#8a6a48"],
-  safe: ["#8e8e8e", "#5e5e5e"],
-  locker: ["#a3a7ab", "#6b7075"],
-  structure: ["#a0a6ad", "#646b73"],
-  cell: ["#55606d", "#8794a3"],
-  cellBlocked: ["#e7b4ae", "#6e3a35"],
-};
-
 /** Realistic surface parameters per role. */
+/** Realistic surfaces, matched to the site photos (`data/photos/`). */
 const PBR: Record<string, { color: string; metalness: number; roughness: number }> = {
-  floor: { color: "#b9bcc0", metalness: 0, roughness: 0.85 },
-  wall: { color: "#e9e7e2", metalness: 0, roughness: 0.95 },
-  rackFrame: { color: "#1b1d21", metalness: 0.55, roughness: 0.5 },
-  rackCap: { color: "#26292e", metalness: 0.6, roughness: 0.45 },
-  rail: { color: "#3a3e45", metalness: 0.7, roughness: 0.4 },
-  shelf: { color: "#3a3d42", metalness: 0.5, roughness: 0.55 },
-  board: { color: "#6b6e73", metalness: 0.4, roughness: 0.6 },
-  cooling: { color: "#f2f3f4", metalness: 0.05, roughness: 0.35 },
+  floor: { color: "#ffffff", metalness: 0, roughness: 0.55 },
+  wall: { color: "#efefea", metalness: 0, roughness: 0.95 },
+  ceiling: { color: "#f4f4f1", metalness: 0, roughness: 0.95 },
+  // Black powder-coated steel.
+  rackFrame: { color: "#141518", metalness: 0.35, roughness: 0.6 },
+  rackCap: { color: "#17181b", metalness: 0.35, roughness: 0.55 },
+  rail: { color: "#2a2c30", metalness: 0.6, roughness: 0.45 },
+  // The shelf is black metal.
+  shelf: { color: "#18181a", metalness: 0.4, roughness: 0.6 },
+  board: { color: "#1c1c1f", metalness: 0.35, roughness: 0.65 },
+  // Comfort units: galvanised ducted boxes; precision cabinets dark.
+  cooling: { color: "#c3c6ca", metalness: 0.65, roughness: 0.38 },
   coolingPrecision: { color: "#2b2e33", metalness: 0.4, roughness: 0.5 },
-  louvre: { color: "#d9dcdf", metalness: 0.05, roughness: 0.4 },
-  tray: { color: "#a9adb2", metalness: 0.8, roughness: 0.35 },
+  louvre: { color: "#9ea2a7", metalness: 0.6, roughness: 0.4 },
+  // Wire mesh basket.
+  tray: { color: "#c4c8cc", metalness: 0.85, roughness: 0.3 },
   door: { color: "#c3a27c", metalness: 0.05, roughness: 0.7 },
   safe: { color: "#4b4f55", metalness: 0.6, roughness: 0.4 },
-  locker: { color: "#b3b6b8", metalness: 0.35, roughness: 0.5 },
+  rod: { color: "#9a9ea3", metalness: 0.8, roughness: 0.35 },
+  locker: { color: "#b9bcbe", metalness: 0.35, roughness: 0.5 },
   structure: { color: "#9aa0a6", metalness: 0.1, roughness: 0.8 },
   cell: { color: "#22252b", metalness: 0.35, roughness: 0.5 },
   cellBlocked: { color: "#7a2c26", metalness: 0.1, roughness: 0.8 },
@@ -291,7 +332,7 @@ export class MaterialLibrary {
       if (role === "perforated") {
         const alpha = this.tex("perf", perforated, false);
         alpha.wrapS = alpha.wrapT = THREE.RepeatWrapping;
-        alpha.repeat.set(40, 120);
+        alpha.repeat.set(20, 60);
         return this.realistic()
           ? new THREE.MeshStandardMaterial({ color: "#1b1d22", metalness: 0.5, roughness: 0.55, alphaMap: alpha, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide })
           : new THREE.MeshBasicMaterial({ color: this.theme.dark ? "#56606b" : "#9aa3ad", transparent: true, opacity: 0.25, depthWrite: false });
@@ -314,13 +355,35 @@ export class MaterialLibrary {
           ? new THREE.MeshStandardMaterial({ color: "#1f2228", metalness: 0.3, roughness: 0.55 })
           : new THREE.MeshLambertMaterial({ color: DEVICE_COLOR[kind] ?? "#474d56" });
       }
+      if (this.realistic() && role === "floor") {
+        const t = this.tex("tiles", tiles);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        // Floor UVs are in millimetres: one tile is 300 mm.
+        t.repeat.set(1 / 300, 1 / 300);
+        return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
+      }
       if (this.realistic()) {
         const p = PBR[role] ?? PBR.structure;
         return new THREE.MeshStandardMaterial({ color: p.color, metalness: p.metalness, roughness: p.roughness });
       }
-      const c = SCHEMA[role] ?? SCHEMA.structure;
-      // Lambert keeps a hint of shape with no shadows; the light rig is flat.
-      return new THREE.MeshLambertMaterial({ color: c[this.theme.dark ? 1 : 0] });
+      // Схема: flat fills from the theme's tokens; Lambert keeps a hint of
+      // shape under the flat light rig.
+      const tk = this.theme.tokens;
+      const fill =
+        role === "floor"
+          ? tk.floor
+          : role === "wall" || role === "ceiling"
+            ? tk.wall
+            : role === "rackFrame" || role === "rackCap" || role === "rail"
+              ? tk.rackFill
+              : role === "cooling" || role === "coolingPrecision" || role === "louvre"
+                ? tk.coolingFill
+                : role === "cellBlocked"
+                  ? tk.warn
+                  : role === "cell"
+                    ? tk.muted
+                    : tk.objectFill;
+      return new THREE.MeshLambertMaterial({ color: fill, transparent: role === "cellBlocked", opacity: role === "cellBlocked" ? 0.18 : 1 });
     });
   }
 
@@ -331,6 +394,16 @@ export class MaterialLibrary {
       const t = this.tex(`front|${kind}|${units}|${name}`, () => deviceFront(kind, units, name));
       return new THREE.MeshStandardMaterial({ map: t, metalness: 0.3, roughness: 0.55 });
     });
+  }
+
+  /** A shelf number plate. */
+  plate(n: number): THREE.Material {
+    return this.memo(`plate|${n}`, () => new THREE.MeshBasicMaterial({ map: this.tex(`plate|${n}`, () => plate(n)) }));
+  }
+
+  /** Fluorescent tubes (Реалистичный only; lighting, not equipment). */
+  tube(): THREE.Material {
+    return this.memo("tube", () => new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }));
   }
 
   uStrip(units: number): THREE.Material {
@@ -349,6 +422,44 @@ export class MaterialLibrary {
   /** Over budget: the warning colour. */
   over(): THREE.Material {
     return this.memo("over", () => new THREE.MeshLambertMaterial({ color: this.theme.warn }));
+  }
+
+  /** A wall of length `len` (mm) and thickness `t`, hatched at 45° every 60 mm. */
+  hatch(len: number, t: number): THREE.Material {
+    const tk = this.theme.tokens;
+    const key = `hatch:${tk.name}:${Math.round(len)}:${t}`;
+    return this.memo(key, () => {
+      const tex = this.tex(key, () => {
+        const [c, g] = canvas(64, 64);
+        g.fillStyle = tk.wall;
+        g.fillRect(0, 0, 64, 64);
+        g.strokeStyle = tk.text;
+        g.lineWidth = 4;
+        for (const o of [-64, 0, 64]) {
+          g.beginPath();
+          g.moveTo(o, 64);
+          g.lineTo(o + 64, 0);
+          g.stroke();
+        }
+        return c;
+      });
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(len / 60, t / 60);
+      return new THREE.MeshBasicMaterial({ map: tex });
+    });
+  }
+
+  /** Owner highlight: the chosen owner's equipment… */
+  highlight(): THREE.Material {
+    return this.memo("highlight", () => new THREE.MeshBasicMaterial({ color: this.theme.accent }));
+  }
+
+  /** …and everything else, dimmed. */
+  dimmed(): THREE.Material {
+    return this.memo(
+      "dimmed",
+      () => new THREE.MeshBasicMaterial({ color: this.theme.dark ? "#3a3c42" : "#c9c9cf", transparent: true, opacity: 0.22, depthWrite: false }),
+    );
   }
 
   /** Known power when the room has no budget to judge it against. */

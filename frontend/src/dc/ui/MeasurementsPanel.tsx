@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { makeFmt } from "../format";
+import { useFmt } from "../settings";
 import { disagrees, isRange } from "../model/measure";
 import type { CatalogItem, MeasSrc, RoomData } from "../types";
 import { measureLabel } from "./SelectionPanel";
@@ -39,8 +39,8 @@ const SRC_STYLE: Record<MeasSrc, string> = {
 };
 
 export function MeasurementsPanel({ data, catalog, onSelect }: { data: RoomData; catalog: Map<number, CatalogItem>; onSelect: (objectId: number) => void }) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const m = data.room.measurements;
   const byName = new Map(data.objects.map((o) => [o.name, o.id]));
   const counts = m.entries.reduce<Record<string, number>>((a, e) => ({ ...a, [e.src]: (a[e.src] ?? 0) + 1 }), {});

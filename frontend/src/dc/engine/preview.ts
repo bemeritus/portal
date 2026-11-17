@@ -20,7 +20,8 @@ import { MaterialLibrary } from "./materials";
 import { RENDERERS } from "./renderers";
 import { openings } from "./renderers/cooling";
 import type { BuildContext } from "./renderers/types";
-import { readTheme } from "./theme";
+import { themeFromTokens } from "./theme";
+import { TOKENS, type DcTokens } from "../theme/tokens";
 
 /** A stand-in object so a renderer can draw a catalog item on its own. */
 function standIn(item: CatalogItem): DcObject {
@@ -40,7 +41,7 @@ function standIn(item: CatalogItem): DcObject {
 
 function build(item: CatalogItem, lib: MaterialLibrary): THREE.Group {
   const dims: [number, number, number] = [item.width_mm, Math.max(item.depth_mm, 40), item.height_mm];
-  const ctx: BuildContext = { lib, mode: "realistic", devices: [], cells: [], blocked: [], dims };
+  const ctx: BuildContext = { lib, mode: "realistic", devices: [], cells: [], blocked: [], dims, ceilingAbove: 0 };
   const g = RENDERERS[item.kind].build(standIn(item), item, ctx).group;
   g.traverse((o) => {
     const m = o as THREE.Mesh;
@@ -66,8 +67,9 @@ function sharedRenderer() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setSize(320, 240, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    const lib = new MaterialLibrary(readTheme());
-    lib.reset("realistic", readTheme());
+    const theme = themeFromTokens(TOKENS.light);
+    const lib = new MaterialLibrary(theme);
+    lib.reset("realistic", theme);
     const pm = new THREE.PMREMGenerator(renderer);
     const env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
     pm.dispose();
@@ -129,8 +131,9 @@ export class ItemPreview {
     private host: HTMLElement,
     items: CatalogItem[],
     text: PreviewText,
+    tokens: DcTokens,
   ) {
-    const theme = readTheme();
+    const theme = themeFromTokens(tokens);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));

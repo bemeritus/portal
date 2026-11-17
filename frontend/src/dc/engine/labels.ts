@@ -15,6 +15,10 @@ export interface LabelOptions {
   /** Shown even when names are hidden (Реалистичный shows names on demand). */
   always?: boolean;
   title?: string;
+  /** Extra CSS class (e.g. the warning dot of a disagreeing dimension). */
+  className?: string;
+  /** A dimension's two ends: the label hides when they project too close. */
+  span?: [THREE.Vector3, THREE.Vector3];
 }
 
 interface Label {
@@ -26,6 +30,7 @@ interface Label {
   w: number;
   h: number;
   group: string;
+  span: [THREE.Vector3, THREE.Vector3] | null;
 }
 
 const v = new THREE.Vector3();
@@ -50,19 +55,21 @@ export class Labels {
     if (!l) {
       const el = document.createElement("div");
       this.root.appendChild(el);
-      l = { el, pos: pos.clone(), priority: 0, kind, always: false, w: 0, h: 0, group: key.split(":")[0] };
+      l = { el, pos: pos.clone(), priority: 0, kind, always: false, w: 0, h: 0, group: key.split(":")[0], span: null };
       this.labels.set(key, l);
     }
     l.pos.copy(pos);
     l.priority = opts.priority ?? 1;
     l.always = opts.always ?? false;
     l.kind = kind;
-    l.el.className = `dc-label dc-label-${kind}`;
+    l.el.className = `dc-label dc-label-${kind}${opts.className ? ` ${opts.className}` : ""}`;
+    l.span = opts.span ? [opts.span[0].clone(), opts.span[1].clone()] : null;
     if (l.el.textContent !== text) {
       l.el.textContent = text;
       l.w = 0;
     }
     if (opts.title) l.el.title = opts.title;
+    else l.el.removeAttribute("title");
   }
 
   /** Remove every label whose key starts with `group:`. */
@@ -90,8 +97,16 @@ export class Labels {
       // dimensions, warnings, notes and ruler marks always show.
       const onDemand = l.kind === "name" || l.kind === "assumed";
       const wanted = l.always || !onDemand || this.showNames || this.focus.has(key.split(":").slice(0, 2).join(":"));
+      let longEnough = true;
+      if (l.span) {
+        // A dimension seen end-on (a height in a top view) is not drawn;
+        // a short one still is — its text may run past its ends.
+        const a = l.span[0].clone().project(camera),
+          b = l.span[1].clone().project(camera);
+        longEnough = Math.hypot(((a.x - b.x) * width) / 2, ((a.y - b.y) * height) / 2) > 8;
+      }
       v.copy(l.pos).project(camera);
-      const visible = wanted && v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2;
+      const visible = wanted && longEnough && v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2;
       if (!visible) {
         l.el.style.display = "none";
         continue;

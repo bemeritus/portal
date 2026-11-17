@@ -52,6 +52,16 @@ export const shelfRenderer: ObjectRenderer = {
       hit.userData.role = "hit";
       hit.userData.fixedMaterial = true;
       g.add(hit);
+      // White number plates on the front edge of plated boards (photo 02).
+      if (c.plated) {
+        const pl = new THREE.Mesh(new THREE.PlaneGeometry(56, 34), ctx.lib.plate(n));
+        pl.position.set(x, y - 10, -d / 2 - 2);
+        pl.rotation.y = Math.PI;
+        pl.userData.role = "plate";
+        pl.userData.fixedMaterial = true;
+        pl.userData.plate = n;
+        g.add(pl);
+      }
       if (blocked.has(n)) {
         g.add(box(ctx, "cellBlocked", cellW - 30, 6, d - 60, x, y + 1, 0));
       }
@@ -62,6 +72,7 @@ export const shelfRenderer: ObjectRenderer = {
           shelfId: obj.id,
           cellNo: n,
         });
+        m.userData.owner = cell.owner;
         g.add(m);
       }
     }

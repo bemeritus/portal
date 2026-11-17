@@ -16,11 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { tDyn } from "../../i18n";
 import type { SelRef } from "../engine/DcEngine";
-import { makeFmt } from "../format";
+import type { Fmt } from "../format";
+import { useFmt } from "../settings";
 import { objectDims, type Problem } from "../model/geometry";
 import type { CatalogItem, Clearance, DcObject, DoorType, Op, RoomData } from "../types";
 import { objectFields } from "./DcRoomPage";
 import { assumedByObject } from "./MeasurementsPanel";
+import { LengthInput } from "./LengthInput";
 import { RackPanel } from "./RackPanel";
 import { ShelfPanel } from "./ShelfPanel";
 
@@ -47,8 +49,8 @@ interface Props {
 }
 
 export function SelectionPanel(props: Props) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const { data, catalog, selection } = props;
   if (!selection) {
     const short = data.analysis.clearances.filter((c) => c.gap_mm < c.required_mm);
@@ -73,7 +75,7 @@ export function SelectionPanel(props: Props) {
   );
 }
 
-export function ClearanceList({ list, fmt, onSelect }: { list: Clearance[]; fmt: ReturnType<typeof makeFmt>; onSelect: (id: number) => void }) {
+export function ClearanceList({ list, fmt, onSelect }: { list: Clearance[]; fmt: Fmt; onSelect: (id: number) => void }) {
   const { t } = useTranslation();
   if (!list.length) return null;
   return (
@@ -99,21 +101,15 @@ export function ClearanceList({ list, fmt, onSelect }: { list: Clearance[]; fmt:
 }
 
 function ObjectSummary({ obj, item, data, problemsOf, onSelect }: Props & { obj: DcObject; item: CatalogItem }) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const [w, d, h] = objectDims(item, obj.instance);
   const assumed = assumedByObject(data).get(obj.name) ?? [];
   const clear = data.analysis.clearances.filter((c) => c.object_id === obj.id);
   const problems = problemsOf(obj.id);
   return (
     <div className="space-y-2">
-      <div>
-        <h2 className="m-0 text-lg">{obj.name}</h2>
-        <div className="text-xs text-muted-foreground">
-          {t(`dc.kind.${item.kind}`)} · {item.manufacturer ? `${item.manufacturer} ` : ""}
-          {item.model}
-        </div>
-      </div>
+      {/* The name and model are the inspector's heading. */}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
         <dt className="text-muted-foreground">{t("dc.dims.wdh")}</dt>
         <dd>
@@ -201,7 +197,7 @@ function ObjectEditor({ obj, item, run }: { obj: DcObject; item: CatalogItem; ru
   const [busy, setBusy] = useState(false);
   useEffect(() => setF(objectFields(obj)), [obj]);
   const dirty = JSON.stringify(f) !== JSON.stringify(objectFields(obj));
-  const num = (v: string) => (v === "" ? 0 : Math.round(Number(v)));
+  const fmt = useFmt();
   const door = (k: "door_front" | "door_rear", v: string) =>
     setF((x) => {
       const inst = { ...x.instance };
@@ -227,8 +223,8 @@ function ObjectEditor({ obj, item, run }: { obj: DcObject; item: CatalogItem; ru
       <div className="grid grid-cols-3 gap-2">
         {(["x0_mm", "z0_mm", "y0_mm"] as const).map((k) => (
           <div key={k}>
-            <Label htmlFor={`o-${k}`}>{t(`dc.edit.${k}`)}</Label>
-            <Input id={`o-${k}`} type="number" step={1} value={f[k]} onChange={(e) => setF({ ...f, [k]: num(e.target.value) })} />
+            <Label htmlFor={`o-${k}`}>{t(`dc.edit.${k}`, { unit: fmt.unitWord })}</Label>
+            <LengthInput id={`o-${k}`} value={f[k]} onChange={(mm) => setF({ ...f, [k]: mm ?? 0 })} />
           </div>
         ))}
       </div>

@@ -1,90 +1,104 @@
 /**
- * Saved camera views and notes pinned in 3D — both are annotations of the
- * room, stored on the server and shared with everyone who can see it.
+ * Saved views (§11.4) and notes pinned in 3D. A view keeps the camera, the
+ * mode, the owner highlight and the selection; it is shared with everyone
+ * who can see the room, or personal (the server shows it to its author
+ * only). «Скопировать ссылку» gives the link to exactly this screen.
  */
 
-import { useState, type RefObject } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link2, Lock, Users } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { DcEngine } from "../engine/DcEngine";
-import type { Op, RoomData } from "../types";
+import type { Op, RoomData, ViewPayload } from "../types";
 
-export function ViewsPanel({ data, canEdit, engine, run }: { data: RoomData; canEdit: boolean; engine: RefObject<DcEngine | null>; run: (ops: Op[], label: string) => Promise<boolean> }) {
+interface Props {
+  data: RoomData;
+  canEdit: boolean;
+  run: (ops: Op[], label: string) => Promise<boolean>;
+  saveView: (name: string, shared: boolean) => Promise<boolean>;
+  openView: (v: ViewPayload) => void;
+  copyLink: () => void;
+}
+
+export function ViewsPanel({ data, canEdit, run, saveView, openView, copyLink }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState("");
-  const views = data.annotations.filter((a) => a.kind === "view");
-  const notes = data.annotations.filter((a) => a.kind === "note");
+  const [shared, setShared] = useState(true);
+  const views = data.annotations.flatMap((a) => (a.kind === "view" ? [{ id: a.id, v: a.payload, author: a.author_name }] : []));
+  const notes = data.annotations.flatMap((a) => (a.kind === "note" ? [{ id: a.id, n: a.payload, author: a.author_name }] : []));
   return (
     <div className="space-y-4 text-sm">
+      <button type="button" className="dc-btn w-full" onClick={copyLink}>
+        <Link2 className="mr-1 inline size-4" />
+        {t("dc.views.copyLink")}
+      </button>
       <section>
-        <h3 className="mb-1 text-sm">{t("dc.views.title")}</h3>
-        {views.length === 0 && <p className="text-xs text-muted-foreground">{t("dc.views.none")}</p>}
-        <ul className="space-y-1">
-          {views.map((v) =>
-            v.kind === "view" ? (
-              <li key={v.id} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex-1 text-left hover:underline"
-                  onClick={() =>
-                    engine.current?.goView({ position: v.payload.position, target: v.payload.target, fov: v.payload.fov, ortho: v.payload.ortho })
-                  }
-                >
-                  {v.payload.name}
+        <div className="dc-section-title">{t("dc.views.title")}</div>
+        {views.length === 0 && <p className="text-xs" style={{ color: "var(--dc-muted)" }}>{t("dc.views.none")}</p>}
+        <div className="dc-rows">
+          {views.map(({ id, v, author }) => (
+            <div key={id}>
+              <button type="button" className="flex-1 text-left hover:underline" onClick={() => openView(v)}>
+                {v.shared ? <Users className="mr-1 inline size-3.5" aria-label={t("dc.views.shared")} /> : <Lock className="mr-1 inline size-3.5" aria-label={t("dc.views.personal")} />}
+                {v.name}
+                <span className="ml-1 text-xs" style={{ color: "var(--dc-muted)" }}>
+                  {[v.mode && t(`dc.mode.${v.mode}`), v.owner, author].filter(Boolean).join(" · ")}
+                </span>
+              </button>
+              {canEdit && (
+                <button type="button" className="text-xs underline" onClick={() => void run([{ op: "annotation_delete", id }], t("dc.change.viewDelete", { name: v.name }))}>
+                  {t("common.delete")}
                 </button>
-                {canEdit && (
-                  <Button size="sm" variant="ghost" onClick={() => void run([{ op: "annotation_delete", id: v.id }], t("dc.change.viewDelete", { name: v.payload.name }))}>
-                    {t("common.delete")}
-                  </Button>
-                )}
-              </li>
-            ) : null,
-          )}
-        </ul>
+              )}
+            </div>
+          ))}
+        </div>
         {canEdit && (
           <form
-            className="mt-2 flex gap-2"
+            className="mt-2 space-y-2"
             onSubmit={async (e) => {
               e.preventDefault();
-              const v = engine.current?.view();
-              if (!v || !name.trim()) return;
-              const r = (a: number[]) => a.map(Math.round) as [number, number, number];
-              const ok = await run(
-                [{ op: "annotation_create", annotation: { kind: "view", payload: { name: name.trim(), position: r(v.position), target: r(v.target), fov: Math.round(v.fov), ortho: v.ortho } } }],
-                t("dc.change.view", { name: name.trim() }),
-              );
-              if (ok) setName("");
+              if (name.trim() && (await saveView(name.trim(), shared))) setName("");
             }}
           >
             <Input value={name} placeholder={t("dc.views.name")} onChange={(e) => setName(e.target.value)} aria-label={t("dc.views.name")} />
-            <Button type="submit" size="sm" disabled={!name.trim()}>
-              {t("dc.views.save")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="dc-seg" role="radiogroup" aria-label={t("dc.views.who")}>
+                <button type="button" role="radio" aria-checked={shared} onClick={() => setShared(true)}>
+                  {t("dc.views.shared")}
+                </button>
+                <button type="button" role="radio" aria-checked={!shared} onClick={() => setShared(false)}>
+                  {t("dc.views.personal")}
+                </button>
+              </div>
+              <button type="submit" className="dc-btn dc-btn-primary ml-auto" disabled={!name.trim()}>
+                {t("dc.views.save")}
+              </button>
+            </div>
           </form>
         )}
       </section>
       <section>
-        <h3 className="mb-1 text-sm">{t("dc.notes.title")}</h3>
-        {notes.length === 0 && <p className="text-xs text-muted-foreground">{canEdit ? t("dc.notes.howTo") : t("dc.notes.none")}</p>}
-        <ul className="space-y-1">
-          {notes.map((n) =>
-            n.kind === "note" ? (
-              <li key={n.id} className="flex items-start gap-2">
-                <div className="flex-1">
-                  <div>{n.payload.text}</div>
-                  <div className="text-xs text-muted-foreground">{n.author_name ?? ""}</div>
-                </div>
-                {canEdit && (
-                  <Button size="sm" variant="ghost" onClick={() => void run([{ op: "annotation_delete", id: n.id }], t("dc.change.noteDelete"))}>
-                    {t("common.delete")}
-                  </Button>
-                )}
-              </li>
-            ) : null,
-          )}
-        </ul>
+        <div className="dc-section-title">{t("dc.notes.title")}</div>
+        {notes.length === 0 && <p className="text-xs" style={{ color: "var(--dc-muted)" }}>{canEdit ? t("dc.notes.howTo") : t("dc.notes.none")}</p>}
+        <div className="dc-rows">
+          {notes.map(({ id, n, author }) => (
+            <div key={id}>
+              <span className="flex-1">
+                {n.text}
+                <span className="block text-xs" style={{ color: "var(--dc-muted)" }}>
+                  {author ?? ""}
+                </span>
+              </span>
+              {canEdit && (
+                <button type="button" className="text-xs underline" onClick={() => void run([{ op: "annotation_delete", id }], t("dc.change.noteDelete"))}>
+                  {t("common.delete")}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );

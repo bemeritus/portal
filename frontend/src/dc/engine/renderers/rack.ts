@@ -149,7 +149,7 @@ function addDevice(
   const zc = rearMounted ? zr - depth / 2 : zf + depth / 2;
   m.position.set(0, yb + bh / 2, zc);
   m.userData.role = `device:${dv.kind}`;
-  m.userData.device = { kind: dv.kind, units: dv.u_height, name: dv.name, rear: rearMounted };
+  m.userData.device = { kind: dv.kind, units: dv.u_height, name: dv.name, rear: rearMounted, owner: dv.owner };
   m.userData.pick = { type: "device", id: dv.id, rackId: dv.rack_id };
   m.castShadow = ctx.mode === "realistic";
   g.add(m);

@@ -20,6 +20,7 @@ import type {
   RoomSummary,
   SearchHit,
 } from "./types";
+import type { DcSettings } from "./settings";
 
 const BASE = "/api/dc";
 
@@ -60,6 +61,8 @@ const q = (params: Record<string, string | number | boolean | undefined | null>)
 };
 
 export const dcApi = {
+  settings: (signal?: AbortSignal) => request<DcSettings>(`${BASE}/settings`, { signal }),
+  setSettings: (body: Partial<DcSettings>) => write<DcSettings>(`${BASE}/settings`, { method: "PUT", body }),
   rooms: (signal?: AbortSignal) => request<RoomSummary[]>(`${BASE}/rooms`, { signal }),
   room: (id: number, signal?: AbortSignal) => request<RoomData>(`${BASE}/rooms/${id}`, { signal }),
   head: (id: number, signal?: AbortSignal) =>
@@ -89,5 +92,6 @@ export const dcApi = {
 
   /** Download URLs; the browser follows them with the session cookie. */
   exportDxf: (id: number) => `${BASE}/rooms/${id}/export/plan.dxf`,
+  /** The inventory has no lengths, so the user's unit does not apply. */
   exportCsv: (id: number) => `${BASE}/rooms/${id}/export/inventory.csv`,
 };

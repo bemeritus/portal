@@ -30,6 +30,8 @@ export interface BuildContext {
   blocked: number[];
   /** Local size after the instance's overrides. */
   dims: [number, number, number];
+  /** Clear height from the object's top to the ceiling, mm (hangers). */
+  ceilingAbove: number;
 }
 
 /** What a rack's doors need for the open/close animation. */

@@ -22,7 +22,9 @@ import { Spinner } from "../../components/Loading";
 import { tDyn } from "../../i18n";
 import { dcApi } from "../api";
 import { ItemPreview, thumbnail } from "../engine/preview";
-import { makeFmt, type Fmt } from "../format";
+import type { Fmt } from "../format";
+import { useDcSettings, useFmt } from "../settings";
+import { TOKENS } from "../theme/tokens";
 import type { CatalogItem, Kind } from "../types";
 
 /** Sections of the catalog (and of the phase 2 palette). */
@@ -90,8 +92,8 @@ function keyNumbers(item: CatalogItem, fmt: Fmt, t: TFunction): string[] {
 }
 
 export function DcCatalogPage() {
-  const { t, i18n } = useTranslation();
-  const fmt = useMemo(() => makeFmt(t, i18n.language), [t, i18n.language]);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const q = useQuery({ queryKey: ["dc", "catalog"], queryFn: ({ signal }) => dcApi.catalog(undefined, signal) });
   const [section, setSection] = useState("cooling");
   const [subtype, setSubtype] = useState("");
@@ -236,20 +238,21 @@ export function DcCatalogPage() {
 }
 
 function Preview({ items }: { items: CatalogItem[] }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const fmt = useFmt();
+  const theme = useDcSettings().theme;
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!host.current) return;
-    const fmt = makeFmt(t, i18n.language);
     const p = new ItemPreview(host.current, items, {
       mm: fmt.mm,
       supply: t("dc.catalog.supply"),
       ret: t("dc.catalog.return"),
       rack: t("dc.catalog.refRack"),
       person: t("dc.catalog.refPerson"),
-    });
+    }, TOKENS[theme]);
     return () => p.dispose();
-  }, [items, t, i18n.language]);
+  }, [items, t, fmt, theme]);
   return <div ref={host} className="dc-host relative h-[380px] overflow-hidden rounded-md border" aria-label={t("dc.catalog.previewLabel")} />;
 }
 
@@ -286,8 +289,8 @@ function specRows(item: CatalogItem, fmt: Fmt, t: TFunction): [string, string, s
 }
 
 function DetailDialog({ item, onClose }: { item: CatalogItem; onClose: () => void }) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const urls = [...new Set(Object.values(item.props_src).map((s) => s.url).filter(Boolean) as string[])];
   const items = useMemo(() => [item], [item]);
   return (
@@ -342,8 +345,8 @@ function DetailDialog({ item, onClose }: { item: CatalogItem; onClose: () => voi
 }
 
 function CompareDialog({ items, onClose }: { items: CatalogItem[]; onClose: () => void }) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const rows = items.map((i) => specRows(i, fmt, t));
   const keys = [...new Set(rows.flatMap((r) => r.map((x) => x[0])))];
   return (

@@ -198,13 +198,26 @@ export interface ShelfCell {
 export type Vec3mm = [number, number, number];
 export type AnnotationPayload =
   | { kind: "note"; payload: { position: Vec3mm; text: string } }
-  | {
-      kind: "view";
-      payload: { name: string; position: Vec3mm; target: Vec3mm; fov: number; ortho: boolean };
-    };
+  | { kind: "view"; payload: ViewPayload };
+
+/** A saved view (§11.4): camera, and optionally mode, highlight, selection. */
+export interface ViewPayload {
+  name: string;
+  position: Vec3mm;
+  target: Vec3mm;
+  fov: number;
+  ortho: boolean;
+  mode?: "schema" | "realistic" | "fill" | "power";
+  owner?: string;
+  /** The selection's deep link without `#`: `obj-12`, `device-7`, `cell-5-16`. */
+  selection?: string;
+  /** Everyone who can see the room, or its author only. */
+  shared: boolean;
+}
 
 export type Annotation = AnnotationPayload & {
   id: number;
+  author_id: string | null;
   author_name: string | null;
   created_at: string;
 };

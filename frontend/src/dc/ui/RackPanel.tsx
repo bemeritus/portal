@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SelRef } from "../engine/DcEngine";
-import { makeFmt } from "../format";
+import { useFmt } from "../settings";
 import { devicesToText, facesConflict, parseDevices, rackStats, unitsFree } from "../model/devices";
 import { DEVICE_COLOR } from "../engine/materials";
 import type { CatalogItem, DcObject, Device, DeviceFields, Face, Op, RackProps, RoomData } from "../types";
@@ -41,8 +41,8 @@ export function withRecorded(obj: DcObject, ops: Op[]): Op[] {
 }
 
 export function RackPanel({ obj, item, data, selection, canEdit, prefill, onPrefillUsed, onSelect, run }: Props) {
-  const { t, i18n } = useTranslation();
-  const fmt = makeFmt(t, i18n.language);
+  const { t } = useTranslation();
+  const fmt = useFmt();
   const p = item.props as RackProps;
   const units = p.units;
   const devices = useMemo(() => data.devices.filter((d) => d.rack_id === obj.id), [data.devices, obj.id]);

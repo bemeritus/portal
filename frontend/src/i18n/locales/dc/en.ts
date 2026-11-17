@@ -2,8 +2,10 @@
 export const dcEn = {
   title: "Server rooms",
   rooms: "Server rooms",
-  noRooms: "No rooms yet. An administrator loads the existing room with `just seed-dc`.",
-  noAccess: "You do not have access to the server room. An administrator can grant it under Users → Internal tools.",
+  noRooms:
+    "No rooms yet. An administrator loads the existing room with `just seed-dc`.",
+  noAccess:
+    "You do not have access to the server room. An administrator can grant it under Users → Internal tools.",
   roomStats: "{{racks}} racks · {{devices}} devices",
   revision: "revision {{n}}",
   canvasLabel: "3D view of the room",
@@ -18,9 +20,25 @@ export const dcEn = {
   undoNothing: "Nothing of yours to undo",
   redoNothing: "Nothing to redo",
 
-  unit: { mm: "{{v}} mm", w: "{{v}} W", kw: "{{v}} kW", m3h: "{{v}} m³/h", kg: "{{v}} kg" },
+  unit: {
+    mm: "{{v}} mm",
+    cm: "{{v}} cm",
+    m: "{{v}} m",
+    w: "{{v}} W",
+    kw: "{{v}} kW",
+    m3h: "{{v}} m³/h",
+    kg: "{{v}} kg",
+  },
 
-  mode: { label: "Mode", schema: "Schematic", realistic: "Realistic", fill: "Fill", power: "Power" },
+  unitWord: { mm: "mm", cm: "cm", m: "m" },
+
+  mode: {
+    label: "Mode",
+    schema: "Schematic",
+    realistic: "Realistic",
+    fill: "Fill",
+    power: "Power",
+  },
   tool: {
     label: "Tool",
     view: "View",
@@ -28,8 +46,10 @@ export const dcEn = {
     ruler: "Ruler",
     note: "Note",
     viewHint: "Look round, select, search",
-    editHint: "Drag objects on the floor; arrows move 10 mm (Shift 100 mm), R turns 90°",
-    rulerHint: "Click two points; corners snap; Shift keeps to one axis",
+    editHint:
+      "Drag objects on the floor; arrows move 10 mm (Shift 100 mm), R turns 90°",
+    rulerHint:
+      "Hover: a marker shows what it will snap to (vertex, edge midpoint, edge, face, centre); face ⟂ face by default. Alt — 3D in top view; Shift — along one axis",
     noteHint: "Click where the note goes",
   },
   view: {
@@ -43,24 +63,57 @@ export const dcEn = {
     bottom: "Bottom",
     ortho: "Orthographic",
     persp: "Perspective",
-    projectionHint: "Switch between perspective and orthographic without losing the framing",
+    projectionHint:
+      "Switch between perspective and orthographic without losing the framing",
+    aisle: "Aisle",
+    racks: "Racks",
   },
   walk: {
     label: "Walk",
     hint: "Walk through the room",
     help: "W A S D walk · Q E turn · drag to look · click the floor to go there · wheel zooms · Esc leaves",
   },
-  ruler: { clear: "Clear ruler" },
-  export: { label: "Export", dxf: "Plan, DXF (CAD)", csv: "Inventory, CSV", png: "Current view, PNG" },
+  ruler: {
+    clear: "Clear ruler",
+    mode: "What to measure",
+    points: "Points and faces",
+    objects: "Gap between objects",
+    pointsHelp:
+      "Two clicks. Face to face is measured square to the faces, wherever you click.",
+    objectsHelp:
+      "Click two objects (or a wall): shows the smallest gap between them on the floor.",
+    none: "No measurements.",
+    faceFace: "face ⟂ face",
+    objectGap: "object gap",
+  },
+  export: {
+    label: "Export",
+    dxf: "Plan, DXF (CAD)",
+    csv: "Inventory, CSV",
+    png: "Current view, PNG",
+  },
 
-  tab: { selection: "Selected", capacity: "Capacity", measure: "Measurements", views: "Views" },
+  tab: {
+    selection: "Selected",
+    capacity: "Capacity",
+    measure: "Measurements",
+    views: "Views",
+    object: "Object",
+    ruler: "Ruler",
+  },
 
   selection: {
     none: "Click something in the room, or search. Double-click flies to it.",
     gone: "It is no longer in this room.",
     show: "Show in 3D",
   },
-  kind: { rack: "Rack", shelf: "Shelf", cooling: "Cooling", cable_tray: "Cable tray", structure: "Structure" },
+  kind: {
+    rack: "Rack",
+    shelf: "Shelf",
+    cooling: "Cooling",
+    cable_tray: "Cable tray",
+    structure: "Structure",
+  },
   dims: { wdh: "W × D × H", position: "Position", rotation: "Rotation" },
   problem: {
     outside: "Does not fit inside the room",
@@ -81,16 +134,21 @@ export const dcEn = {
   edit: {
     title: "Edit",
     name: "Name",
-    x0_mm: "x, mm",
-    z0_mm: "z, mm",
-    y0_mm: "height, mm",
+    x0_mm: "x, {{unit}}",
+    z0_mm: "z, {{unit}}",
+    y0_mm: "height, {{unit}}",
     door_front: "Front door",
     door_rear: "Rear door",
     doorAsType: "as the rack type",
     note: "Note",
     dragHint: "Or drag it in Edit mode",
   },
-  door: { glass: "glass", perforated: "perforated", solid: "solid", none: "none" },
+  door: {
+    glass: "glass",
+    perforated: "perforated",
+    solid: "solid",
+    none: "none",
+  },
   rack: {
     notRecorded: "contents not recorded",
     notRecordedLong: "Contents not recorded — this is not the same as empty.",
@@ -117,7 +175,7 @@ export const dcEn = {
     powerSrc: "Power from",
     owner: "Whose (client or service)",
     serial: "Serial number",
-    depth: "Depth, mm",
+    depth: "Depth, {{unit}}",
     depthTypical: "typical",
     rack: "Rack",
     note: "Note",
@@ -139,21 +197,33 @@ export const dcEn = {
     blank: "Blank",
     other: "Other",
   },
-  status: { active: "active", reserved: "reserved", planned: "planned", decommissioning: "being decommissioned" },
-  powerSrc: { nameplate: "nameplate", measured: "measured", estimated: "estimated" },
+  status: {
+    active: "active",
+    reserved: "reserved",
+    planned: "planned",
+    decommissioning: "being decommissioned",
+  },
+  powerSrc: {
+    nameplate: "nameplate",
+    measured: "measured",
+    estimated: "estimated",
+  },
   text: {
     button: "Edit as text",
     help: "One device per line: units, name, then extras after |: power (450 W, 1.2 kW), whose it is, note=…, type=switch.",
     label: "Devices on the {{face}} as text",
-    placeholder: "10-11 DELL R740 | 450 W | Client X\n40 Huawei S5720 | type=switch",
+    placeholder:
+      "10-11 DELL R740 | 450 W | Client X\n40 Huawei S5720 | type=switch",
     format: "Line {{line}}: write it as “10-11 Name”",
     range: "Line {{line}}: units must be within 1–{{units}}",
     emptyName: "Line {{line}}: the name is empty",
     overlap: "Line {{line}}: “{{a}}” and “{{b}}” share a unit",
-    otherFace: "Line {{line}}: “{{name}}” clashes with a device on the other face",
+    otherFace:
+      "Line {{line}}: “{{name}}” clashes with a device on the other face",
   },
   shelf: {
-    summary: "{{used}} cells used of {{total}}; {{blocked}} under air conditioners",
+    summary:
+      "{{used}} cells used of {{total}}; {{blocked}} under air conditioners",
     map: "Shelf cells",
     cell: "Cell {{n}}",
     cellEmpty: "Cell {{n}}: empty",
@@ -178,7 +248,8 @@ export const dcEn = {
     overBudget: "over the rack budget",
     notRecorded: "Not considered (contents not recorded): {{racks}}",
     noSpace: "No room: {{racks}}",
-    noBudget: "No per-rack power budget is set for this room, so power is listed, not judged.",
+    noBudget:
+      "No per-rack power budget is set for this room, so power is listed, not judged.",
   },
   measure: {
     modelValue: "model {{v}}",
@@ -193,6 +264,7 @@ export const dcEn = {
     remeasure: "To re-measure",
     notModelled: "Not modelled or from photos only",
     dataNote: "Notes and lists come from the measurement record as written.",
+    diff: "Difference: {{v}}",
   },
   measureKey: {
     racks_width_n: "Rack {{n}}: width",
@@ -245,7 +317,8 @@ export const dcEn = {
   },
   src: {
     photo: "photo",
-    photoHint: "Seen on the site photos: present for certain, size and position estimated",
+    photoHint:
+      "Seen on the site photos: present for certain, size and position estimated",
     measured: "measured",
     range: "range",
     derived: "derived",
@@ -254,15 +327,39 @@ export const dcEn = {
     measuredHint: "Taken with a tape on site",
     rangeHint: "Two readings disagreed; both are kept, the midpoint is used",
     derivedHint: "Computed from measured values",
-    assumedHint: "Estimated from photos or typical sizes — re-measure before trusting",
+    assumedHint:
+      "Estimated from photos or typical sizes — re-measure before trusting",
   },
-  notes: { title: "Notes", none: "No notes.", howTo: "Choose the Note tool and click in the room." },
+  notes: {
+    title: "Notes",
+    none: "No notes.",
+    howTo: "Choose the Note tool and click in the room.",
+  },
   note: { prompt: "Note text" },
-  views: { title: "Saved views", none: "No saved views.", name: "View name", save: "Save current view" },
-  search: { label: "Search the room", placeholder: "Device, owner, serial…", none: "Nothing found", object: "object" },
+  views: {
+    title: "Saved views",
+    none: "No saved views.",
+    name: "View name",
+    save: "Save current view",
+    copyLink: "Copy a link to this view",
+    linkCopied: "Link copied.",
+    savedCopied: "View saved, link copied.",
+    defaultName: "View {{date}}",
+    shared: "Shared",
+    personal: "Personal",
+    who: "Visible to",
+  },
+  search: {
+    label: "Search the room",
+    placeholder: "Device, owner, serial…",
+    none: "Nothing found",
+    object: "object",
+  },
   conflict: {
-    title: "Someone else changed the room; your change was not saved and your input is kept. Check the room and try again.",
-    reapplied: "Someone else changed the room meanwhile; your change still fitted and was applied on top.",
+    title:
+      "Someone else changed the room; your change was not saved and your input is kept. Check the room and try again.",
+    reapplied:
+      "Someone else changed the room meanwhile; your change still fitted and was applied on top.",
   },
   change: {
     move: "move {{name}}",
@@ -285,7 +382,8 @@ export const dcEn = {
     help: "The inventory template's format: “;”-separated, UTF-8. A row whose rack, face and bottom unit match a device updates it; any other row adds one; nothing is deleted. First a check shows what would change.",
     file: "CSV file",
     checking: "Checking…",
-    summary: "{{created}} new, {{updated}} changed, {{unchanged}} unchanged, {{errors}} problems",
+    summary:
+      "{{created}} new, {{updated}} changed, {{unchanged}} unchanged, {{errors}} problems",
     fix: "Fix these in the file; nothing is imported while there are problems.",
     line: "line {{line}}",
     action: "Action",
@@ -294,7 +392,8 @@ export const dcEn = {
     update: "changed",
     unchanged: "unchanged",
     apply: "Import {{n}} rows",
-    applied: "Imported: {{created}} new, {{updated}} changed (revision {{revision}}).",
+    applied:
+      "Imported: {{created}} new, {{updated}} changed (revision {{revision}}).",
     atomic: "All rows are imported in one revision, or none.",
     error: {
       unclosed_quote: "a quote is not closed",
@@ -340,7 +439,12 @@ export const dcEn = {
     restore: "Restore",
     restoreConfirm: "Restore revision {{n}} as a new revision",
     restored: "Revision {{from}} restored as revision {{to}}.",
-    section: { objects: "Objects", devices: "Devices", cells: "Shelf cells", annotations: "Notes and views" },
+    section: {
+      objects: "Objects",
+      devices: "Devices",
+      cells: "Shelf cells",
+      annotations: "Notes and views",
+    },
   },
   field: {
     name: "name",
@@ -367,7 +471,8 @@ export const dcEn = {
   catalog: {
     title: "Equipment catalog",
     button: "Catalog",
-    intro: "Every item is drawn from its own dimensions and properties. Read-only for now: placing items and editing the catalog come with the room designer.",
+    intro:
+      "Every item is drawn from its own dimensions and properties. Read-only for now: placing items and editing the catalog come with the room designer.",
     search: "Search the catalog",
     subtype: "Type",
     allSubtypes: "All types",
@@ -384,7 +489,8 @@ export const dcEn = {
     compare: "Compare ({{n}})",
     compareTitle: "Compare",
     toCompare: "Compare",
-    emptySection: "Nothing in this section yet — it comes with the room designer.",
+    emptySection:
+      "Nothing in this section yet — it comes with the room designer.",
     noMatch: "Nothing matches the filters.",
     open: "Open {{model}}",
     noBrand: "no brand",
@@ -404,14 +510,23 @@ export const dcEn = {
     refRack: "42U rack",
     refPerson: "1.75 m",
     previewLabel: "3D preview",
-    previewNote: "Drawn from the catalog's dimensions; supply air blue, return red. A picture, not a calculation.",
+    previewNote:
+      "Drawn from the catalog's dimensions; supply air blue, return red. A picture, not a calculation.",
     notPublished: "not published",
     sources: "Sources",
-    advisory: "Datasheet values at the manufacturer's rating conditions. Re-check against the datasheet before buying.",
+    advisory:
+      "Datasheet values at the manufacturer's rating conditions. Re-check against the datasheet before buying.",
     place: "Place in a room",
     placeLater: "With the room designer (phase 2)",
   },
-  section: { racks: "Racks", cooling: "Cooling", power: "Power", floor: "Raised floor", trays: "Cable trays", structures: "Structures" },
+  section: {
+    racks: "Racks",
+    cooling: "Cooling",
+    power: "Power",
+    floor: "Raised floor",
+    trays: "Cable trays",
+    structures: "Structures",
+  },
   subtype: {
     locker: "Metal locker",
     split_wall: "Wall split",
@@ -461,13 +576,105 @@ export const dcEn = {
     tray_type: "Tray type",
     max_fill_pct: "Max fill, %",
     purpose: "Purpose",
-
   },
   legend: {
     fill: "Racks by units used: green empty → red full; free runs on the front in green.",
-    power: "Racks by recorded power against the budget of {{w}}: green → red; over budget in the warning colour.",
-    powerNoBudget: "No per-rack power budget is set for this room: racks with known power are blue, not judged.",
+    power:
+      "Racks by recorded power against the budget of {{w}}: green → red; over budget in the warning colour.",
+    powerNoBudget:
+      "No per-rack power budget is set for this room: racks with known power are blue, not judged.",
     notRecorded: "contents not recorded",
     unknown: "some power unknown (never shown as zero)",
+  },
+  shell: {
+    brand: "Server room",
+    back: "Back to the portal",
+    views: "Sections",
+    plan: "Plan",
+    racks: "Racks",
+    catalog: "Catalog",
+    search: "Find or do…",
+    unit: "Length unit",
+    theme: "Theme",
+  },
+  theme: {
+    studio: "Studio",
+    drawing: "Drawing",
+    light: "Light",
+  },
+  assumptions: {
+    toggle: "Show assumptions",
+  },
+  highlight: {
+    label: "Highlight:",
+    clear: "Clear highlight",
+  },
+  inspector: {
+    label: "Inspector",
+    open: "Inspector",
+    unitsUsed: "units used",
+    unitsFree: "units free",
+    power: "power",
+    powerPartial: "power, {{n}} unknown",
+    devices: "devices",
+    openRack: "Open rack",
+    findSpace: "Find space",
+    dims: "Dimensions: tape / model",
+  },
+  snap: {
+    vertex: "vertex",
+    midpoint: "edge midpoint",
+    edge: "edge",
+    face: "face",
+    centre: "centre",
+    free: "point",
+  },
+  plan: {
+    overhead: "above the floor (AC units, tray)",
+    tapeDiffers: "tape differs from the model by > 5 mm",
+    clearance: "service clearance violated",
+    sheet: "Room plan",
+    units: "Dimensions in {{unit}}",
+  },
+  qr: {
+    title: "QR labels",
+    all: "QR labels, A4",
+    forObject: "QR labels: {{name}}",
+    print: "Print / PDF",
+    back: "Back to the room",
+    count_one: "{{count}} label",
+    count_other: "{{count}} labels",
+    hint: "Each code links to the object in the room. Print → Save as PDF gives the PDF; A4, three per row.",
+  },
+  palette: {
+    title: "Commands",
+    description: "Server room objects and actions",
+    placeholder: "Rack, device, serial, owner — or “free 2U 0.8 kW”",
+    ownerPlaceholder: "Owner…",
+    actions: "Actions",
+    objects: "Objects",
+    owners: "Owners",
+    none: "Nothing found",
+    findSpace: "Find free space: {{u}}U{{power}}",
+    findSpaceHint: "in every rack",
+    kwSpace: "free space find",
+    highlight: "Highlight a client…",
+    highlightHint: "owner",
+    kwOwner: "client owner highlight",
+    noHighlight: "No highlight",
+    ownerCount_one: "{{count}} item",
+    ownerCount_other: "{{count}} items",
+    compare: "Compare with a revision…",
+    compareHint: "history",
+    saveView: "Save the view and copy its link",
+    saveViewHint: "shared",
+    mode: "Mode: {{mode}}",
+    theme: "Theme: {{theme}}",
+    unit: "Unit: {{unit}}",
+    ruler: "Ruler",
+    catalog: "Open the catalog",
+    keySelect: "select",
+    keyRun: "run",
+    keyParams: "parameters",
   },
 };

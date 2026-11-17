@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmButton } from "../../components/ConfirmButton";
 import { guessKind, unitsFree } from "../model/devices";
+import { useFmt } from "../settings";
+import { LengthInput } from "./LengthInput";
 import { DEVICE_KINDS, DEVICE_STATUSES, type DcObject, type Device, type DeviceFields, type Face, type PowerSrc } from "../types";
 
 interface Props {
@@ -32,6 +34,7 @@ const sel = "w-full rounded-md border bg-background px-2 py-1.5 text-sm";
 
 export function DeviceForm({ title, initial, deviceId, rack, units, devices, racks, canEdit, onSave, onCancel, onDelete }: Props) {
   const { t } = useTranslation();
+  const fmt = useFmt();
   const [f, setF] = useState<DeviceFields>(initial);
   const [kindTouched, setKindTouched] = useState(deviceId !== undefined);
   const [busy, setBusy] = useState(false);
@@ -155,16 +158,8 @@ export function DeviceForm({ title, initial, deviceId, rack, units, devices, rac
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label htmlFor="d-depth">{t("dc.device.depth")}</Label>
-          <Input
-            id="d-depth"
-            type="number"
-            min={1}
-            placeholder={t("dc.device.depthTypical")}
-            value={f.depth_mm ?? ""}
-            disabled={ro}
-            onChange={(e) => setF({ ...f, depth_mm: e.target.value === "" ? null : int(e.target.value) })}
-          />
+          <Label htmlFor="d-depth">{t("dc.device.depth", { unit: fmt.unitWord })}</Label>
+          <LengthInput id="d-depth" nullable placeholder={t("dc.device.depthTypical")} value={f.depth_mm} disabled={ro} onChange={(mm) => setF({ ...f, depth_mm: mm })} />
         </div>
         <div>
           <Label htmlFor="d-rack">{t("dc.device.rack")}</Label>

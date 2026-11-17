@@ -175,7 +175,11 @@ export function buildCooling(ctx: BuildContext, props: CoolingProps, discharge: 
       g.add(box(ctx, "rail", w * 0.8, h * 0.7, 30, 0, h * 0.15, d / 2 + 15));
       grille(ctx, g, w * 0.7, h * 0.5, h * 0.5, -d / 2 - 42, 1);
       for (const sx of [-1, 1])
-        for (const sz of [-1, 1]) g.add(box(ctx, "rail", 30, 60, 60, sx * (w / 2 + 15), h - 60, sz * d * 0.3));
+        for (const sz of [-1, 1]) {
+          g.add(box(ctx, "rail", 30, 60, 60, sx * (w / 2 + 15), h - 60, sz * d * 0.3));
+          // Threaded rods up to the ceiling (photos 02, 06).
+          if (ctx.ceilingAbove > 0) g.add(box(ctx, "rod", 10, ctx.ceilingAbove + 60, 10, sx * (w / 2 + 15), h - 60, sz * d * 0.3));
+        }
       const drain = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 60, 12), ctx.lib.role("rail"));
       drain.rotation.x = Math.PI / 2;
       drain.position.set(w / 2 - 60, h * 0.25, d / 2 + 30);

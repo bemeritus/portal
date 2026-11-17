@@ -20,7 +20,7 @@ export interface View {
   halfHeight?: number;
 }
 
-export type Preset = "iso" | "top" | "front" | "back" | "left" | "right";
+export type Preset = "iso" | "top" | "front" | "back" | "left" | "right" | "aisle" | "racks";
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
@@ -161,8 +161,16 @@ export class CameraRig {
       back: [cx, this.roomHeight * 0.6, r.z0 - d],
       left: [r.x0 - d, this.roomHeight * 0.6, cz],
       right: [r.x1 + d, this.roomHeight * 0.6, cz],
+      // Inside views are set by the engine, which knows the room's contents.
+      aisle: [cx, this.roomHeight * 0.7, cz],
+      racks: [cx, this.roomHeight * 0.6, cz],
     };
-    this.go({ position: pos[name], target: tg, fov: 45, ortho: this.isOrtho });
+    if (name === "top") {
+      // A plan is read in orthographic projection.
+      this.go({ position: pos.top, target: tg, fov: 45, ortho: true, halfHeight: size * 0.62 });
+      return;
+    }
+    this.go({ position: pos[name], target: tg, fov: 45, ortho: name === "iso" ? false : this.isOrtho });
   }
 
   /** Bring a point and its surroundings into view, keeping the direction. */

@@ -174,6 +174,11 @@ seed:
 # they exist, so this never overwrites edits made since.
 #
 # Load the server room (dc-handoff/data/room.json) and the cooling catalog.
+# Browser end-to-end checks against the running dev servers (`just dev`) and
+# the seeded room; E2E_USER / E2E_PASSWORD: an account with dc_room access.
+e2e:
+    cd frontend && npx playwright test
+
 seed-dc:
     cd backend && cargo run -q -- seed-dc
 
