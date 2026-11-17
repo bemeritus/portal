@@ -45,7 +45,7 @@ type Param = null | "owner";
 const MODES = ["schema", "realistic", "fill", "power"] as const;
 
 export function CommandPalette({ open, initialQuery, onClose, room }: { open: boolean; initialQuery: string; onClose: () => void; room: RoomPalette | null }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const settings = useDcSettings();
   const [query, setQuery] = useState(initialQuery);
@@ -82,7 +82,7 @@ export function CommandPalette({ open, initialQuery, onClose, room }: { open: bo
         key: "space",
         label: t("dc.palette.findSpace", {
           u: spaceU,
-          power: space.powerW !== null ? `, ${t("dc.unit.kw", { v: (space.powerW / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 }) })}` : "",
+          power: space.powerW !== null ? `, ${t("dc.unit.kw", { v: (space.powerW / 1000).toLocaleString(i18n.language, { maximumFractionDigits: 2 }) })}` : "",
         }),
         hint: t("dc.palette.findSpaceHint"),
         icon: Server,
@@ -100,7 +100,7 @@ export function CommandPalette({ open, initialQuery, onClose, room }: { open: bo
     for (const u of UNITS) out.push({ key: `unit-${u}`, label: t("dc.palette.unit", { unit: t(`dc.unitWord.${u}`) }), hint: "", icon: Square, run: () => settings.setUnit(u), keywords: "unit единицы" });
     out.push({ key: "catalog", label: t("dc.palette.catalog"), hint: "", icon: LayoutGrid, run: () => navigate("/dc/catalog"), keywords: "catalog каталог" });
     return out;
-  }, [room, t, spaceU, space.powerW, navigate, settings]);
+  }, [room, t, i18n.language, spaceU, space.powerW, navigate, settings]);
 
   // A query with "2U" or "кВт" in it is a free-space search first.
   const words = query.replace(/(\d+(?:[.,]\d+)?)\s*(u|квт|kw|вт|w)\b/gi, " ").trim();
