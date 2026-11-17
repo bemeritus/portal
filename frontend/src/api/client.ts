@@ -15,11 +15,17 @@
 /** A failure the server described, or a transport failure described here. */
 export class ApiError extends Error {
   readonly status: number;
+  /**
+   * The whole JSON body. Most failures carry only `error`; a few add fields
+   * the caller needs, such as the room's current `revision` on a DC 409.
+   */
+  readonly body: Record<string, unknown>;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body: Record<string, unknown> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.body = body;
   }
 
   /** No session, or one that has ended. The app routes these to `/login`. */
@@ -47,7 +53,11 @@ async function toError(response: Response): Promise<ApiError> {
       "error" in body &&
       typeof (body as { error: unknown }).error === "string"
     ) {
-      return new ApiError(response.status, (body as { error: string }).error);
+      return new ApiError(
+        response.status,
+        (body as { error: string }).error,
+        body as Record<string, unknown>,
+      );
     }
   } catch {
     /* fall through to the status-based message */
@@ -55,16 +65,20 @@ async function toError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, `Request failed (${response.status})`);
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: string;
   /** Serialized as JSON. Use `formData` for uploads instead. */
   body?: unknown;
   formData?: FormData;
+  /** Sent as-is with this content type (e.g. a CSV file). */
+  text?: { content: string; type: string };
+  /** Extra headers, e.g. a CSRF token. */
+  headers?: Record<string, string>;
   signal?: AbortSignal;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, formData, signal } = options;
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { method = "GET", body, formData, text, headers = {}, signal } = options;
 
   const init: RequestInit = {
     method,
@@ -73,12 +87,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     signal,
   };
 
+  const sendHeaders: Record<string, string> = { ...headers };
+  init.headers = sendHeaders;
   if (formData) {
     // Deliberately no Content-Type: the browser has to set it, because only it
     // knows the multipart boundary it generated.
     init.body = formData;
+  } else if (text) {
+    sendHeaders["Content-Type"] = text.type;
+    init.body = text.content;
   } else if (body !== undefined) {
-    init.headers = { "Content-Type": "application/json" };
+    sendHeaders["Content-Type"] = "application/json";
     init.body = JSON.stringify(body);
   }
 
