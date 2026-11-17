@@ -49,27 +49,65 @@ to every signed-in user, as before).
 
 ## Using it
 
-- **Modes** (top bar): *Схема* (positions and sizes, all dimensions, assumed
-  values marked), *Реалистичный* (materials, shadows, labels on hover),
+The module opens full screen in its own chrome (mockups in
+`dc-handoff/design/`): **3D / План / Стойки / Каталог**, search (⌘K / Ctrl+K),
+**мм / см / м** and the themes **Студия / Чертёж / Светлая**, each saved per
+user (`user_settings`; with no theme chosen it follows the portal's dark mode).
+The arrow at the top left goes back to the portal.
+
+- **Units**: every length on screen, in the PNG export and in length fields
+  is in your unit (mm whole, cm to one decimal, m to three; ranges as
+  `5,54–5,55 м`). The API and DXF stay in millimetres.
+- **Modes** (bottom bar): *Схема* (outlines and every tape measurement as a
+  dimension; overhead objects dashed on the plan only), *Реалистичный* (after
+  the photos: white walls and ceiling, terracotta tiles, tube lights),
   *Заполнение* (used units, free runs), *Мощность* (power per rack against the
-  room's per-rack budget; unknown power hatched, never shown as zero).
-- **Tools**: *Обзор* (look, select, search), *Правка* (drag objects with
-  snapping to walls and neighbour edges within 25 mm, or the grid; arrows move
-  10 mm, Shift 100 mm, `R` turns 90°), *Линейка* (corner snapping, Shift keeps
-  to one axis), *Заметка* (pin a note).
-- **Racks**: select a rack for its elevation (front/rear). Click a free unit to
-  add a device, drag a device to move it or onto another rack's chip, drag its
-  top edge to resize, or *Правка текстом*: `10-11 DELL R740 | 450 Вт | Клиент X`.
-  A rack whose contents were never recorded says so; adding its first device
-  marks it recorded.
-- **Capacity finder** (*Место*): units, power, face → ranked racks; *Добавить
-  сюда* pre-fills the add form.
-- **Замеры**: every measured number with how it was obtained; assumed values
-  are also outlined in the 3D view.
+  room's budget; unknown power hatched, never zero). Views: *Общий*, *Сверху*,
+  *Проход* (photo 03's camera, from the door corner), *Стойки*.
+- **Dimensions**: the value is the tape reading (or both readings). Where the
+  model differs from the tape by more than 5 mm the dimension has a dot; its
+  tooltip gives tape, model and the difference. Labels never overlap: at a
+  distance the less important ones step aside; zoom in to see them all.
+- **«Показать допущения»** (eye at the bottom of the tool rail, off by
+  default) outlines and badges what rests on assumptions.
+- **Clearance**: a violated service clearance is a thin red zone on the floor
+  with one label; zones that are fine show while editing.
+- **Tools** (left rail): *Обзор*, *Правка* (drag with snapping to walls and
+  neighbours within 25 mm, or the grid; arrows 10 mm, Shift 100 mm, `R`
+  90°), *Линейка*, *Заметка*.
+- **Ruler**: hover shows what a click will snap to — vertex, edge midpoint,
+  edge, face, centre — with its own marker. Two faces measure square to each
+  other (face ⟂ face), wherever they are clicked; *Зазор между объектами*
+  gives the smallest floor gap between two objects or an object and a wall.
+  In the top view it measures in plan (Alt: in 3D); Shift keeps to one axis.
+  The result names its snaps (`грань ⟂ грань · 59,5 см`); both ends are
+  listed with coordinates you can type. Objects are measured by their
+  envelope, so an open frame still has faces.
+- **Inspector** (right): the selection's KPIs, its dimensions — tape, and the
+  model where they differ — *Открыть стойку*, *Найти место*; then the tabs
+  *Место* (capacity finder), *Замеры*, *Виды*, *Линейка*.
+- **Racks**: the elevation editor in the inspector or on *Стойки*: click a free
+  unit to add a device, drag a device or its top edge, or *Правка текстом*
+  (`10-11 DELL R740 | 450 Вт | Клиент X`). A rack whose contents were never
+  recorded says so.
+- **⌘K**: racks, devices (name, serial, owner) and cells; actions — find free
+  space (`свободно 2U 0,8 кВт`), highlight a client (Tab, then pick), compare
+  with a revision, save the view and copy its link, QR stickers for the
+  selected rack or shelf, mode, theme, unit. Keyboard only; it takes ⌘K from
+  the portal's own palette while the module is open.
+- **Owner highlight**: one client's devices and cells in colour, the rest
+  dimmed; a chip shows the count and clears it.
+- **Saved views** (*Виды*): camera, mode, highlight and selection; *Общий* for
+  everyone who can see the room, *Личный* for you only (the server hides it
+  from others). *Скопировать ссылку* gives the link to exactly this screen:
+  `/dc/<room>?mode=…&owner=…&cam=…#obj-<id>` (also `#device-<id>`,
+  `#cell-<shelf>-<n>`, `?view=plan`).
+- **QR stickers**: Export → *QR-наклейки, A4* (or ⌘K with a rack or shelf
+  selected): racks, devices, shelves and occupied cells, three per row. Each
+  code is a deep link. Print → *Save as PDF* gives the PDF.
 - **Undo/redo**: `Ctrl+Z` / `Ctrl+Shift+Z` undo your own changes in this
-  session (never anyone else's). **History** lists every revision with a diff;
-  *Восстановить* restores one as a new revision.
-- **Deep links**: `/dc/<room>#obj-<id>`, `#device-<id>`, `#cell-<shelf>-<n>`.
+  session. **History** lists every revision with a diff; *Восстановить*
+  restores one as a new revision.
 - The view polls the room's revision every 15 s; if someone else saved first,
   your change is re-applied on top when it still fits, otherwise you are told
   and your input is kept.
@@ -137,8 +175,10 @@ the CSV as the body, then the same without `dry_run` and with
   recorded) and every object as a 3D box. Geometry and dimensions only.
   Made for AutoCAD, nanoCAD, BricsCAD and LibreCAD (save as DWG there);
   checked with `ezdxf`, not yet opened in any of them.
-- **Inventory, CSV**: the import format, headers in your language.
-- **Current view, PNG**: the 3D view as shown, with its labels.
+- **Inventory, CSV**: the import format, headers in your language. It has
+  no length columns, so the unit setting does not apply.
+- **Current view, PNG**: the 3D view as shown, with its labels in your unit.
+- **QR stickers**: an A4 page to print or save as PDF (above).
 
 ## API
 
@@ -168,6 +208,11 @@ come with phase 2.
   locale key parity, every server error sentence translated).
 - `just test-db` — the database-level rules (`backend/tests/dc_constraints.sql`)
   against a throwaway database; CI runs the same against a Postgres service.
+- `just e2e` — Playwright (Chromium) against the running dev servers and the
+  seeded room: the ruler's 595 mm (r1 back face → back wall) and 200 mm
+  (r3–r4). `E2E_USER` / `E2E_PASSWORD`: an account with `dc_room` (defaults
+  to the local test account `dcedit`). Set `PLAYWRIGHT_BROWSERS_PATH` where
+  Playwright's browsers are not downloaded (Nix).
 - DXF check: `pip install ezdxf`, then
   `python -c "import ezdxf; from ezdxf import recover; d,a=recover.readfile('plan.dxf'); print(len(a.errors), len(a.fixes))"`
   — both must be 0.
@@ -202,24 +247,36 @@ Adjusted to the house style or the data:
 - Lengths that `room.json` gives with a half millimetre (air conditioner
   edges, the middle shelf board) are rounded half away from zero; every
   position is within 1 mm (tested).
-- The three existing air conditioners share one catalog item, «Сплит, модель
-  не указана», 1145 mm wide; the 1250 mm unit overrides its width per object
-  (allowed only for units of unknown model).
+- The three air conditioners are ducted units of unknown model (FEEDBACK-1):
+  one catalog item, «Канальный, модель не указана», 1145 mm wide; the
+  1250 mm unit overrides its width per object (allowed only for units of
+  unknown model). Each has one supply outlet from the subtype's default
+  (`supply_outlets`, §14.1, `source: catalog_default`); editing the angles is
+  phase 2. Ducts are not drawn.
 - Shelf cells are numbered from the top board, left to right as seen from the
   front; the shelf faces the room (rotation 180).
 - With no per-rack power budget set (the default — none was given), *Мощность*
   shows known power in one neutral colour and says it is not judged; the
   capacity finder lists power without judging it.
-- The cable tray is two objects (left wall, behind the racks).
+- One cable tray, behind the racks (wire mesh, near the ceiling); none on the
+  left wall.
+- Settings (theme, unit) live in a table of their own, `user_settings`
+  (migration `0022`), so `users` is not altered.
+- The tube lights in *Реалистичный* are lighting, not equipment: not objects,
+  not selectable, not exported (FEEDBACK-1 §1 seeds nothing else from the
+  photos).
+- A rack's KPIs show «—» while its contents are not recorded (all four are,
+  until someone enters them) — never zero.
 
 ## Phase 1 acceptance (SPEC §17.1)
 
 - [x] **Migrations create the schema; seed from `data/room.json` creates the
   room, catalog items and objects at the given positions (within 1 mm).**
-  Migration `0021_dc.sql`; `just seed-dc`. `dc::seed` tests check every rack,
-  the shelf, the air conditioners, the safe, the trays and the door against
-  `room.json` (rack gaps 530/465/440/200 mm exactly; half-millimetre values
-  within 1 mm).
+  Migrations `0021_dc.sql`, `0022_user_settings.sql`; `just seed-dc`.
+  `dc::seed` tests check every rack (`front_z` 2250 / 2260 / 2220 / 2215),
+  the shelf (z0 = 0), the air conditioners, the locker, the tray and the door
+  against `room.json` v2 (rack gaps 530/465/440/200 mm exactly;
+  half-millimetre values within 1 mm).
 - [x] **`user_tool_permissions` with the five registry keys; admin section
   «Внутренние инструменты» grants and revokes; changes audited.** Migration
   `0020`; `tool_access.rs` registry and tests; admin page section; one audit
@@ -257,23 +314,58 @@ Adjusted to the house style or the data:
   server, apply goes through the change-set path (one revision, all or
   nothing).
 - [~] **DXF export passes `ezdxf` audit and opens in LibreCAD; geometry
-  matches `room.json` within 1 mm.** `ezdxf` 1.4.3: strict read, 0 audit
-  errors, 0 fixes; a unit test checks the walls and rack outlines against
-  `room.json`. **Not checked: opening it in LibreCAD** (not installed on the
-  machine this was built on). The ezdxf check is manual, not in CI.
+  matches `room.json` within 1 mm.** `ezdxf` 1.4.3 on the current export:
+  strict read, 0 audit errors, 0 fixes; dimensions are the tape values, with
+  a circle where tape and model differ by more than 5 mm; a unit test checks
+  walls and rack outlines against `room.json`. **Not checked: opening it in
+  LibreCAD** (not installed here). The ezdxf check is manual, not in CI.
 - [~] **Four phase 1 modes render; performance budget met on the reference
-  laptop.** All four render without console errors (headless Firefox).
-  **The performance budget was not measured** — no access to the reference
-  laptop (Intel UHD 620). Rendering is on demand, so an idle view costs
-  nothing. Not done from SPEC §10, to be decided: instancing and texture atlases
-  (per-object meshes and per-device cached textures instead), ambient
-  occlusion in Реалистичный, emissive ceiling lights (fixture positions were
-  never recorded), and a bundled HDR (three's procedural room environment is
-  used instead — no file, no network).
+  laptop.** All four render in the three themes without console errors
+  (headless Firefox and Chromium). Реалистичный now has ambient occlusion
+  (GTAO, only in that mode). **The performance budget was not measured** —
+  no access to the reference laptop (Intel UHD 620). Rendering is on
+  demand, so an idle view costs nothing. Not done from SPEC §10: instancing
+  and texture atlases; a bundled HDR (three's procedural room environment
+  instead — no file, no network).
 - [x] **Assumed values marked in 3D and listed in the measurement status
-  panel.** Dashed outlines in every mode and «≈» badges; the *Замеры* tab lists
-  every measurement with its provenance, the assumed catalog properties, what
-  to re-measure and what is not modelled.
+  panel.** In 3D behind «Показать допущения» (off by default): outlines and
+  «≈» badges with the assumed keys. *Замеры* lists every measurement with its
+  provenance, the assumed catalog properties, what to re-measure and what is
+  not modelled; its tab shows the count.
+- [x] **Every tape measurement on `data/drawing-hand.png` is visible as a
+  dimension in Схема; differences above 5 mm between model and tape are
+  marked.** Every number of the drawing is a measurement with drawing
+  endpoints (`dc::seed` test `every_number_on_the_hand_drawing_is_a_dimension`);
+  Схема draws them all, tape value or range (`149,5–150 см`). Marked with a
+  dot and a tooltip (tape, model, difference): r1 back 610 vs 595, r2 back
+  555 vs 585, r4 to the right wall 1495–1500 vs 1510 — checked in the
+  browser. At the overview distance the labels do not overlap, so the less
+  important ones step aside; zooming in shows each.
+- [x] **Unit switch мм / см / м changes every displayed length without
+  reload.** Top bar, saved per user (`/api/dc/settings`, default см);
+  labels, inspector, panels, ruler, inputs, PNG. Unit tests: formatting
+  (integers / one decimal / three, ranges) and an exact round trip through
+  the input fields, every 7th millimetre from −50 to 12 000, in every unit
+  and language. API and DXF stay in mm.
+- [x] **Ruler: face-to-face between rack r1's back face and the back wall
+  returns 595 mm wherever on the faces the clicks land; object gap r3–r4
+  returns 200 mm (unit tests + one Playwright test).** `model/ruler.test.ts`
+  (9 tests: many click positions, both modes, snaps, plan, Shift) and
+  `frontend/e2e/ruler.e2e.ts` (`just e2e`, Chromium; passes:
+  «грань ⟂ грань · 595 мм», «зазор между объектами · 200 мм»). Not in
+  `just ci`, which runs no servers.
+- [x] **No cable tray on the left wall; air conditioners are ducted units
+  under the ceiling above the shelf; no ducts are drawn.** Seed tests
+  (`air_conditioners_are_ducted_units_of_unknown_model`, one tray behind the
+  racks); in 3D the units hang on rods from the ceiling, no ducts.
+- [x] **Реалистичный view from the camera position of photo 03 is
+  recognisably the same room.** *Проход* puts the camera at the door corner:
+  r4 with perforated double doors in front, r3 glass, r2 perforated, r1 open
+  frame at the far end; the shelf on the right with white number plates;
+  white walls and ceiling, tube lights, terracotta tiles. Side by side with
+  photo 03 in a screenshot (a judgement, not a test). Differences: no ducts,
+  chairs or cables (not seeded, by FEEDBACK-1); the tile pattern is drawn,
+  not photographed.
 - [x] **Catalog browser shows all 20 seeded cooling units as 3D cards with
   filters; the detail view's dimensions match the catalog in mm; in-row and
   perimeter units are visibly different from comfort units.** 21 cards (the
@@ -282,6 +374,8 @@ Adjusted to the house style or the data:
   per subtype.
 - [x] **`just ci` passes.**
 
-Before phase 1 is accepted (from `dc-handoff/README.md`): answer SPEC §18's
-open question, and re-measure the items in `room.json` → `remeasure` (listed
-in the app under *Замеры*).
+Before phase 1 is accepted: re-measure the items in `room.json` →
+`remeasure` (listed in the app under *Замеры*). Calculations in phases 3–5
+have no external review (team decision, FEEDBACK-1 §6): every formula ships
+with hand-computed tests, every rule with a seed room that triggers it, and
+every result shows its inputs, formula and «оценка» / «расчёт».
