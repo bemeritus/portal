@@ -10,7 +10,12 @@ import type * as THREE from "three";
 import type { Preset } from "./camera";
 
 const HALF = 30;
-const FACES: { n: [number, number, number]; u: [number, number, number]; preset: Preset | null; key: string }[] = [
+const FACES: {
+  n: [number, number, number];
+  u: [number, number, number];
+  preset: Preset | null;
+  key: string;
+}[] = [
   { n: [0, 1, 0], u: [0, 0, -1], preset: "top", key: "top" },
   { n: [0, -1, 0], u: [0, 0, 1], preset: null, key: "bottom" },
   { n: [1, 0, 0], u: [0, 1, 0], preset: "right", key: "right" },
@@ -31,8 +36,29 @@ export class ViewCube {
     this.root.appendChild(this.cube);
     for (const f of FACES) {
       const [n, u] = [f.n, f.u];
-      const r = [u[1] * n[2] - u[2] * n[1], u[2] * n[0] - u[0] * n[2], u[0] * n[1] - u[1] * n[0]];
-      const m = [r[0], -r[1], r[2], 0, -u[0], u[1], -u[2], 0, n[0], -n[1], n[2], 0, n[0] * HALF, -n[1] * HALF, n[2] * HALF, 1];
+      const r = [
+        u[1] * n[2] - u[2] * n[1],
+        u[2] * n[0] - u[0] * n[2],
+        u[0] * n[1] - u[1] * n[0],
+      ];
+      const m = [
+        r[0],
+        -r[1],
+        r[2],
+        0,
+        -u[0],
+        u[1],
+        -u[2],
+        0,
+        n[0],
+        -n[1],
+        n[2],
+        0,
+        n[0] * HALF,
+        -n[1] * HALF,
+        n[2] * HALF,
+        1,
+      ];
       const b = document.createElement("button");
       b.type = "button";
       b.className = "dc-cube-face";
@@ -49,12 +75,14 @@ export class ViewCube {
 
   /** Set the face captions (in the user's language). */
   setLabels(labels: Record<string, string>) {
-    this.cube.querySelectorAll<HTMLButtonElement>(".dc-cube-face").forEach((b) => {
-      const t = labels[b.dataset.dcFace ?? ""] ?? "";
-      b.textContent = t;
-      b.title = t;
-      b.setAttribute("aria-label", t);
-    });
+    this.cube
+      .querySelectorAll<HTMLButtonElement>(".dc-cube-face")
+      .forEach((b) => {
+        const t = labels[b.dataset.dcFace ?? ""] ?? "";
+        b.textContent = t;
+        b.title = t;
+        b.setAttribute("aria-label", t);
+      });
   }
 
   update(cam: THREE.Camera) {

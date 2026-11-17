@@ -8,7 +8,13 @@
  * has a rack's front facing −z; 90 → +x, 180 → +z, 270 → −x.
  */
 
-import type { CatalogItem, DcObject, Instance, RoomSettings, ShelfProps } from "../types";
+import type {
+  CatalogItem,
+  DcObject,
+  Instance,
+  RoomSettings,
+  ShelfProps,
+} from "../types";
 
 export const U_MM = 44.45;
 
@@ -29,10 +35,16 @@ export const rect = (x0: number, z0: number, x1: number, z1: number): Rect => ({
 });
 
 /** Open intersection: touching is not overlapping. */
-export const overlaps = (a: Rect, b: Rect) => a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
+export const overlaps = (a: Rect, b: Rect) =>
+  a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
 
 export function intersection(a: Rect, b: Rect): Rect | null {
-  const r = { x0: Math.max(a.x0, b.x0), z0: Math.max(a.z0, b.z0), x1: Math.min(a.x1, b.x1), z1: Math.min(a.z1, b.z1) };
+  const r = {
+    x0: Math.max(a.x0, b.x0),
+    z0: Math.max(a.z0, b.z0),
+    x1: Math.min(a.x1, b.x1),
+    z1: Math.min(a.z1, b.z1),
+  };
   return r.x0 < r.x1 && r.z0 < r.z1 ? r : null;
 }
 
@@ -49,10 +61,14 @@ export function frontDir(rotation: number): Dir {
   }
 }
 
-export const opposite = (d: Dir): Dir => ({ left: "right", right: "left", up: "down", down: "up" })[d] as Dir;
+export const opposite = (d: Dir): Dir =>
+  ({ left: "right", right: "left", up: "down", down: "up" })[d] as Dir;
 
 /** Local size before rotation, with the overrides the kind allows. */
-export function objectDims(item: CatalogItem, inst: Instance): [number, number, number] {
+export function objectDims(
+  item: CatalogItem,
+  inst: Instance,
+): [number, number, number] {
   const w = item.width_mm,
     d = item.depth_mm,
     h = item.height_mm;
@@ -68,7 +84,13 @@ export function objectDims(item: CatalogItem, inst: Instance): [number, number, 
   }
 }
 
-export function footprint(x0: number, z0: number, w: number, d: number, rotation: number): Rect {
+export function footprint(
+  x0: number,
+  z0: number,
+  w: number,
+  d: number,
+  rotation: number,
+): Rect {
   const swap = ((rotation % 180) + 180) % 180 !== 0;
   const fw = swap ? d : w,
     fd = swap ? w : d;
@@ -106,25 +128,48 @@ export function swingHits(sw: Swing, r: Rect): boolean {
 
 function centroid(poly: [number, number][]): [number, number] {
   const n = Math.max(poly.length, 1);
-  return [poly.reduce((a, p) => a + p[0], 0) / n, poly.reduce((a, p) => a + p[1], 0) / n];
+  return [
+    poly.reduce((a, p) => a + p[0], 0) / n,
+    poly.reduce((a, p) => a + p[1], 0) / n,
+  ];
 }
 
-export function doorSwing(r: Rect, width: number, height: number, hinge: "low" | "high", poly: [number, number][]): Swing {
+export function doorSwing(
+  r: Rect,
+  width: number,
+  height: number,
+  hinge: "low" | "high",
+  poly: [number, number][],
+): Swing {
   const alongX = r.x1 - r.x0 >= r.z1 - r.z0;
   const [cx, cz] = centroid(poly);
   if (alongX) {
     const z = r.z0;
     const into = cz >= z ? 1 : -1;
     const [hx, toward] = hinge === "low" ? [r.x0, 1] : [r.x1, -1];
-    return { hinge: [hx, z], radius: width, quadrant: rect(hx, z, hx + toward * width, z + into * width), height };
+    return {
+      hinge: [hx, z],
+      radius: width,
+      quadrant: rect(hx, z, hx + toward * width, z + into * width),
+      height,
+    };
   }
   const x = r.x0;
   const into = cx >= x ? 1 : -1;
   const [hz, toward] = hinge === "low" ? [r.z0, 1] : [r.z1, -1];
-  return { hinge: [x, hz], radius: width, quadrant: rect(x, hz, x + into * width, hz + toward * width), height };
+  return {
+    hinge: [x, hz],
+    radius: width,
+    quadrant: rect(x, hz, x + into * width, hz + toward * width),
+    height,
+  };
 }
 
-export function solid(o: DcObject, item: CatalogItem, poly: [number, number][]): Solid {
+export function solid(
+  o: DcObject,
+  item: CatalogItem,
+  poly: [number, number][],
+): Solid {
   const [w, d, h] = objectDims(item, o.instance);
   const r = footprint(o.x0_mm, o.z0_mm, w, d, o.rotation_deg);
   const isDoor = item.kind === "structure" && item.props.subtype === "door";
@@ -142,7 +187,11 @@ export function solid(o: DcObject, item: CatalogItem, poly: [number, number][]):
 
 // --- Room polygon -----------------------------------------------------------
 
-export function pointInPolygon(x: number, z: number, poly: [number, number][]): boolean {
+export function pointInPolygon(
+  x: number,
+  z: number,
+  poly: [number, number][],
+): boolean {
   const n = poly.length;
   if (n < 3) return false;
   let inside = false;
@@ -150,7 +199,13 @@ export function pointInPolygon(x: number, z: number, poly: [number, number][]): 
     const [ax, az] = poly[i],
       [bx, bz] = poly[(i + 1) % n];
     const cross = (bx - ax) * (z - az) - (bz - az) * (x - ax);
-    if (cross === 0 && x >= Math.min(ax, bx) && x <= Math.max(ax, bx) && z >= Math.min(az, bz) && z <= Math.max(az, bz))
+    if (
+      cross === 0 &&
+      x >= Math.min(ax, bx) &&
+      x <= Math.max(ax, bx) &&
+      z >= Math.min(az, bz) &&
+      z <= Math.max(az, bz)
+    )
       return true;
     if (az > z !== bz > z) {
       const xi = ax + ((z - az) * (bx - ax)) / (bz - az);
@@ -176,7 +231,12 @@ export function rectInPolygon(r: Rect, poly: [number, number][]): boolean {
 export function bounds(poly: [number, number][]): Rect {
   const xs = poly.map((p) => p[0]),
     zs = poly.map((p) => p[1]);
-  return { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
+  return {
+    x0: Math.min(...xs),
+    x1: Math.max(...xs),
+    z0: Math.min(...zs),
+    z1: Math.max(...zs),
+  };
 }
 
 // --- Validity ---------------------------------------------------------------
@@ -187,19 +247,28 @@ export type Problem =
   | { type: "overlaps"; other: string }
   | { type: "blocks_door"; door: string };
 
-export function problems(idx: number, solids: Solid[], poly: [number, number][], roomH: number): Problem[] {
+export function problems(
+  idx: number,
+  solids: Solid[],
+  poly: [number, number][],
+  roomH: number,
+): Problem[] {
   const s = solids[idx];
   const out: Problem[] = [];
-  if (!s.swing && !rectInPolygon(s.rect, poly)) out.push({ type: "outside_room" });
+  if (!s.swing && !rectInPolygon(s.rect, poly))
+    out.push({ type: "outside_room" });
   if (s.y1 > roomH) out.push({ type: "above_ceiling" });
   solids.forEach((o, j) => {
     if (j === idx) return;
     if (!s.swing && !o.swing) {
-      if (s.y0 < o.y1 && o.y0 < s.y1 && overlaps(s.rect, o.rect)) out.push({ type: "overlaps", other: o.name });
+      if (s.y0 < o.y1 && o.y0 < s.y1 && overlaps(s.rect, o.rect))
+        out.push({ type: "overlaps", other: o.name });
     } else if (!s.swing && o.swing) {
-      if (s.y0 < o.swing.height && swingHits(o.swing, s.rect)) out.push({ type: "blocks_door", door: o.name });
+      if (s.y0 < o.swing.height && swingHits(o.swing, s.rect))
+        out.push({ type: "blocks_door", door: o.name });
     } else if (s.swing && !o.swing) {
-      if (o.y0 < s.swing.height && swingHits(s.swing, o.rect)) out.push({ type: "blocks_door", door: s.name });
+      if (o.y0 < s.swing.height && swingHits(s.swing, o.rect))
+        out.push({ type: "blocks_door", door: s.name });
     }
   });
   return out;
@@ -215,7 +284,12 @@ export interface Gap {
 }
 
 /** Free distance from a face of `r` to the nearest wall or obstacle in `dir`. */
-export function gap(r: Rect, dir: Dir, obstacles: Rect[], poly: [number, number][]): Gap {
+export function gap(
+  r: Rect,
+  dir: Dir,
+  obstacles: Rect[],
+  poly: [number, number][],
+): Gap {
   const b = bounds(poly);
   let best = { left: b.x0, right: b.x1, up: b.z0, down: b.z1 }[dir];
   let hit = -1;
@@ -264,13 +338,33 @@ export function gap(r: Rect, dir: Dir, obstacles: Rect[], poly: [number, number]
     cz = (r.z0 + r.z1) / 2;
   switch (dir) {
     case "left":
-      return { mm: r.x0 - best, obstacle: hit, from: [best, cz], to: [r.x0, cz] };
+      return {
+        mm: r.x0 - best,
+        obstacle: hit,
+        from: [best, cz],
+        to: [r.x0, cz],
+      };
     case "right":
-      return { mm: best - r.x1, obstacle: hit, from: [r.x1, cz], to: [best, cz] };
+      return {
+        mm: best - r.x1,
+        obstacle: hit,
+        from: [r.x1, cz],
+        to: [best, cz],
+      };
     case "up":
-      return { mm: r.z0 - best, obstacle: hit, from: [cx, best], to: [cx, r.z0] };
+      return {
+        mm: r.z0 - best,
+        obstacle: hit,
+        from: [cx, best],
+        to: [cx, r.z0],
+      };
     case "down":
-      return { mm: best - r.z1, obstacle: hit, from: [cx, r.z1], to: [cx, best] };
+      return {
+        mm: best - r.z1,
+        obstacle: hit,
+        from: [cx, r.z1],
+        to: [cx, best],
+      };
   }
 }
 
@@ -285,11 +379,17 @@ export interface ClearanceCheck {
 }
 
 /** Front and rear service clearance of each rack (§4.4); a shortfall warns. */
-export function clearances(solids: Solid[], poly: [number, number][], settings: RoomSettings): ClearanceCheck[] {
+export function clearances(
+  solids: Solid[],
+  poly: [number, number][],
+  settings: RoomSettings,
+): ClearanceCheck[] {
   const out: ClearanceCheck[] = [];
   solids.forEach((s, i) => {
     if (s.kind !== "rack") return;
-    const others = solids.filter((o, j) => j !== i && onFloor(o)).map((o) => o.rect);
+    const others = solids
+      .filter((o, j) => j !== i && onFloor(o))
+      .map((o) => o.rect);
     const front = frontDir(s.rotation);
     for (const [side, dir, required] of [
       ["front", front, settings.clearance_front_mm],
@@ -305,7 +405,14 @@ export function clearances(solids: Solid[], poly: [number, number][], settings: 
             : dir === "left"
               ? rect(r.x0 - required, r.z0, r.x0, r.z1)
               : rect(r.x1, r.z0, r.x1 + required, r.z1);
-      out.push({ objectId: s.id, side, gap: g, required, zone, ok: g.mm >= required });
+      out.push({
+        objectId: s.id,
+        side,
+        gap: g,
+        required,
+        zone,
+        ok: g.mm >= required,
+      });
     }
   });
   return out;
@@ -339,7 +446,8 @@ export function snap(
   edges = true,
 ): Snapped {
   const toGrid = (v: number) => Math.round(v / grid) * grid;
-  if (!edges) return { x0: toGrid(x0), z0: toGrid(z0), guideX: null, guideZ: null };
+  if (!edges)
+    return { x0: toGrid(x0), z0: toGrid(z0), guideX: null, guideZ: null };
   const b = bounds(poly);
   const xs = [b.x0, b.x1, ...others.flatMap((o) => [o.x0, o.x1])];
   const zs = [b.z0, b.z1, ...others.flatMap((o) => [o.z0, o.z1])];
@@ -379,9 +487,11 @@ export function snap(
 // --- Racks and shelves ------------------------------------------------------
 
 /** Height above the floor of the bottom edge of unit `u` (1-based). */
-export const unitBottomMm = (u1HeightMm: number, u: number) => u1HeightMm + (u - 1) * U_MM;
+export const unitBottomMm = (u1HeightMm: number, u: number) =>
+  u1HeightMm + (u - 1) * U_MM;
 
-export const cellCount = (p: ShelfProps) => p.boards_mm.length * p.cells_per_board;
+export const cellCount = (p: ShelfProps) =>
+  p.boards_mm.length * p.cells_per_board;
 
 export interface CellInfo {
   cellNo: number;
@@ -409,7 +519,10 @@ export function cellInfo(p: ShelfProps, n: number): CellInfo | null {
  * What a cell is called: its plate number on a plated board, otherwise its
  * position on the unplated board ("bottom 3").
  */
-export function cellLabel(p: ShelfProps, n: number): { n: number; plated: boolean } {
+export function cellLabel(
+  p: ShelfProps,
+  n: number,
+): { n: number; plated: boolean } {
   const c = cellInfo(p, n);
   if (!c || c.plated) return { n, plated: true };
   return { n: n - p.plated_boards * p.cells_per_board, plated: false };

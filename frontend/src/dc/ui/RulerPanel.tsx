@@ -11,21 +11,38 @@ import type { Vec3 } from "../model/ruler";
 import { useFmt } from "../settings";
 import type { RulerProps } from "./Inspector";
 
-export function RulerPanel({ mode, setMode, measures, clear, setEnd, text }: RulerProps) {
+export function RulerPanel({
+  mode,
+  setMode,
+  measures,
+  clear,
+  setEnd,
+  text,
+}: RulerProps) {
   const { t } = useTranslation();
   return (
     <div className="space-y-3 text-sm">
       <div className="dc-seg" role="radiogroup" aria-label={t("dc.ruler.mode")}>
         {(["points", "objects"] as const).map((m) => (
-          <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}>
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={mode === m}
+            onClick={() => setMode(m)}
+          >
             {t(`dc.ruler.${m}`)}
           </button>
         ))}
       </div>
       <p className="text-xs" style={{ color: "var(--dc-muted)" }}>
-        {mode === "points" ? t("dc.ruler.pointsHelp") : t("dc.ruler.objectsHelp")}
+        {mode === "points"
+          ? t("dc.ruler.pointsHelp")
+          : t("dc.ruler.objectsHelp")}
       </p>
-      {measures.length === 0 && <p style={{ color: "var(--dc-muted)" }}>{t("dc.ruler.none")}</p>}
+      {measures.length === 0 && (
+        <p style={{ color: "var(--dc-muted)" }}>{t("dc.ruler.none")}</p>
+      )}
       {measures.map((m, i) => (
         <div key={i} className="dc-rows" data-testid="ruler-result">
           <div>
@@ -46,9 +63,19 @@ export function RulerPanel({ mode, setMode, measures, clear, setEnd, text }: Rul
   );
 }
 
-function EndInput({ label, p, onSet }: { label: string; p: Vec3; onSet: (p: Vec3) => void }) {
+function EndInput({
+  label,
+  p,
+  onSet,
+}: {
+  label: string;
+  p: Vec3;
+  onSet: (p: Vec3) => void;
+}) {
   const fmt = useFmt();
-  const [text, setText] = useState(() => p.map((v) => fmt.input(Math.round(v))));
+  const [text, setText] = useState(() =>
+    p.map((v) => fmt.input(Math.round(v))),
+  );
   useEffect(() => setText(p.map((v) => fmt.input(Math.round(v)))), [p, fmt]);
   const commit = () => {
     const v = text.map((s) => fmt.parse(s));
@@ -65,7 +92,9 @@ function EndInput({ label, p, onSet }: { label: string; p: Vec3; onSet: (p: Vec3
             style={{ borderColor: "var(--dc-line)" }}
             value={text[k]}
             aria-label={`${label} ${axis}, ${fmt.unitWord}`}
-            onChange={(e) => setText(text.map((s, j) => (j === k ? e.target.value : s)))}
+            onChange={(e) =>
+              setText(text.map((s, j) => (j === k ? e.target.value : s)))
+            }
             onBlur={commit}
             onKeyDown={(e) => e.key === "Enter" && commit()}
           />

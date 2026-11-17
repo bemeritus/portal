@@ -15,7 +15,15 @@ export type CoolingSubtype =
   | "in_row"
   | "precision_perimeter";
 export type Discharge = "upflow" | "downflow";
-export type StructureSubtype = "wall" | "column" | "door" | "window" | "safe" | "locker" | "furniture" | "other";
+export type StructureSubtype =
+  | "wall"
+  | "column"
+  | "door"
+  | "window"
+  | "safe"
+  | "locker"
+  | "furniture"
+  | "other";
 export type TrayType = "tray" | "ladder" | "basket";
 
 export interface RackProps {
@@ -70,7 +78,8 @@ export interface StructureProps {
   subtype: StructureSubtype;
 }
 
-export type PropSrc = "datasheet" | "measured" | "derived" | "assumed" | "photo";
+export type PropSrc =
+  "datasheet" | "measured" | "derived" | "assumed" | "photo";
 export interface PropSource {
   src: PropSrc;
   url?: string;
@@ -162,8 +171,14 @@ export const DEVICE_KINDS: DeviceKind[] = [
 ];
 export type Face = "front" | "rear" | "both";
 export type PowerSrc = "nameplate" | "measured" | "estimated";
-export type DeviceStatus = "active" | "reserved" | "planned" | "decommissioning";
-export const DEVICE_STATUSES: DeviceStatus[] = ["active", "reserved", "planned", "decommissioning"];
+export type DeviceStatus =
+  "active" | "reserved" | "planned" | "decommissioning";
+export const DEVICE_STATUSES: DeviceStatus[] = [
+  "active",
+  "reserved",
+  "planned",
+  "decommissioning",
+];
 
 export interface DeviceFields {
   rack_id: number;
@@ -344,7 +359,12 @@ export type EntityChange =
   | { change: "changed"; key: string; name: string; fields: FieldChange[] };
 
 export interface RevisionDetail extends RevisionSummary {
-  snapshot: { objects: DcObject[]; devices: Device[]; cells: ShelfCell[]; annotations: Annotation[] };
+  snapshot: {
+    objects: DcObject[];
+    devices: Device[];
+    cells: ShelfCell[];
+    annotations: Annotation[];
+  };
   diff: {
     objects: EntityChange[];
     devices: EntityChange[];
@@ -400,7 +420,14 @@ export interface ImportRowError {
 
 export type ImportChange =
   | { action: "create"; line: number; rack: string; after: DeviceFields }
-  | { action: "update"; line: number; rack: string; id: number; before: DeviceFields; after: DeviceFields }
+  | {
+      action: "update";
+      line: number;
+      rack: string;
+      id: number;
+      before: DeviceFields;
+      after: DeviceFields;
+    }
   | { action: "unchanged"; line: number; rack: string; id: number };
 
 export interface ImportResult {

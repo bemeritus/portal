@@ -20,7 +20,8 @@ export interface View {
   halfHeight?: number;
 }
 
-export type Preset = "iso" | "top" | "front" | "back" | "left" | "right" | "aisle" | "racks";
+export type Preset =
+  "iso" | "top" | "front" | "back" | "left" | "right" | "aisle" | "racks";
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
@@ -43,14 +44,24 @@ export class CameraRig {
     h0: number;
     h1: number;
   } = null;
-  readonly reducedMotion = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  readonly reducedMotion =
+    typeof matchMedia !== "undefined" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
   /** Room bounds, for clamping the target and for walking. */
   room: Rect = { x0: 0, z0: 0, x1: 5000, z1: 4000 };
   roomHeight = 2400;
   /** Floor obstacles for walk-mode collision. */
   obstacles: Rect[] = [];
   readonly held = new Set<string>();
-  readonly walk = { on: false, yaw: Math.PI / 2, pitch: -0.06, pos: new THREE.Vector3(0, 1650, 0), goto: null as null | { x: number; z: number }, saved: null as View | null, fov0: 45 };
+  readonly walk = {
+    on: false,
+    yaw: Math.PI / 2,
+    pitch: -0.06,
+    pos: new THREE.Vector3(0, 1650, 0),
+    goto: null as null | { x: number; z: number },
+    saved: null as View | null,
+    fov0: 45,
+  };
   onChange: () => void = () => {};
 
   constructor(dom: HTMLElement) {
@@ -74,7 +85,13 @@ export class CameraRig {
 
   private setOrthoFrustum(hh: number) {
     const a = this.w / this.h;
-    Object.assign(this.ortho, { top: hh, bottom: -hh, left: -hh * a, right: hh * a, zoom: 1 });
+    Object.assign(this.ortho, {
+      top: hh,
+      bottom: -hh,
+      left: -hh * a,
+      right: hh * a,
+      zoom: 1,
+    });
     this.ortho.updateProjectionMatrix();
   }
 
@@ -121,7 +138,9 @@ export class CameraRig {
       target: this.controls.target.toArray() as [number, number, number],
       fov: this.persp.fov,
       ortho: o,
-      halfHeight: o ? this.ortho.top / this.ortho.zoom : this.persp.position.distanceTo(this.controls.target) * this.tanHalf(),
+      halfHeight: o
+        ? this.ortho.top / this.ortho.zoom
+        : this.persp.position.distanceTo(this.controls.target) * this.tanHalf(),
     };
   }
 
@@ -132,7 +151,8 @@ export class CameraRig {
     const from = this.view();
     const p1 = new THREE.Vector3(...v.position),
       g1 = new THREE.Vector3(...v.target);
-    const h1 = v.halfHeight ?? p1.distanceTo(g1) * Math.tan((v.fov * Math.PI) / 360);
+    const h1 =
+      v.halfHeight ?? p1.distanceTo(g1) * Math.tan((v.fov * Math.PI) / 360);
     this.tween = {
       t0: performance.now(),
       dur: this.reducedMotion ? 0 : dur,
@@ -152,7 +172,11 @@ export class CameraRig {
       cx = (r.x0 + r.x1) / 2,
       cz = (r.z0 + r.z1) / 2,
       size = Math.max(r.x1 - r.x0, r.z1 - r.z0);
-    const tg: [number, number, number] = [cx, name === "top" ? 0 : this.roomHeight * 0.4, cz];
+    const tg: [number, number, number] = [
+      cx,
+      name === "top" ? 0 : this.roomHeight * 0.4,
+      cz,
+    ];
     const d = size * 1.55;
     const pos: Record<Preset, [number, number, number]> = {
       iso: [cx + size * 0.1, size * 0.95, r.z1 + size * 0.95],
@@ -167,23 +191,44 @@ export class CameraRig {
     };
     if (name === "top") {
       // A plan is read in orthographic projection.
-      this.go({ position: pos.top, target: tg, fov: 45, ortho: true, halfHeight: size * 0.62 });
+      this.go({
+        position: pos.top,
+        target: tg,
+        fov: 45,
+        ortho: true,
+        halfHeight: size * 0.62,
+      });
       return;
     }
-    this.go({ position: pos[name], target: tg, fov: 45, ortho: name === "iso" ? false : this.isOrtho });
+    this.go({
+      position: pos[name],
+      target: tg,
+      fov: 45,
+      ortho: name === "iso" ? false : this.isOrtho,
+    });
   }
 
   /** Bring a point and its surroundings into view, keeping the direction. */
   focus(c: THREE.Vector3, radius: number, dir?: THREE.Vector3) {
-    const d = (dir ?? this.cam.position.clone().sub(this.controls.target)).clone().normalize();
+    const d = (dir ?? this.cam.position.clone().sub(this.controls.target))
+      .clone()
+      .normalize();
     if (d.y < 0.12) {
       d.y = 0.12;
       d.normalize();
     }
-    const dist = clamp((radius / Math.sin((this.persp.fov * Math.PI) / 360)) * 1.15, 600, 20000);
+    const dist = clamp(
+      (radius / Math.sin((this.persp.fov * Math.PI) / 360)) * 1.15,
+      600,
+      20000,
+    );
     this.go(
       {
-        position: c.clone().addScaledVector(d, dist).toArray() as [number, number, number],
+        position: c.clone().addScaledVector(d, dist).toArray() as [
+          number,
+          number,
+          number,
+        ],
         target: c.toArray() as [number, number, number],
         fov: this.persp.fov,
         ortho: this.isOrtho,
@@ -223,7 +268,11 @@ export class CameraRig {
       tg.add(shift);
     } else {
       const d = this.persp.position.distanceTo(tg);
-      const nd = clamp(d * s, this.controls.minDistance, this.controls.maxDistance),
+      const nd = clamp(
+          d * s,
+          this.controls.minDistance,
+          this.controls.maxDistance,
+        ),
         k = nd / d;
       if (k === 1) return;
       const pv = pivot ?? tg.clone();
@@ -239,8 +288,11 @@ export class CameraRig {
   private blocked(x: number, z: number) {
     const R = 170,
       r = this.room;
-    if (x < r.x0 + R || x > r.x1 - R || z < r.z0 + R || z > r.z1 - R) return true;
-    return this.obstacles.some((b) => x > b.x0 - R && x < b.x1 + R && z > b.z0 - R && z < b.z1 + R);
+    if (x < r.x0 + R || x > r.x1 - R || z < r.z0 + R || z > r.z1 - R)
+      return true;
+    return this.obstacles.some(
+      (b) => x > b.x0 - R && x < b.x1 + R && z > b.z0 - R && z < b.z1 + R,
+    );
   }
 
   nearestFree(x: number, z: number) {
@@ -266,7 +318,10 @@ export class CameraRig {
       w.fov0 = this.persp.fov;
       this.persp.fov = 68;
       this.persp.updateProjectionMatrix();
-      const start = this.nearestFree(this.controls.target.x, this.controls.target.z);
+      const start = this.nearestFree(
+        this.controls.target.x,
+        this.controls.target.z,
+      );
       w.pos.set(start.x, 1650, start.z);
       w.goto = null;
     } else {
@@ -295,13 +350,16 @@ export class CameraRig {
   private tickWalk(dt: number) {
     const held = this.held,
       w = this.walk;
-    const sp = (held.has("ShiftLeft") || held.has("ShiftRight") ? 3300 : 1500) * dt;
+    const sp =
+      (held.has("ShiftLeft") || held.has("ShiftRight") ? 3300 : 1500) * dt;
     const turn = 1.7 * dt;
     if (held.has("KeyQ") || held.has("ArrowLeft")) w.yaw += turn;
     if (held.has("KeyE") || held.has("ArrowRight")) w.yaw -= turn;
     const sn = Math.sin(w.yaw),
       cs = Math.cos(w.yaw);
-    const f = (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0) - (held.has("KeyS") || held.has("ArrowDown") ? 1 : 0);
+    const f =
+      (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0) -
+      (held.has("KeyS") || held.has("ArrowDown") ? 1 : 0);
     const sd = (held.has("KeyD") ? 1 : 0) - (held.has("KeyA") ? 1 : 0);
     let fx = 0,
       fz = 0;
@@ -339,7 +397,8 @@ export class CameraRig {
   /** Arrow keys pan along the floor (when nothing is being moved). */
   private tickPan(dt: number) {
     const held = this.held;
-    const dx = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
+    const dx =
+      (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
     const dz = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
     if (!dx && !dz) return false;
     this.tween = null;
@@ -348,7 +407,10 @@ export class CameraRig {
     const fwd = new THREE.Vector3(-e[8], 0, -e[10]);
     if (fwd.lengthSq() < 0.01) fwd.set(e[4], 0, e[6]);
     fwd.normalize();
-    const sp = (this.isOrtho ? (this.ortho.top / this.ortho.zoom) * 1.4 : this.persp.position.distanceTo(this.controls.target) * 0.9) * dt;
+    const sp =
+      (this.isOrtho
+        ? (this.ortho.top / this.ortho.zoom) * 1.4
+        : this.persp.position.distanceTo(this.controls.target) * 0.9) * dt;
     right.multiplyScalar(dx * sp).addScaledVector(fwd, dz * sp);
     this.cam.position.add(right);
     this.controls.target.add(right);

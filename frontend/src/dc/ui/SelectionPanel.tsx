@@ -19,7 +19,14 @@ import type { SelRef } from "../engine/DcEngine";
 import type { Fmt } from "../format";
 import { useFmt } from "../settings";
 import { objectDims, type Problem } from "../model/geometry";
-import type { CatalogItem, Clearance, DcObject, DoorType, Op, RoomData } from "../types";
+import type {
+  CatalogItem,
+  Clearance,
+  DcObject,
+  DoorType,
+  Op,
+  RoomData,
+} from "../types";
 import { objectFields } from "./DcRoomPage";
 import { assumedByObject } from "./MeasurementsPanel";
 import { LengthInput } from "./LengthInput";
@@ -53,29 +60,58 @@ export function SelectionPanel(props: Props) {
   const fmt = useFmt();
   const { data, catalog, selection } = props;
   if (!selection) {
-    const short = data.analysis.clearances.filter((c) => c.gap_mm < c.required_mm);
+    const short = data.analysis.clearances.filter(
+      (c) => c.gap_mm < c.required_mm,
+    );
     return (
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">{t("dc.selection.none")}</p>
-        <ClearanceList list={short} fmt={fmt} onSelect={(id) => props.onSelect({ type: "object", id })} />
+        <ClearanceList
+          list={short}
+          fmt={fmt}
+          onSelect={(id) => props.onSelect({ type: "object", id })}
+        />
       </div>
     );
   }
-  const objId = selection.type === "object" ? selection.id : selection.type === "device" ? selection.rackId : selection.shelfId;
+  const objId =
+    selection.type === "object"
+      ? selection.id
+      : selection.type === "device"
+        ? selection.rackId
+        : selection.shelfId;
   const obj = data.objects.find((o) => o.id === objId);
   const item = obj ? catalog.get(obj.catalog_id) : undefined;
-  if (!obj || !item) return <p className="text-sm text-muted-foreground">{t("dc.selection.gone")}</p>;
+  if (!obj || !item)
+    return (
+      <p className="text-sm text-muted-foreground">{t("dc.selection.gone")}</p>
+    );
   return (
     <div className="space-y-4 text-sm">
       <ObjectSummary obj={obj} item={item} {...props} />
       {item.kind === "rack" && <RackPanel obj={obj} item={item} {...props} />}
       {item.kind === "shelf" && <ShelfPanel obj={obj} item={item} {...props} />}
-      {props.canEdit && <ObjectEditor key={obj.id + ":" + data.room.revision} obj={obj} item={item} run={props.run} />}
+      {props.canEdit && (
+        <ObjectEditor
+          key={obj.id + ":" + data.room.revision}
+          obj={obj}
+          item={item}
+          run={props.run}
+        />
+      )}
     </div>
   );
 }
 
-export function ClearanceList({ list, fmt, onSelect }: { list: Clearance[]; fmt: Fmt; onSelect: (id: number) => void }) {
+export function ClearanceList({
+  list,
+  fmt,
+  onSelect,
+}: {
+  list: Clearance[];
+  fmt: Fmt;
+  onSelect: (id: number) => void;
+}) {
   const { t } = useTranslation();
   if (!list.length) return null;
   return (
@@ -84,23 +120,40 @@ export function ClearanceList({ list, fmt, onSelect }: { list: Clearance[]; fmt:
       <ul className="space-y-1">
         {list.map((c) => (
           <li key={`${c.object_id}-${c.side}`}>
-            <button type="button" className="text-left hover:underline" onClick={() => onSelect(c.object_id)}>
-              {t(c.side === "front" ? "dc.clearance.front" : "dc.clearance.rear", {
-                name: c.object,
-                gap: fmt.mm(c.gap_mm),
-                need: fmt.mm(c.required_mm),
-              })}
-              {c.obstacle ? ` (${t("dc.clearance.until", { what: c.obstacle })})` : ` (${t("dc.clearance.untilWall")})`}
+            <button
+              type="button"
+              className="text-left hover:underline"
+              onClick={() => onSelect(c.object_id)}
+            >
+              {t(
+                c.side === "front" ? "dc.clearance.front" : "dc.clearance.rear",
+                {
+                  name: c.object,
+                  gap: fmt.mm(c.gap_mm),
+                  need: fmt.mm(c.required_mm),
+                },
+              )}
+              {c.obstacle
+                ? ` (${t("dc.clearance.until", { what: c.obstacle })})`
+                : ` (${t("dc.clearance.untilWall")})`}
             </button>
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-xs text-muted-foreground">{t("dc.clearance.note")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t("dc.clearance.note")}
+      </p>
     </div>
   );
 }
 
-function ObjectSummary({ obj, item, data, problemsOf, onSelect }: Props & { obj: DcObject; item: CatalogItem }) {
+function ObjectSummary({
+  obj,
+  item,
+  data,
+  problemsOf,
+  onSelect,
+}: Props & { obj: DcObject; item: CatalogItem }) {
   const { t } = useTranslation();
   const fmt = useFmt();
   const [w, d, h] = objectDims(item, obj.instance);
@@ -133,8 +186,20 @@ function ObjectSummary({ obj, item, data, problemsOf, onSelect }: Props & { obj:
       {clear.length > 0 && (
         <ul className="space-y-0.5">
           {clear.map((c) => (
-            <li key={c.side} className={c.gap_mm < c.required_mm ? "text-destructive" : "text-muted-foreground"}>
-              {t(c.side === "front" ? "dc.clearance.frontShort" : "dc.clearance.rearShort", { gap: fmt.mm(c.gap_mm), need: fmt.mm(c.required_mm) })}
+            <li
+              key={c.side}
+              className={
+                c.gap_mm < c.required_mm
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }
+            >
+              {t(
+                c.side === "front"
+                  ? "dc.clearance.frontShort"
+                  : "dc.clearance.rearShort",
+                { gap: fmt.mm(c.gap_mm), need: fmt.mm(c.required_mm) },
+              )}
             </li>
           ))}
         </ul>
@@ -149,8 +214,16 @@ function ObjectSummary({ obj, item, data, problemsOf, onSelect }: Props & { obj:
           </ul>
         </div>
       )}
-      {obj.note && <p className="text-xs whitespace-pre-wrap text-muted-foreground">{obj.note}</p>}
-      <Button size="sm" variant="ghost" onClick={() => onSelect({ type: "object", id: obj.id }, true)}>
+      {obj.note && (
+        <p className="text-xs whitespace-pre-wrap text-muted-foreground">
+          {obj.note}
+        </p>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => onSelect({ type: "object", id: obj.id }, true)}
+      >
         {t("dc.selection.show")}
       </Button>
     </div>
@@ -179,19 +252,34 @@ export function measureLabel(key: string, t: TFunction): string {
   const gapM = key.match(/^racks\.gap\.(.+)-(.+)$/);
   if (gapM) {
     const end = (x: string) =>
-      x === "left_wall" ? t("dc.measureKey.leftWall") : x === "right_wall" ? t("dc.measureKey.rightWall") : t("dc.measureKey.rack", { n: x.replace(/\D/g, "") });
+      x === "left_wall"
+        ? t("dc.measureKey.leftWall")
+        : x === "right_wall"
+          ? t("dc.measureKey.rightWall")
+          : t("dc.measureKey.rack", { n: x.replace(/\D/g, "") });
     return t("dc.measureKey.gap", { a: end(gapM[1]), b: end(gapM[2]) });
   }
   let n = "";
-  const generic = key.replace(/\b(?:r|ac)(\d+)\b|board_(\d+)/g, (_m, a?: string, b?: string) => {
-    n = a ?? b ?? "";
-    return b ? "board_n" : "n";
-  });
+  const generic = key.replace(
+    /\b(?:r|ac)(\d+)\b|board_(\d+)/g,
+    (_m, a?: string, b?: string) => {
+      n = a ?? b ?? "";
+      return b ? "board_n" : "n";
+    },
+  );
   const tk = `dc.measureKey.${generic.replace(/\./g, "_")}`;
   return i18n.exists(tk) ? tDyn(t, tk, { n }) : key;
 }
 
-function ObjectEditor({ obj, item, run }: { obj: DcObject; item: CatalogItem; run: Props["run"] }) {
+function ObjectEditor({
+  obj,
+  item,
+  run,
+}: {
+  obj: DcObject;
+  item: CatalogItem;
+  run: Props["run"];
+}) {
   const { t } = useTranslation();
   const [f, setF] = useState(() => objectFields(obj));
   const [busy, setBusy] = useState(false);
@@ -211,26 +299,49 @@ function ObjectEditor({ obj, item, run }: { obj: DcObject; item: CatalogItem; ru
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
-        await run([{ op: "object_update", id: obj.id, object: f }], t("dc.change.edit", { name: obj.name }));
+        await run(
+          [{ op: "object_update", id: obj.id, object: f }],
+          t("dc.change.edit", { name: obj.name }),
+        );
         setBusy(false);
       }}
     >
       <div className="font-medium">{t("dc.edit.title")}</div>
       <div>
         <Label htmlFor="o-name">{t("dc.edit.name")}</Label>
-        <Input id="o-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <Input
+          id="o-name"
+          value={f.name}
+          onChange={(e) => setF({ ...f, name: e.target.value })}
+        />
       </div>
       <div className="grid grid-cols-3 gap-2">
         {(["x0_mm", "z0_mm", "y0_mm"] as const).map((k) => (
           <div key={k}>
-            <Label htmlFor={`o-${k}`}>{t(`dc.edit.${k}`, { unit: fmt.unitWord })}</Label>
-            <LengthInput id={`o-${k}`} value={f[k]} onChange={(mm) => setF({ ...f, [k]: mm ?? 0 })} />
+            <Label htmlFor={`o-${k}`}>
+              {t(`dc.edit.${k}`, { unit: fmt.unitWord })}
+            </Label>
+            <LengthInput
+              id={`o-${k}`}
+              value={f[k]}
+              onChange={(mm) => setF({ ...f, [k]: mm ?? 0 })}
+            />
           </div>
         ))}
       </div>
       <div>
         <Label htmlFor="o-rot">{t("dc.dims.rotation")}</Label>
-        <select id="o-rot" className="w-full rounded-md border bg-background px-2 py-1.5" value={f.rotation_deg} onChange={(e) => setF({ ...f, rotation_deg: Number(e.target.value) as DcObject["rotation_deg"] })}>
+        <select
+          id="o-rot"
+          className="w-full rounded-md border bg-background px-2 py-1.5"
+          value={f.rotation_deg}
+          onChange={(e) =>
+            setF({
+              ...f,
+              rotation_deg: Number(e.target.value) as DcObject["rotation_deg"],
+            })
+          }
+        >
           {[0, 90, 180, 270].map((r) => (
             <option key={r} value={r}>
               {r}°
@@ -244,35 +355,61 @@ function ObjectEditor({ obj, item, run }: { obj: DcObject; item: CatalogItem; ru
             {(["door_front", "door_rear"] as const).map((k) => (
               <div key={k}>
                 <Label htmlFor={`o-${k}`}>{t(`dc.edit.${k}`)}</Label>
-                <select id={`o-${k}`} className="w-full rounded-md border bg-background px-2 py-1.5" value={f.instance[k] ?? ""} onChange={(e) => door(k, e.target.value)}>
+                <select
+                  id={`o-${k}`}
+                  className="w-full rounded-md border bg-background px-2 py-1.5"
+                  value={f.instance[k] ?? ""}
+                  onChange={(e) => door(k, e.target.value)}
+                >
                   <option value="">{t("dc.edit.doorAsType")}</option>
-                  {(["glass", "perforated", "solid", "none"] as DoorType[]).map((d) => (
-                    <option key={d} value={d}>
-                      {t(`dc.door.${d}`)}
-                    </option>
-                  ))}
+                  {(["glass", "perforated", "solid", "none"] as DoorType[]).map(
+                    (d) => (
+                      <option key={d} value={d}>
+                        {t(`dc.door.${d}`)}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
             ))}
           </div>
           <label className="flex items-center gap-2">
-            <Checkbox checked={f.contents_known} onCheckedChange={(v) => setF({ ...f, contents_known: v === true })} />
+            <Checkbox
+              checked={f.contents_known}
+              onCheckedChange={(v) =>
+                setF({ ...f, contents_known: v === true })
+              }
+            />
             {t("dc.rack.contentsKnown")}
           </label>
         </>
       )}
       <div>
         <Label htmlFor="o-note">{t("dc.edit.note")}</Label>
-        <textarea id="o-note" rows={2} className="w-full rounded-md border bg-background p-1.5" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        <textarea
+          id="o-note"
+          rows={2}
+          className="w-full rounded-md border bg-background p-1.5"
+          value={f.note}
+          onChange={(e) => setF({ ...f, note: e.target.value })}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={!dirty || busy}>
           {t("common.save")}
         </Button>
-        <Button type="button" size="sm" variant="ghost" disabled={!dirty} onClick={() => setF(objectFields(obj))}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={!dirty}
+          onClick={() => setF(objectFields(obj))}
+        >
           {t("common.reset")}
         </Button>
-        {item.kind === "rack" && <Badge variant="secondary">{t("dc.edit.dragHint")}</Badge>}
+        {item.kind === "rack" && (
+          <Badge variant="secondary">{t("dc.edit.dragHint")}</Badge>
+        )}
       </div>
     </form>
   );

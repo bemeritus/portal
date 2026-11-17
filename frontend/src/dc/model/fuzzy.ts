@@ -28,7 +28,11 @@ export function fuzzyScore(query: string, text: string): number | null {
 }
 
 /** Items sorted by score, non-matches dropped. */
-export function fuzzyFilter<T>(query: string, items: T[], text: (t: T) => string): T[] {
+export function fuzzyFilter<T>(
+  query: string,
+  items: T[],
+  text: (t: T) => string,
+): T[] {
   return items
     .map((it) => ({ it, s: fuzzyScore(query, text(it)) }))
     .filter((x): x is { it: T; s: number } => x.s !== null)
@@ -40,9 +44,17 @@ export function fuzzyFilter<T>(query: string, items: T[], text: (t: T) => string
  * Parameters typed into a "find free space" query: `2U`, `2 u`, `0,8 кВт`,
  * `800 Вт`, `450 W`, `1.2 kW`. Missing parts are `null`.
  */
-export function parseSpaceQuery(q: string): { u: number | null; powerW: number | null } {
+export function parseSpaceQuery(q: string): {
+  u: number | null;
+  powerW: number | null;
+} {
   const u = q.match(/(\d+)\s*u\b/i) ?? q.match(/(\d+)\s*ю/i);
   const p = q.match(/(\d+(?:[.,]\d+)?)\s*(квт|kw|вт|w)(?![a-zа-я])/i);
-  const powerW = p ? Math.round(parseFloat(p[1].replace(",", ".")) * (/^(квт|kw)$/i.test(p[2]) ? 1000 : 1)) : null;
+  const powerW = p
+    ? Math.round(
+        parseFloat(p[1].replace(",", ".")) *
+          (/^(квт|kw)$/i.test(p[2]) ? 1000 : 1),
+      )
+    : null;
   return { u: u ? Number(u[1]) : null, powerW };
 }

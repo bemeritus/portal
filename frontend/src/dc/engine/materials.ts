@@ -36,7 +36,10 @@ export const DEVICE_COLOR: Record<DeviceKind, string> = {
   other: "#474d56",
 };
 
-function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+function canvas(
+  w: number,
+  h: number,
+): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -45,12 +48,17 @@ function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContex
 
 function fitText(g: CanvasRenderingContext2D, t: string, maxW: number): string {
   if (g.measureText(t).width <= maxW) return t;
-  while (t.length > 1 && g.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  while (t.length > 1 && g.measureText(t + "…").width > maxW)
+    t = t.slice(0, -1);
   return t + "…";
 }
 
 /** A device's front panel by kind, with its name — the prototype's `devCanvas`. */
-function deviceFront(kind: DeviceKind, units: number, name: string): HTMLCanvasElement {
+function deviceFront(
+  kind: DeviceKind,
+  units: number,
+  name: string,
+): HTMLCanvasElement {
   const cw = 512,
     ch = Math.max(24, Math.round(units * 47));
   const [c, g] = canvas(cw, ch);
@@ -85,15 +93,27 @@ function deviceFront(kind: DeviceKind, units: number, name: string): HTMLCanvasE
         g.fillStyle = "#0d0e11";
         g.fillRect(bx + q * gw + 2, y0 + r * gh + 2, gw - 4, gh - 4);
         g.fillStyle = "#343941";
-        g.fillRect(bx + q * gw + 4, y0 + r * gh + 4, gw - 8, Math.max(2, gh - 8));
+        g.fillRect(
+          bx + q * gw + 4,
+          y0 + r * gh + 4,
+          gw - 8,
+          Math.max(2, gh - 8),
+        );
       }
   };
   const vents = (vx: number, vw: number) => {
     g.fillStyle = "#0b0c0e";
     for (let y = y0 + 4; y < y0 + ih - 3; y += 6)
-      for (let x = vx + ((y / 6) % 2 > 1 ? 3 : 0); x < vx + vw - 3; x += 7) g.fillRect(x, y, 4, 3);
+      for (let x = vx + ((y / 6) % 2 > 1 ? 3 : 0); x < vx + vw - 3; x += 7)
+        g.fillRect(x, y, 4, 3);
   };
-  const ports = (px: number, pw: number, cols: number, rows: number, light: boolean) => {
+  const ports = (
+    px: number,
+    pw: number,
+    cols: number,
+    rows: number,
+    light: boolean,
+  ) => {
     const gw = pw / cols,
       ph = Math.min(15, (ih - 6) / rows - 3);
     for (let r = 0; r < rows; r++)
@@ -107,14 +127,21 @@ function deviceFront(kind: DeviceKind, units: number, name: string): HTMLCanvasE
       }
   };
   if (kind === "server") {
-    bays(x0 + 8, iw * 0.62, units === 1 ? 4 : 8, Math.max(1, Math.min(units, 3)));
+    bays(
+      x0 + 8,
+      iw * 0.62,
+      units === 1 ? 4 : 8,
+      Math.max(1, Math.min(units, 3)),
+    );
     vents(x0 + 8 + iw * 0.64, iw * 0.36 - 12);
-  } else if (kind === "storage") bays(x0 + 8, iw - 12, 4, Math.max(1, Math.round(units * 1.5)));
+  } else if (kind === "storage")
+    bays(x0 + 8, iw - 12, 4, Math.max(1, Math.round(units * 1.5)));
   else if (kind === "switch" || kind === "router") {
     const rows = ch >= 40 ? 2 : 1;
     ports(x0 + 10, iw * 0.74, kind === "router" ? 12 : 24, rows, false);
     ports(x0 + 10 + iw * 0.78, iw * 0.2, 4, rows, false);
-  } else if (kind === "patch") ports(x0 + 10, iw - 20, 24, units > 1 ? 2 : 1, true);
+  } else if (kind === "patch")
+    ports(x0 + 10, iw - 20, 24, units > 1 ? 2 : 1, true);
   else if (kind === "ups") {
     vents(x0 + 8, iw * 0.34);
     vents(x0 + iw * 0.66, iw * 0.34 - 8);
@@ -126,7 +153,13 @@ function deviceFront(kind: DeviceKind, units: number, name: string): HTMLCanvasE
     for (let q = 0; q < n; q++) {
       g.fillStyle = "#0a0b0d";
       g.beginPath();
-      g.arc(x0 + 60 + q * gw + gw / 2, y0 + ih / 2, Math.min(gw * 0.36, ih * 0.36), 0, 7);
+      g.arc(
+        x0 + 60 + q * gw + gw / 2,
+        y0 + ih / 2,
+        Math.min(gw * 0.36, ih * 0.36),
+        0,
+        7,
+      );
       g.fill();
     }
   } else if (kind === "kvm") {
@@ -166,7 +199,8 @@ function perforated(): HTMLCanvasElement {
   };
   // Two rows of a hex grid, tiling seamlessly (pitch 16 × 14).
   for (let row = 0; row < 5; row++)
-    for (let col = -1; col < 5; col++) hex(col * 16 + (row % 2 ? 8 : 0) + 8, row * 14, 6.2);
+    for (let col = -1; col < 5; col++)
+      hex(col * 16 + (row % 2 ? 8 : 0) + 8, row * 14, 6.2);
   return c;
 }
 
@@ -253,7 +287,10 @@ function uStrip(units: number): HTMLCanvasElement {
 
 /** Realistic surface parameters per role. */
 /** Realistic surfaces, matched to the site photos (`data/photos/`). */
-const PBR: Record<string, { color: string; metalness: number; roughness: number }> = {
+const PBR: Record<
+  string,
+  { color: string; metalness: number; roughness: number }
+> = {
   floor: { color: "#ffffff", metalness: 0, roughness: 0.55 },
   wall: { color: "#efefea", metalness: 0, roughness: 0.95 },
   ceiling: { color: "#f4f4f1", metalness: 0, roughness: 0.95 },
@@ -289,7 +326,11 @@ export class MaterialLibrary {
     this.theme = theme;
   }
 
-  private tex(key: string, make: () => HTMLCanvasElement, srgb = true): THREE.Texture {
+  private tex(
+    key: string,
+    make: () => HTMLCanvasElement,
+    srgb = true,
+  ): THREE.Texture {
     let t = this.textures.get(key);
     if (!t) {
       t = new THREE.CanvasTexture(make());
@@ -327,44 +368,103 @@ export class MaterialLibrary {
     return this.memo(role, () => {
       if (role === "glass")
         return this.realistic()
-          ? new THREE.MeshPhysicalMaterial({ color: "#1a1f24", metalness: 0, roughness: 0.08, transparent: true, opacity: 0.28, depthWrite: false })
-          : new THREE.MeshBasicMaterial({ color: this.theme.dark ? "#9fb3c8" : "#5f7a94", transparent: true, opacity: 0.12, depthWrite: false });
+          ? new THREE.MeshPhysicalMaterial({
+              color: "#1a1f24",
+              metalness: 0,
+              roughness: 0.08,
+              transparent: true,
+              opacity: 0.28,
+              depthWrite: false,
+            })
+          : new THREE.MeshBasicMaterial({
+              color: this.theme.dark ? "#9fb3c8" : "#5f7a94",
+              transparent: true,
+              opacity: 0.12,
+              depthWrite: false,
+            });
       if (role === "perforated") {
         const alpha = this.tex("perf", perforated, false);
         alpha.wrapS = alpha.wrapT = THREE.RepeatWrapping;
         alpha.repeat.set(20, 60);
         return this.realistic()
-          ? new THREE.MeshStandardMaterial({ color: "#1b1d22", metalness: 0.5, roughness: 0.55, alphaMap: alpha, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide })
-          : new THREE.MeshBasicMaterial({ color: this.theme.dark ? "#56606b" : "#9aa3ad", transparent: true, opacity: 0.25, depthWrite: false });
+          ? new THREE.MeshStandardMaterial({
+              color: "#1b1d22",
+              metalness: 0.5,
+              roughness: 0.55,
+              alphaMap: alpha,
+              transparent: true,
+              alphaTest: 0.3,
+              side: THREE.DoubleSide,
+            })
+          : new THREE.MeshBasicMaterial({
+              color: this.theme.dark ? "#56606b" : "#9aa3ad",
+              transparent: true,
+              opacity: 0.25,
+              depthWrite: false,
+            });
       }
       if (role === "solidDoor")
         return this.realistic()
-          ? new THREE.MeshStandardMaterial({ color: "#202328", metalness: 0.55, roughness: 0.5 })
-          : new THREE.MeshBasicMaterial({ color: this.theme.dark ? "#56606b" : "#9aa3ad", transparent: true, opacity: 0.35, depthWrite: false });
+          ? new THREE.MeshStandardMaterial({
+              color: "#202328",
+              metalness: 0.55,
+              roughness: 0.5,
+            })
+          : new THREE.MeshBasicMaterial({
+              color: this.theme.dark ? "#56606b" : "#9aa3ad",
+              transparent: true,
+              opacity: 0.35,
+              depthWrite: false,
+            });
       if (role === "deviceSide")
         return this.realistic()
-          ? new THREE.MeshStandardMaterial({ color: "#22252a", metalness: 0.5, roughness: 0.55 })
+          ? new THREE.MeshStandardMaterial({
+              color: "#22252a",
+              metalness: 0.5,
+              roughness: 0.55,
+            })
           : new THREE.MeshLambertMaterial({ color: "#3c434c" });
       if (role === "light")
-        return new THREE.MeshBasicMaterial({ color: "#fffaf0", toneMapped: false });
+        return new THREE.MeshBasicMaterial({
+          color: "#fffaf0",
+          toneMapped: false,
+        });
       if (role === "display")
-        return new THREE.MeshBasicMaterial({ color: "#5fd0ff", toneMapped: false });
+        return new THREE.MeshBasicMaterial({
+          color: "#5fd0ff",
+          toneMapped: false,
+        });
       if (role.startsWith("device:")) {
         const kind = role.slice(7) as DeviceKind;
         return this.realistic()
-          ? new THREE.MeshStandardMaterial({ color: "#1f2228", metalness: 0.3, roughness: 0.55 })
-          : new THREE.MeshLambertMaterial({ color: DEVICE_COLOR[kind] ?? "#474d56" });
+          ? new THREE.MeshStandardMaterial({
+              color: "#1f2228",
+              metalness: 0.3,
+              roughness: 0.55,
+            })
+          : new THREE.MeshLambertMaterial({
+              color: DEVICE_COLOR[kind] ?? "#474d56",
+            });
       }
       if (this.realistic() && role === "floor") {
         const t = this.tex("tiles", tiles);
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         // Floor UVs are in millimetres: one tile is 300 mm.
         t.repeat.set(1 / 300, 1 / 300);
-        return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          roughness: 0.5,
+          metalness: 0,
+          side: THREE.DoubleSide,
+        });
       }
       if (this.realistic()) {
         const p = PBR[role] ?? PBR.structure;
-        return new THREE.MeshStandardMaterial({ color: p.color, metalness: p.metalness, roughness: p.roughness });
+        return new THREE.MeshStandardMaterial({
+          color: p.color,
+          metalness: p.metalness,
+          roughness: p.roughness,
+        });
       }
       // Схема: flat fills from the theme's tokens; Lambert keeps a hint of
       // shape under the flat light rig.
@@ -376,14 +476,20 @@ export class MaterialLibrary {
             ? tk.wall
             : role === "rackFrame" || role === "rackCap" || role === "rail"
               ? tk.rackFill
-              : role === "cooling" || role === "coolingPrecision" || role === "louvre"
+              : role === "cooling" ||
+                  role === "coolingPrecision" ||
+                  role === "louvre"
                 ? tk.coolingFill
                 : role === "cellBlocked"
                   ? tk.warn
                   : role === "cell"
                     ? tk.muted
                     : tk.objectFill;
-      return new THREE.MeshLambertMaterial({ color: fill, transparent: role === "cellBlocked", opacity: role === "cellBlocked" ? 0.18 : 1 });
+      return new THREE.MeshLambertMaterial({
+        color: fill,
+        transparent: role === "cellBlocked",
+        opacity: role === "cellBlocked" ? 0.18 : 1,
+      });
     });
   }
 
@@ -391,37 +497,66 @@ export class MaterialLibrary {
   deviceFront(kind: DeviceKind, units: number, name: string): THREE.Material {
     if (!this.realistic()) return this.role(`device:${kind}`);
     return this.memo(`front|${kind}|${units}|${name}`, () => {
-      const t = this.tex(`front|${kind}|${units}|${name}`, () => deviceFront(kind, units, name));
-      return new THREE.MeshStandardMaterial({ map: t, metalness: 0.3, roughness: 0.55 });
+      const t = this.tex(`front|${kind}|${units}|${name}`, () =>
+        deviceFront(kind, units, name),
+      );
+      return new THREE.MeshStandardMaterial({
+        map: t,
+        metalness: 0.3,
+        roughness: 0.55,
+      });
     });
   }
 
   /** A shelf number plate. */
   plate(n: number): THREE.Material {
-    return this.memo(`plate|${n}`, () => new THREE.MeshBasicMaterial({ map: this.tex(`plate|${n}`, () => plate(n)) }));
+    return this.memo(
+      `plate|${n}`,
+      () =>
+        new THREE.MeshBasicMaterial({
+          map: this.tex(`plate|${n}`, () => plate(n)),
+        }),
+    );
   }
 
   /** Fluorescent tubes (Реалистичный only; lighting, not equipment). */
   tube(): THREE.Material {
-    return this.memo("tube", () => new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }));
+    return this.memo(
+      "tube",
+      () =>
+        new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
+    );
   }
 
   uStrip(units: number): THREE.Material {
-    return this.memo(`ustrip|${units}`, () => new THREE.MeshBasicMaterial({ map: this.tex(`ustrip|${units}`, () => uStrip(units)) }));
+    return this.memo(
+      `ustrip|${units}`,
+      () =>
+        new THREE.MeshBasicMaterial({
+          map: this.tex(`ustrip|${units}`, () => uStrip(units)),
+        }),
+    );
   }
 
   /** A rack tint for Заполнение / Мощность: 0 = green … 1 = red. */
   tint(f: number): THREE.Material {
     const k = Math.round(Math.min(1, Math.max(0, f)) * 20) / 20;
     return this.memo(`tint|${k}`, () => {
-      const c = new THREE.Color().setHSL((1 - k) * 0.33, 0.75, this.theme.dark ? 0.42 : 0.52);
+      const c = new THREE.Color().setHSL(
+        (1 - k) * 0.33,
+        0.75,
+        this.theme.dark ? 0.42 : 0.52,
+      );
       return new THREE.MeshLambertMaterial({ color: c });
     });
   }
 
   /** Over budget: the warning colour. */
   over(): THREE.Material {
-    return this.memo("over", () => new THREE.MeshLambertMaterial({ color: this.theme.warn }));
+    return this.memo(
+      "over",
+      () => new THREE.MeshLambertMaterial({ color: this.theme.warn }),
+    );
   }
 
   /** A wall of length `len` (mm) and thickness `t`, hatched at 45° every 60 mm. */
@@ -451,20 +586,35 @@ export class MaterialLibrary {
 
   /** Owner highlight: the chosen owner's equipment… */
   highlight(): THREE.Material {
-    return this.memo("highlight", () => new THREE.MeshBasicMaterial({ color: this.theme.accent }));
+    return this.memo(
+      "highlight",
+      () => new THREE.MeshBasicMaterial({ color: this.theme.accent }),
+    );
   }
 
   /** …and everything else, dimmed. */
   dimmed(): THREE.Material {
     return this.memo(
       "dimmed",
-      () => new THREE.MeshBasicMaterial({ color: this.theme.dark ? "#3a3c42" : "#c9c9cf", transparent: true, opacity: 0.22, depthWrite: false }),
+      () =>
+        new THREE.MeshBasicMaterial({
+          color: this.theme.dark ? "#3a3c42" : "#c9c9cf",
+          transparent: true,
+          opacity: 0.22,
+          depthWrite: false,
+        }),
     );
   }
 
   /** Known power when the room has no budget to judge it against. */
   known(): THREE.Material {
-    return this.memo("known", () => new THREE.MeshLambertMaterial({ color: this.theme.dark ? "#3d6ea8" : "#5b8fd1" }));
+    return this.memo(
+      "known",
+      () =>
+        new THREE.MeshLambertMaterial({
+          color: this.theme.dark ? "#3d6ea8" : "#5b8fd1",
+        }),
+    );
   }
 
   /** Unknown power: hatched, never a colour that reads as zero. */
@@ -479,21 +629,47 @@ export class MaterialLibrary {
 
   /** Free contiguous units in Заполнение. */
   freeRange(): THREE.Material {
-    return this.memo("free", () => new THREE.MeshBasicMaterial({ color: this.theme.good, transparent: true, opacity: 0.35, depthWrite: false }));
+    return this.memo(
+      "free",
+      () =>
+        new THREE.MeshBasicMaterial({
+          color: this.theme.good,
+          transparent: true,
+          opacity: 0.35,
+          depthWrite: false,
+        }),
+    );
   }
 
   /** Clearance zones on the floor. */
   zone(ok: boolean): THREE.Material {
-    return this.memo(`zone|${ok}`, () =>
-      new THREE.MeshBasicMaterial({ color: ok ? this.theme.good : this.theme.warn, transparent: true, opacity: ok ? 0.14 : 0.3, depthWrite: false }),
+    return this.memo(
+      `zone|${ok}`,
+      () =>
+        new THREE.MeshBasicMaterial({
+          color: ok ? this.theme.good : this.theme.warn,
+          transparent: true,
+          opacity: ok ? 0.14 : 0.3,
+          depthWrite: false,
+        }),
     );
   }
 
   line(color: string, dashed = false): THREE.LineBasicMaterial {
     return this.memo(`line|${color}|${dashed}`, () =>
       dashed
-        ? new THREE.LineDashedMaterial({ color, dashSize: 60, gapSize: 40, depthTest: false, transparent: true })
-        : new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }),
+        ? new THREE.LineDashedMaterial({
+            color,
+            dashSize: 60,
+            gapSize: 40,
+            depthTest: false,
+            transparent: true,
+          })
+        : new THREE.LineBasicMaterial({
+            color,
+            depthTest: false,
+            transparent: true,
+          }),
     ) as THREE.LineBasicMaterial;
   }
 

@@ -8,7 +8,13 @@
 import * as THREE from "three";
 
 import type { CatalogItem, DcObject, StructureProps } from "../../types";
-import { box, emptyBuilt, type BuildContext, type Built, type ObjectRenderer } from "./types";
+import {
+  box,
+  emptyBuilt,
+  type BuildContext,
+  type Built,
+  type ObjectRenderer,
+} from "./types";
 
 export const structureRenderer: ObjectRenderer = {
   build(obj: DcObject, item: CatalogItem, ctx: BuildContext): Built {
@@ -23,14 +29,18 @@ export const structureRenderer: ObjectRenderer = {
         g.add(box(ctx, "rail", 20, h, t + 20, -w / 2 + 10, 0, 0, pick));
         g.add(box(ctx, "rail", 20, h, t + 20, w / 2 - 10, 0, 0, pick));
         g.add(box(ctx, "rail", w, 20, t + 20, 0, h - 20, 0, pick));
-        const handleX = obj.instance.hinge === "high" ? -w / 2 + 90 : w / 2 - 90;
+        const handleX =
+          obj.instance.hinge === "high" ? -w / 2 + 90 : w / 2 - 90;
         g.add(box(ctx, "rail", 120, 25, t + 50, handleX, 1000, 0, pick));
         break;
       }
       case "safe": {
         g.add(box(ctx, "safe", w, h, d, 0, 0, 0, pick));
         g.add(box(ctx, "rail", w - 40, h - 40, 8, 0, 20, -d / 2 - 4, pick));
-        const dial = new THREE.Mesh(new THREE.CylinderGeometry(45, 45, 25, 24), ctx.lib.role("rail"));
+        const dial = new THREE.Mesh(
+          new THREE.CylinderGeometry(45, 45, 25, 24),
+          ctx.lib.role("rail"),
+        );
         dial.rotation.x = Math.PI / 2;
         dial.position.set(w * 0.2, h * 0.6, -d / 2 - 15);
         dial.userData.role = "rail";
@@ -43,7 +53,8 @@ export const structureRenderer: ObjectRenderer = {
         // the two doors, two handles.
         g.add(box(ctx, "locker", w, h, d, 0, 0, 0, pick));
         g.add(box(ctx, "rail", w - 20, 6, 6, 0, h / 2, -d / 2 - 3, pick));
-        for (const y of [h * 0.75, h * 0.25]) g.add(box(ctx, "rail", 30, 60, 14, w / 2 - 50, y, -d / 2 - 7, pick));
+        for (const y of [h * 0.75, h * 0.25])
+          g.add(box(ctx, "rail", 30, 60, 14, w / 2 - 50, y, -d / 2 - 7, pick));
         break;
       }
       case "window":

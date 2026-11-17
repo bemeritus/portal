@@ -11,7 +11,11 @@ describe("fuzzy", () => {
   });
 
   it("ranks word starts and runs first", () => {
-    const r = fuzzyFilter("r740", ["DELL R740", "Router 7 40", "srv-r7-40"], (s) => s);
+    const r = fuzzyFilter(
+      "r740",
+      ["DELL R740", "Router 7 40", "srv-r7-40"],
+      (s) => s,
+    );
     expect(r[0]).toBe("DELL R740");
   });
 

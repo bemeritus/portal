@@ -5,7 +5,19 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { candidates, faceAt, faceOf, measure, objectGap, pickSnap, pointToPoint, wallGap, type Box, type Snap, type Vec3 } from "./ruler";
+import {
+  candidates,
+  faceAt,
+  faceOf,
+  measure,
+  objectGap,
+  pickSnap,
+  pointToPoint,
+  wallGap,
+  type Box,
+  type Snap,
+  type Vec3,
+} from "./ruler";
 
 // The seeded room (room.json v2): 5545 × 3845 × 2410.
 const W = 3845;
@@ -25,10 +37,22 @@ const faceSnap = (box: Box, p: Vec3): Snap => {
 describe("face ⟂ face", () => {
   it("rack 1's back face to the back wall is 595 mm wherever the clicks land", () => {
     const clicks: [Vec3, Vec3][] = [
-      [[600, 300, 3250], [100, 50, W]],
-      [[1100, 2000, 3250], [5000, 2300, W]],
-      [[830, 1020, 3250.4], [2700, 900, W - 0.3]],
-      [[531, 1, 3249.8], [4400, 2400, W]],
+      [
+        [600, 300, 3250],
+        [100, 50, W],
+      ],
+      [
+        [1100, 2000, 3250],
+        [5000, 2300, W],
+      ],
+      [
+        [830, 1020, 3250.4],
+        [2700, 900, W - 0.3],
+      ],
+      [
+        [531, 1, 3249.8],
+        [4400, 2400, W],
+      ],
     ];
     for (const [a, b] of clicks) {
       const r = measure(faceSnap(r1, a), faceSnap(backWall, b));
@@ -52,7 +76,12 @@ describe("face ⟂ face", () => {
 
 describe("object gap", () => {
   it("between racks 3 and 4 is 200 mm along x", () => {
-    const rect = (b: Box) => ({ x0: b.min[0], z0: b.min[2], x1: b.max[0], z1: b.max[2] });
+    const rect = (b: Box) => ({
+      x0: b.min[0],
+      z0: b.min[2],
+      x1: b.max[0],
+      z1: b.max[2],
+    });
     const g = objectGap(rect(r3), rect(r4));
     expect(g.distance).toBe(200);
     expect(g.axis).toBe(0);
@@ -62,11 +91,16 @@ describe("object gap", () => {
   it("from an object to a wall", () => {
     const g = wallGap({ x0: 530, z0: 2250, x1: 1130, z1: 3250 }, 2, W);
     expect(g.distance).toBe(595);
-    expect(wallGap({ x0: 530, z0: 2250, x1: 1130, z1: 3250 }, 0, 0).distance).toBe(530);
+    expect(
+      wallGap({ x0: 530, z0: 2250, x1: 1130, z1: 3250 }, 0, 0).distance,
+    ).toBe(530);
   });
 
   it("is diagonal when the footprints overlap on neither axis", () => {
-    const g = objectGap({ x0: 0, z0: 0, x1: 100, z1: 100 }, { x0: 130, z0: 140, x1: 200, z1: 200 });
+    const g = objectGap(
+      { x0: 0, z0: 0, x1: 100, z1: 100 },
+      { x0: 130, z0: 140, x1: 200, z1: 200 },
+    );
     expect(g.distance).toBe(50);
     expect(g.axis).toBeNull();
   });
@@ -76,7 +110,8 @@ describe("snaps", () => {
   const project = (p: Vec3): [number, number] => [p[0] / 10, p[2] / 10]; // top view, 1 px = 10 mm
 
   // The ray hits the top face right under the cursor.
-  const at = (x: number, z: number) => pickSnap(candidates(r1, [x * 10, 2040, z * 10]), project, [x, z]).kind;
+  const at = (x: number, z: number) =>
+    pickSnap(candidates(r1, [x * 10, 2040, z * 10]), project, [x, z]).kind;
 
   it("prefers a vertex over a midpoint over an edge over the face", () => {
     expect(at(53.5, 225.5)).toBe("vertex");
@@ -96,7 +131,10 @@ describe("snaps", () => {
 describe("point to point", () => {
   const s = (p: Vec3): Snap => ({ kind: "vertex", p });
   it("drops height in a planar (top view) measurement", () => {
-    expect(pointToPoint(s([0, 0, 0]), s([300, 2000, 400]), { planar: true }).distance).toBe(500);
+    expect(
+      pointToPoint(s([0, 0, 0]), s([300, 2000, 400]), { planar: true })
+        .distance,
+    ).toBe(500);
     expect(pointToPoint(s([0, 0, 0]), s([300, 0, 400])).distance).toBe(500);
   });
   it("locks to the nearest axis with Shift", () => {

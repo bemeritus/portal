@@ -31,7 +31,10 @@ export function DcHistoryPage() {
   const [n, setN] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const list = useQuery({ queryKey: ["dc", "revisions", roomId], queryFn: ({ signal }) => dcApi.revisions(roomId, signal) });
+  const list = useQuery({
+    queryKey: ["dc", "revisions", roomId],
+    queryFn: ({ signal }) => dcApi.revisions(roomId, signal),
+  });
   const head = list.data?.[0]?.revision ?? null;
   const current = n ?? head;
   const detail = useQuery({
@@ -40,7 +43,10 @@ export function DcHistoryPage() {
     enabled: current !== null,
   });
   useEffect(() => {
-    document.title = t("docTitle", { page: t("dc.history.title"), app: t("app.name") });
+    document.title = t("docTitle", {
+      page: t("dc.history.title"),
+      app: t("app.name"),
+    });
   }, [t]);
 
   async function restore(rev: number) {
@@ -59,7 +65,10 @@ export function DcHistoryPage() {
   return (
     <>
       <p className="mb-2">
-        <Link to={`/dc/${roomId}`} className="text-sm text-link hover:underline">
+        <Link
+          to={`/dc/${roomId}`}
+          className="text-sm text-link hover:underline"
+        >
           ← {t("dc.history.back")}
         </Link>
       </p>
@@ -77,12 +86,19 @@ export function DcHistoryPage() {
               <li key={r.revision}>
                 <button
                   type="button"
-                  className={cn("w-full rounded-md border px-3 py-2 text-left text-sm hover:bg-accent", current === r.revision && "border-primary bg-accent")}
+                  className={cn(
+                    "w-full rounded-md border px-3 py-2 text-left text-sm hover:bg-accent",
+                    current === r.revision && "border-primary bg-accent",
+                  )}
                   onClick={() => setN(r.revision)}
                 >
                   <div className="font-medium">
                     {t("dc.revision", { n: r.revision })}
-                    {r.revision === head && <span className="ml-2 text-xs text-success">{t("dc.history.current")}</span>}
+                    {r.revision === head && (
+                      <span className="ml-2 text-xs text-success">
+                        {t("dc.history.current")}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {r.author_name} · {formatUtc(r.created_at)}
@@ -102,17 +118,42 @@ export function DcHistoryPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="m-0 text-lg">
-                      {t("dc.revision", { n: detail.data.revision })} — {detail.data.summary}
+                      {t("dc.revision", { n: detail.data.revision })} —{" "}
+                      {detail.data.summary}
                     </h2>
                     {canEdit && detail.data.revision !== head && (
-                      <ConfirmButton label={t("dc.history.restore")} confirmLabel={t("dc.history.restoreConfirm", { n: detail.data.revision })} onConfirm={() => void restore(detail.data!.revision)} />
+                      <ConfirmButton
+                        label={t("dc.history.restore")}
+                        confirmLabel={t("dc.history.restoreConfirm", {
+                          n: detail.data.revision,
+                        })}
+                        onConfirm={() => void restore(detail.data!.revision)}
+                      />
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{detail.data.revision === 1 ? t("dc.history.first") : t("dc.history.against", { n: detail.data.revision - 1 })}</p>
-                  {(["objects", "devices", "cells", "annotations"] as const).map((k) => (
-                    <DiffSection key={k} title={t(`dc.history.section.${k}`)} changes={detail.data!.diff[k]} />
+                  <p className="text-sm text-muted-foreground">
+                    {detail.data.revision === 1
+                      ? t("dc.history.first")
+                      : t("dc.history.against", {
+                          n: detail.data.revision - 1,
+                        })}
+                  </p>
+                  {(
+                    ["objects", "devices", "cells", "annotations"] as const
+                  ).map((k) => (
+                    <DiffSection
+                      key={k}
+                      title={t(`dc.history.section.${k}`)}
+                      changes={detail.data!.diff[k]}
+                    />
                   ))}
-                  {Object.values(detail.data.diff).every((l) => l.length === 0) && <p className="text-sm text-muted-foreground">{t("dc.history.noChanges")}</p>}
+                  {Object.values(detail.data.diff).every(
+                    (l) => l.length === 0,
+                  ) && (
+                    <p className="text-sm text-muted-foreground">
+                      {t("dc.history.noChanges")}
+                    </p>
+                  )}
                 </div>
               )
             )}
@@ -126,14 +167,30 @@ export function DcHistoryPage() {
   );
 }
 
-const show = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+const show = (v: unknown) =>
+  v === null || v === undefined || v === ""
+    ? "—"
+    : typeof v === "object"
+      ? JSON.stringify(v)
+      : String(v);
 
 function name(v: Record<string, unknown>): string {
   const p = v.payload as Record<string, unknown> | undefined;
-  return String(v.name ?? p?.name ?? p?.text ?? (v.cell_no !== undefined ? `#${v.cell_no}` : ""));
+  return String(
+    v.name ??
+      p?.name ??
+      p?.text ??
+      (v.cell_no !== undefined ? `#${v.cell_no}` : ""),
+  );
 }
 
-function DiffSection({ title, changes }: { title: string; changes: EntityChange[] }) {
+function DiffSection({
+  title,
+  changes,
+}: {
+  title: string;
+  changes: EntityChange[];
+}) {
   const { t } = useTranslation();
   if (!changes.length) return null;
   return (
@@ -144,12 +201,16 @@ function DiffSection({ title, changes }: { title: string; changes: EntityChange[
           <li key={`${c.change}-${c.key}`} className="rounded-md border p-2">
             {c.change === "added" && (
               <span className="text-success">
-                + {name(c.after)} {c.after.u_bottom !== undefined && `(U${String(c.after.u_bottom)})`}
+                + {name(c.after)}{" "}
+                {c.after.u_bottom !== undefined &&
+                  `(U${String(c.after.u_bottom)})`}
               </span>
             )}
             {c.change === "removed" && (
               <span className="text-destructive">
-                − {name(c.before)} {c.before.u_bottom !== undefined && `(U${String(c.before.u_bottom)})`}
+                − {name(c.before)}{" "}
+                {c.before.u_bottom !== undefined &&
+                  `(U${String(c.before.u_bottom)})`}
               </span>
             )}
             {c.change === "changed" && (
@@ -157,7 +218,14 @@ function DiffSection({ title, changes }: { title: string; changes: EntityChange[
                 <div className="font-medium">{c.name || c.key}</div>
                 {c.fields.map((f) => (
                   <div key={f.field} className="text-xs">
-                    {t(`dc.field.${f.field}` as never, { defaultValue: f.field })}: <span className="text-destructive line-through">{show(f.before)}</span> → <span className="text-success">{show(f.after)}</span>
+                    {t(`dc.field.${f.field}` as never, {
+                      defaultValue: f.field,
+                    })}
+                    :{" "}
+                    <span className="text-destructive line-through">
+                      {show(f.before)}
+                    </span>{" "}
+                    → <span className="text-success">{show(f.after)}</span>
                   </div>
                 ))}
               </>

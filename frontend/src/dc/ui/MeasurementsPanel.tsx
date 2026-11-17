@@ -18,14 +18,19 @@ import { measureLabel } from "./SelectionPanel";
 /** Object name → keys of assumed numbers that position or size it. */
 export function assumedByObject(data: RoomData): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  const add = (name: string, key: string) => out.set(name, [...(out.get(name) ?? []), key]);
-  for (const m of data.room.measurements.entries) if (m.src === "assumed" || m.src === "photo") for (const o of m.objects) add(o, m.key);
+  const add = (name: string, key: string) =>
+    out.set(name, [...(out.get(name) ?? []), key]);
+  for (const m of data.room.measurements.entries)
+    if (m.src === "assumed" || m.src === "photo")
+      for (const o of m.objects) add(o, m.key);
   for (const o of data.objects) {
     const item = data.catalog.find((c) => c.id === o.catalog_id);
     if (!item) continue;
-    for (const [prop, s] of Object.entries(item.props_src)) if (s.src === "assumed" || s.src === "photo") add(o.name, `item.${prop}`);
+    for (const [prop, s] of Object.entries(item.props_src))
+      if (s.src === "assumed" || s.src === "photo") add(o.name, `item.${prop}`);
     // Supply outlets not set by hand are the subtype's default (§14.1).
-    if (o.instance.supply_outlets?.some((x) => x.source === "catalog_default")) add(o.name, "item.supply_outlets");
+    if (o.instance.supply_outlets?.some((x) => x.source === "catalog_default"))
+      add(o.name, "item.supply_outlets");
   }
   return out;
 }
@@ -38,12 +43,23 @@ const SRC_STYLE: Record<MeasSrc, string> = {
   photo: "bg-tag-3/10",
 };
 
-export function MeasurementsPanel({ data, catalog, onSelect }: { data: RoomData; catalog: Map<number, CatalogItem>; onSelect: (objectId: number) => void }) {
+export function MeasurementsPanel({
+  data,
+  catalog,
+  onSelect,
+}: {
+  data: RoomData;
+  catalog: Map<number, CatalogItem>;
+  onSelect: (objectId: number) => void;
+}) {
   const { t } = useTranslation();
   const fmt = useFmt();
   const m = data.room.measurements;
   const byName = new Map(data.objects.map((o) => [o.name, o.id]));
-  const counts = m.entries.reduce<Record<string, number>>((a, e) => ({ ...a, [e.src]: (a[e.src] ?? 0) + 1 }), {});
+  const counts = m.entries.reduce<Record<string, number>>(
+    (a, e) => ({ ...a, [e.src]: (a[e.src] ?? 0) + 1 }),
+    {},
+  );
   const itemsAssumed = [...catalog.values()].flatMap((it) =>
     Object.entries(it.props_src)
       .filter(([, s]) => s.src === "assumed" || s.src === "photo")
@@ -53,8 +69,14 @@ export function MeasurementsPanel({ data, catalog, onSelect }: { data: RoomData;
   return (
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap gap-1">
-        {(["measured", "range", "derived", "assumed", "photo"] as MeasSrc[]).map((s) => (
-          <Badge key={s} variant={s === "assumed" ? "destructive" : "secondary"} title={t(`dc.src.${s}Hint`)}>
+        {(
+          ["measured", "range", "derived", "assumed", "photo"] as MeasSrc[]
+        ).map((s) => (
+          <Badge
+            key={s}
+            variant={s === "assumed" ? "destructive" : "secondary"}
+            title={t(`dc.src.${s}Hint`)}
+          >
             {t(`dc.src.${s}`)}: {counts[s] ?? 0}
           </Badge>
         ))}
@@ -70,32 +92,69 @@ export function MeasurementsPanel({ data, catalog, onSelect }: { data: RoomData;
         </thead>
         <tbody>
           {m.entries.map((e) => (
-            <tr key={e.key} className={cn("border-t align-top", SRC_STYLE[e.src])}>
+            <tr
+              key={e.key}
+              className={cn("border-t align-top", SRC_STYLE[e.src])}
+            >
               <td className="py-1 pr-2">
                 <div>{measureLabel(e.key, t)}</div>
                 {e.objects.length > 0 && (
                   <div className="flex flex-wrap gap-x-1">
                     {e.objects.map((o) => (
-                      <button key={o} type="button" className="text-link hover:underline" onClick={() => byName.has(o) && onSelect(byName.get(o)!)}>
+                      <button
+                        key={o}
+                        type="button"
+                        className="text-link hover:underline"
+                        onClick={() =>
+                          byName.has(o) && onSelect(byName.get(o)!)
+                        }
+                      >
                         {o}
                       </button>
                     ))}
                   </div>
                 )}
-                {e.note && <div className="text-muted-foreground">{e.note}</div>}
-              </td>
-              <td className="pr-2 whitespace-nowrap">
-                {e.min !== undefined && e.max !== undefined && e.min !== e.max && e.src === "range" ? fmt.range(e.min, e.max) : fmt.mm(e.value)}
-                {e.src !== "range" && e.min !== undefined && e.max !== undefined && <div className="text-muted-foreground">{t("dc.measure.read", { v: fmt.range(e.min, e.max) })}</div>}
-                {e.model !== undefined && (e.model !== e.value || isRange(e)) && (
-                  <div className={cn("text-muted-foreground", disagrees(e) && "text-destructive")}>
-                    {disagrees(e) && <span className="dc-dot" aria-hidden="true" />}
-                    {t("dc.measure.modelValue", { v: fmt.mm(e.model) })}
-                  </div>
+                {e.note && (
+                  <div className="text-muted-foreground">{e.note}</div>
                 )}
               </td>
+              <td className="pr-2 whitespace-nowrap">
+                {e.min !== undefined &&
+                e.max !== undefined &&
+                e.min !== e.max &&
+                e.src === "range"
+                  ? fmt.range(e.min, e.max)
+                  : fmt.mm(e.value)}
+                {e.src !== "range" &&
+                  e.min !== undefined &&
+                  e.max !== undefined && (
+                    <div className="text-muted-foreground">
+                      {t("dc.measure.read", { v: fmt.range(e.min, e.max) })}
+                    </div>
+                  )}
+                {e.model !== undefined &&
+                  (e.model !== e.value || isRange(e)) && (
+                    <div
+                      className={cn(
+                        "text-muted-foreground",
+                        disagrees(e) && "text-destructive",
+                      )}
+                    >
+                      {disagrees(e) && (
+                        <span className="dc-dot" aria-hidden="true" />
+                      )}
+                      {t("dc.measure.modelValue", { v: fmt.mm(e.model) })}
+                    </div>
+                  )}
+              </td>
               <td>
-                <span className={cn(e.src === "assumed" && "font-medium text-tag-3")}>{t(`dc.src.${e.src}`)}</span>
+                <span
+                  className={cn(
+                    e.src === "assumed" && "font-medium text-tag-3",
+                  )}
+                >
+                  {t(`dc.src.${e.src}`)}
+                </span>
               </td>
             </tr>
           ))}
@@ -108,7 +167,8 @@ export function MeasurementsPanel({ data, catalog, onSelect }: { data: RoomData;
           <ul className="space-y-1 text-xs">
             {itemsAssumed.map(({ it, prop, note }) => (
               <li key={`${it.id}-${prop}`}>
-                <span className="font-medium">{it.model}</span> · {t(`dc.prop.${prop}` as never, { defaultValue: prop })}
+                <span className="font-medium">{it.model}</span> ·{" "}
+                {t(`dc.prop.${prop}` as never, { defaultValue: prop })}
                 {note && <div className="text-muted-foreground">{note}</div>}
               </li>
             ))}
@@ -142,7 +202,9 @@ export function MeasurementsPanel({ data, catalog, onSelect }: { data: RoomData;
           ))}
         </ul>
       </section>
-      <p className="text-xs text-muted-foreground">{t("dc.measure.dataNote")}</p>
+      <p className="text-xs text-muted-foreground">
+        {t("dc.measure.dataNote")}
+      </p>
     </div>
   );
 }

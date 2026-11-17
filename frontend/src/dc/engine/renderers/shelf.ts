@@ -10,7 +10,12 @@ import * as THREE from "three";
 
 import type { CatalogItem, DcObject, ShelfProps } from "../../types";
 import { cellCount, cellInfo } from "../../model/geometry";
-import { box, type BuildContext, type Built, type ObjectRenderer } from "./types";
+import {
+  box,
+  type BuildContext,
+  type Built,
+  type ObjectRenderer,
+} from "./types";
 
 /** What stands in a cell: a tower case, as in the prototype. */
 const ITEM = { w: 200, h: 440, d: 460 };
@@ -34,7 +39,8 @@ export const shelfRenderer: ObjectRenderer = {
       g.add(box(ctx, "shelf", post, h, post, x, 0, -d / 2 + post / 2, pick));
       g.add(box(ctx, "shelf", post, h, post, x, 0, d / 2 - post / 2, pick));
     }
-    for (const by of p.boards_mm) g.add(box(ctx, "board", w, 20, d, 0, by - 20, 0, pick));
+    for (const by of p.boards_mm)
+      g.add(box(ctx, "board", w, 20, d, 0, by - 20, 0, pick));
 
     const blocked = new Set(ctx.blocked);
     const cells = new Map(ctx.cells.map((c) => [c.cell_no, c]));
@@ -46,7 +52,10 @@ export const shelfRenderer: ObjectRenderer = {
       // Height up to the next board, or a nominal top-board cell.
       const above = boards.find((b) => b > y);
       const ch = above ? above - y - 30 : 580;
-      const hit = new THREE.Mesh(new THREE.BoxGeometry(cellW - 10, ch, d - 10), new THREE.MeshBasicMaterial({ visible: false }));
+      const hit = new THREE.Mesh(
+        new THREE.BoxGeometry(cellW - 10, ch, d - 10),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
       hit.position.set(x, y + ch / 2, 0);
       hit.userData.pick = { type: "cell", shelfId: obj.id, cellNo: n };
       hit.userData.role = "hit";
@@ -54,7 +63,10 @@ export const shelfRenderer: ObjectRenderer = {
       g.add(hit);
       // White number plates on the front edge of plated boards (photo 02).
       if (c.plated) {
-        const pl = new THREE.Mesh(new THREE.PlaneGeometry(56, 34), ctx.lib.plate(n));
+        const pl = new THREE.Mesh(
+          new THREE.PlaneGeometry(56, 34),
+          ctx.lib.plate(n),
+        );
         pl.position.set(x, y - 10, -d / 2 - 2);
         pl.rotation.y = Math.PI;
         pl.userData.role = "plate";
@@ -67,15 +79,30 @@ export const shelfRenderer: ObjectRenderer = {
       }
       const cell = cells.get(n);
       if (cell) {
-        const m = box(ctx, "cell", ITEM.w, Math.min(ITEM.h, ch - 10), ITEM.d, x, y, -d / 2 + 40 + ITEM.d / 2, {
-          type: "cell",
-          shelfId: obj.id,
-          cellNo: n,
-        });
+        const m = box(
+          ctx,
+          "cell",
+          ITEM.w,
+          Math.min(ITEM.h, ch - 10),
+          ITEM.d,
+          x,
+          y,
+          -d / 2 + 40 + ITEM.d / 2,
+          {
+            type: "cell",
+            shelfId: obj.id,
+            cellNo: n,
+          },
+        );
         m.userData.owner = cell.owner;
         g.add(m);
       }
     }
-    return { group: g, doors: [], labelAt: new THREE.Vector3(0, h + 140, 0), leds: [] };
+    return {
+      group: g,
+      doors: [],
+      labelAt: new THREE.Vector3(0, h + 140, 0),
+      leds: [],
+    };
   },
 };

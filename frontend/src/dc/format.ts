@@ -6,12 +6,24 @@
 
 import type { TFunction } from "i18next";
 
-import { lengthInput, lengthNumber, parseLength, rangeNumber, type LengthUnit } from "./model/units";
+import {
+  lengthInput,
+  lengthNumber,
+  parseLength,
+  rangeNumber,
+  type LengthUnit,
+} from "./model/units";
 
-const LOCALE: Record<string, string> = { ru: "ru-RU", uz: "uz-Latn-UZ", en: "en-US" };
+const LOCALE: Record<string, string> = {
+  ru: "ru-RU",
+  uz: "uz-Latn-UZ",
+  en: "en-US",
+};
 
 export function numberFormat(lang: string, digits = 0): Intl.NumberFormat {
-  return new Intl.NumberFormat(LOCALE[lang.split("-")[0]] ?? "en-US", { maximumFractionDigits: digits });
+  return new Intl.NumberFormat(LOCALE[lang.split("-")[0]] ?? "en-US", {
+    maximumFractionDigits: digits,
+  });
 }
 
 export interface Fmt {
@@ -36,9 +48,14 @@ export interface Fmt {
   kg: (v: number) => string;
 }
 
-export function makeFmt(t: TFunction, lang: string, unit: LengthUnit = "mm"): Fmt {
+export function makeFmt(
+  t: TFunction,
+  lang: string,
+  unit: LengthUnit = "mm",
+): Fmt {
   const nf = numberFormat(lang);
-  const n = (v: number, digits = 0) => (digits ? numberFormat(lang, digits) : nf).format(v);
+  const n = (v: number, digits = 0) =>
+    (digits ? numberFormat(lang, digits) : nf).format(v);
   const withUnit = (v: string) => t(`dc.unit.${unit}` as "dc.unit.mm", { v });
   const len = (v: number) => lengthNumber(v, unit, lang);
   return {
@@ -51,7 +68,12 @@ export function makeFmt(t: TFunction, lang: string, unit: LengthUnit = "mm"): Fm
     unitWord: t(`dc.unitWord.${unit}` as "dc.unitWord.mm"),
     input: (v) => lengthInput(v, unit, lang),
     parse: (text) => parseLength(text, unit),
-    w: (v) => (v === null ? t("dc.unknown") : v >= 10000 ? t("dc.unit.kw", { v: n(v / 1000, 1) }) : t("dc.unit.w", { v: n(v) })),
+    w: (v) =>
+      v === null
+        ? t("dc.unknown")
+        : v >= 10000
+          ? t("dc.unit.kw", { v: n(v / 1000, 1) })
+          : t("dc.unit.w", { v: n(v) }),
     kw: (v) => t("dc.unit.kw", { v: n(v / 1000, 1) }),
     m3h: (v) => t("dc.unit.m3h", { v: n(v) }),
     kg: (v) => t("dc.unit.kg", { v: n(v, 1) }),

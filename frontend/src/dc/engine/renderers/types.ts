@@ -69,7 +69,10 @@ export function box(
   z: number,
   pick?: Pick,
 ): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w, 1), Math.max(h, 1), Math.max(d, 1)), ctx.lib.role(role));
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(Math.max(w, 1), Math.max(h, 1), Math.max(d, 1)),
+    ctx.lib.role(role),
+  );
   m.position.set(x, y + h / 2, z);
   m.userData.role = role;
   if (pick) m.userData.pick = pick;
@@ -98,5 +101,10 @@ export function plane(
 }
 
 export function emptyBuilt(group: THREE.Group, height: number): Built {
-  return { group, doors: [], labelAt: new THREE.Vector3(0, height + 120, 0), leds: [] };
+  return {
+    group,
+    doors: [],
+    labelAt: new THREE.Vector3(0, height + 120, 0),
+    leds: [],
+  };
 }

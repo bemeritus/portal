@@ -16,15 +16,29 @@ import type { Problem } from "../model/geometry";
 import { disagrees, isRange } from "../model/measure";
 import type { Vec3 } from "../model/ruler";
 import { useFmt } from "../settings";
-import type { CapacityCandidate, CatalogItem, Clearance, Op, RoomData, ViewPayload } from "../types";
+import type {
+  CapacityCandidate,
+  CatalogItem,
+  Clearance,
+  Op,
+  RoomData,
+  ViewPayload,
+} from "../types";
 import { CapacityPanel, type CapacityRequest } from "./CapacityPanel";
 import { MeasurementsPanel, assumedByObject } from "./MeasurementsPanel";
 import { RulerPanel } from "./RulerPanel";
 import { measureLabel, SelectionPanel, type Prefill } from "./SelectionPanel";
 import { ViewsPanel } from "./ViewsPanel";
 
-export type InspectorTab = "object" | "capacity" | "measure" | "views" | "ruler";
-const TABS: InspectorTab[] = ["object", "capacity", "measure", "views", "ruler"];
+export type InspectorTab =
+  "object" | "capacity" | "measure" | "views" | "ruler";
+const TABS: InspectorTab[] = [
+  "object",
+  "capacity",
+  "measure",
+  "views",
+  "ruler",
+];
 
 export interface RulerProps {
   mode: RulerMode;
@@ -64,33 +78,74 @@ export function Inspector(p: Props) {
   const { t } = useTranslation();
   const fmt = useFmt();
   const { data, catalog, selection } = p;
-  const objId = selection ? (selection.type === "object" ? selection.id : selection.type === "device" ? selection.rackId : selection.shelfId) : null;
-  const obj = objId !== null ? data.objects.find((o) => o.id === objId) : undefined;
+  const objId = selection
+    ? selection.type === "object"
+      ? selection.id
+      : selection.type === "device"
+        ? selection.rackId
+        : selection.shelfId
+    : null;
+  const obj =
+    objId !== null ? data.objects.find((o) => o.id === objId) : undefined;
   const item = obj ? catalog.get(obj.catalog_id) : undefined;
   const assumed = assumedByObject(data).size;
 
   const title = p.tab === "object" && obj ? obj.name : t(`dc.tab.${p.tab}`);
-  const subtitle = p.tab === "object" && item ? `${t(`dc.kind.${item.kind}`)} · ${item.model}` : p.tab === "object" ? data.room.name : null;
+  const subtitle =
+    p.tab === "object" && item
+      ? `${t(`dc.kind.${item.kind}`)} · ${item.model}`
+      : p.tab === "object"
+        ? data.room.name
+        : null;
 
-  const stats = item?.kind === "rack" && obj ? rackStats(data.devices.filter((d) => d.rack_id === obj.id), item.props.units, obj.contents_known) : null;
-  const dims = obj ? data.room.measurements.entries.filter((m) => m.objects.includes(obj.name) && m.line) : [];
+  const stats =
+    item?.kind === "rack" && obj
+      ? rackStats(
+          data.devices.filter((d) => d.rack_id === obj.id),
+          item.props.units,
+          obj.contents_known,
+        )
+      : null;
+  const dims = obj
+    ? data.room.measurements.entries.filter(
+        (m) => m.objects.includes(obj.name) && m.line,
+      )
+    : [];
 
   return (
-    <aside className="dc-inspector dc-panel" data-docked={p.docked} aria-label={t("dc.inspector.label")}>
+    <aside
+      className="dc-inspector dc-panel"
+      data-docked={p.docked}
+      aria-label={t("dc.inspector.label")}
+    >
       <div className="dc-insp-head">
         <h2 className="dc-heading">
           {title}
           {subtitle && <small>{subtitle}</small>}
         </h2>
-        <button type="button" className="dc-icon-btn" aria-label={t("common.close")} title={t("common.close")} onClick={p.onClose}>
+        <button
+          type="button"
+          className="dc-icon-btn"
+          aria-label={t("common.close")}
+          title={t("common.close")}
+          onClick={p.onClose}
+        >
           <X className="size-4" />
         </button>
       </div>
       <div className="dc-tabs" role="tablist">
         {TABS.map((tab) => (
-          <button key={tab} type="button" role="tab" aria-selected={p.tab === tab} onClick={() => p.onTab(tab)}>
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={p.tab === tab}
+            onClick={() => p.onTab(tab)}
+          >
             {t(`dc.tab.${tab}`)}
-            {tab === "measure" && assumed > 0 && <span className="badge">{assumed}</span>}
+            {tab === "measure" && assumed > 0 && (
+              <span className="badge">{assumed}</span>
+            )}
           </button>
         ))}
       </div>
@@ -101,16 +156,28 @@ export function Inspector(p: Props) {
               <>
                 <div className="dc-kpis">
                   <div className="dc-kpi">
-                    <b className="dc-num">{stats.known ? `${stats.used}/${stats.units}` : "—"}</b>
+                    <b className="dc-num">
+                      {stats.known ? `${stats.used}/${stats.units}` : "—"}
+                    </b>
                     <span>{t("dc.inspector.unitsUsed")}</span>
                   </div>
                   <div className="dc-kpi">
-                    <b className="dc-num">{stats.known ? stats.units - stats.used : "—"}</b>
+                    <b className="dc-num">
+                      {stats.known ? stats.units - stats.used : "—"}
+                    </b>
                     <span>{t("dc.inspector.unitsFree")}</span>
                   </div>
                   <div className="dc-kpi">
-                    <b className="dc-num">{stats.known ? fmt.kw(stats.powerW) : "—"}</b>
-                    <span>{stats.unknownPower > 0 ? t("dc.inspector.powerPartial", { n: stats.unknownPower }) : t("dc.inspector.power")}</span>
+                    <b className="dc-num">
+                      {stats.known ? fmt.kw(stats.powerW) : "—"}
+                    </b>
+                    <span>
+                      {stats.unknownPower > 0
+                        ? t("dc.inspector.powerPartial", {
+                            n: stats.unknownPower,
+                          })
+                        : t("dc.inspector.power")}
+                    </span>
                   </div>
                   <div className="dc-kpi">
                     <b className="dc-num">{stats.known ? stats.count : "—"}</b>
@@ -118,10 +185,17 @@ export function Inspector(p: Props) {
                   </div>
                 </div>
                 <div className="dc-actions">
-                  <Link className="dc-btn dc-btn-primary grid place-items-center" to={`/dc/${data.room.id}/racks#obj-${obj.id}`}>
+                  <Link
+                    className="dc-btn dc-btn-primary grid place-items-center"
+                    to={`/dc/${data.room.id}/racks#obj-${obj.id}`}
+                  >
                     {t("dc.inspector.openRack")}
                   </Link>
-                  <button type="button" className="dc-btn" onClick={p.onFindSpace}>
+                  <button
+                    type="button"
+                    className="dc-btn"
+                    onClick={p.onFindSpace}
+                  >
                     {t("dc.inspector.findSpace")}
                   </button>
                 </div>
@@ -134,9 +208,18 @@ export function Inspector(p: Props) {
                   {dims.map((m) => (
                     <div key={m.key} title={m.note}>
                       <span>{measureLabel(m.key, t)}</span>
-                      <span className="dc-num">{isRange(m) ? fmt.range(m.min!, m.max!) : fmt.mm(m.value)}</span>
+                      <span className="dc-num">
+                        {isRange(m)
+                          ? fmt.range(m.min!, m.max!)
+                          : fmt.mm(m.value)}
+                      </span>
                       {disagrees(m) && m.model != null && (
-                        <span className="dc-model" title={t("dc.measure.modelValue", { v: fmt.mm(m.model) })}>
+                        <span
+                          className="dc-model"
+                          title={t("dc.measure.modelValue", {
+                            v: fmt.mm(m.model),
+                          })}
+                        >
                           <span className="dc-dot" aria-hidden="true" />
                           {fmt.mm(m.model)}
                         </span>
@@ -165,17 +248,34 @@ export function Inspector(p: Props) {
         )}
         {p.tab === "capacity" && (
           <div className="mt-3">
-            <CapacityPanel roomId={data.room.id} revision={data.room.revision} canEdit={p.canEdit} initial={p.capacity} onPick={p.onCapacityPick} />
+            <CapacityPanel
+              roomId={data.room.id}
+              revision={data.room.revision}
+              canEdit={p.canEdit}
+              initial={p.capacity}
+              onPick={p.onCapacityPick}
+            />
           </div>
         )}
         {p.tab === "measure" && (
           <div className="mt-3">
-            <MeasurementsPanel data={data} catalog={catalog} onSelect={(id) => p.onSelect({ type: "object", id })} />
+            <MeasurementsPanel
+              data={data}
+              catalog={catalog}
+              onSelect={(id) => p.onSelect({ type: "object", id })}
+            />
           </div>
         )}
         {p.tab === "views" && (
           <div className="mt-3">
-            <ViewsPanel data={data} canEdit={p.canEdit} run={p.run} saveView={p.saveView} openView={p.openView} copyLink={p.copyLink} />
+            <ViewsPanel
+              data={data}
+              canEdit={p.canEdit}
+              run={p.run}
+              saveView={p.saveView}
+              openView={p.openView}
+              copyLink={p.copyLink}
+            />
           </div>
         )}
         {p.tab === "ruler" && (

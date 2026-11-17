@@ -142,8 +142,8 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
     dim: "#0a64c2",
     radius: 14,
     shadow: "0 10px 30px rgba(0, 0, 0, 0.12)",
-    fontUi: 'Onest, system-ui, sans-serif',
-    fontHeading: 'Onest, system-ui, sans-serif',
+    fontUi: "Onest, system-ui, sans-serif",
+    fontHeading: "Onest, system-ui, sans-serif",
     headingUpper: false,
     fontMono: MONO,
     floor: "#dcdce2",
@@ -179,12 +179,14 @@ export function applyTokens(el: HTMLElement, t: DcTokens) {
     "font-mono": t.fontMono,
     "heading-transform": t.headingUpper ? "uppercase" : "none",
   };
-  for (const [k, val] of Object.entries(v)) el.style.setProperty(`--dc-${k}`, val);
+  for (const [k, val] of Object.entries(v))
+    el.style.setProperty(`--dc-${k}`, val);
   el.dataset.dcTheme = t.name;
 }
 
 /** Undo `applyTokens` (leaving the module). */
 export function clearTokens(el: HTMLElement) {
-  for (const name of [...el.style].filter((n) => n.startsWith("--dc-"))) el.style.removeProperty(name);
+  for (const name of [...el.style].filter((n) => n.startsWith("--dc-")))
+    el.style.removeProperty(name);
   delete el.dataset.dcTheme;
 }

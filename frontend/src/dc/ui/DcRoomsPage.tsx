@@ -15,7 +15,10 @@ import { dcApi } from "../api";
 
 export function DcRoomsPage() {
   const { t } = useTranslation();
-  const rooms = useQuery({ queryKey: ["dc", "rooms"], queryFn: ({ signal }) => dcApi.rooms(signal) });
+  const rooms = useQuery({
+    queryKey: ["dc", "rooms"],
+    queryFn: ({ signal }) => dcApi.rooms(signal),
+  });
   useEffect(() => {
     document.title = t("docTitle", { page: t("dc.title"), app: t("app.name") });
   }, [t]);
@@ -38,10 +41,14 @@ export function DcRoomsPage() {
                   <div>
                     <div className="font-semibold">{r.name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {t("dc.roomStats", { racks: r.rack_count, devices: r.device_count })}
+                      {t("dc.roomStats", {
+                        racks: r.rack_count,
+                        devices: r.device_count,
+                      })}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {t("dc.revision", { n: r.revision })} · {formatDate(r.updated_at)}
+                      {t("dc.revision", { n: r.revision })} ·{" "}
+                      {formatDate(r.updated_at)}
                     </div>
                   </div>
                 </CardContent>
@@ -51,7 +58,10 @@ export function DcRoomsPage() {
         </div>
       )}
       <p className="mt-6">
-        <Link to="/dc/catalog" className="inline-flex items-center gap-2 text-link hover:underline">
+        <Link
+          to="/dc/catalog"
+          className="inline-flex items-center gap-2 text-link hover:underline"
+        >
           <Library className="size-4" />
           {t("dc.catalog.title")}
         </Link>

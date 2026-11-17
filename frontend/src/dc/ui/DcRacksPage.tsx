@@ -26,13 +26,22 @@ export function DcRacksPage() {
   const changes = useChanges(roomId, data);
   const [selection, setSelection] = useState<SelRef>(null);
   const [error, setError] = useState<string | null>(null);
-  const catalog = useMemo(() => new Map<number, CatalogItem>((data?.catalog ?? []).map((c) => [c.id, c])), [data]);
-  const racks = (data?.objects ?? []).filter((o) => catalog.get(o.catalog_id)?.kind === "rack").sort((a, b) => a.x0_mm - b.x0_mm);
+  const catalog = useMemo(
+    () =>
+      new Map<number, CatalogItem>((data?.catalog ?? []).map((c) => [c.id, c])),
+    [data],
+  );
+  const racks = (data?.objects ?? [])
+    .filter((o) => catalog.get(o.catalog_id)?.kind === "rack")
+    .sort((a, b) => a.x0_mm - b.x0_mm);
 
   useEffect(() => {
     if (!data) return;
     const id = window.location.hash.slice(1);
-    if (id) document.getElementById(id)?.scrollIntoView({ inline: "center", block: "nearest" });
+    if (id)
+      document
+        .getElementById(id)
+        ?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [data]);
 
   const run = useCallback(

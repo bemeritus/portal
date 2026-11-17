@@ -39,12 +39,19 @@ function appIsDark(): boolean {
 
 export function DcSettingsProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["dc", "settings"], queryFn: ({ signal }) => dcApi.settings(signal), staleTime: Infinity });
+  const q = useQuery({
+    queryKey: ["dc", "settings"],
+    queryFn: ({ signal }) => dcApi.settings(signal),
+    staleTime: Infinity,
+  });
   const save = useMutation({
     mutationFn: (body: Partial<DcSettings>) => dcApi.setSettings(body),
     onMutate: (body) => {
       // Apply at once; the server's answer replaces it.
-      qc.setQueryData<DcSettings>(["dc", "settings"], (old) => ({ ...(old ?? DEFAULTS), ...body }));
+      qc.setQueryData<DcSettings>(["dc", "settings"], (old) => ({
+        ...(old ?? DEFAULTS),
+        ...body,
+      }));
     },
     onSuccess: (s) => qc.setQueryData(["dc", "settings"], s),
     onError: () => qc.invalidateQueries({ queryKey: ["dc", "settings"] }),
@@ -62,7 +69,11 @@ export function DcSettingsProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [settings],
   );
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+  return (
+    <SettingsContext.Provider value={value}>
+      {children}
+    </SettingsContext.Provider>
+  );
 }
 
 export function useDcSettings(): Ctx {
@@ -75,5 +86,8 @@ export function useDcSettings(): Ctx {
 export function useFmt(): Fmt {
   const { t, i18n } = useTranslation();
   const { unit } = useDcSettings();
-  return useMemo(() => makeFmt(t, i18n.language, unit), [t, i18n.language, unit]);
+  return useMemo(
+    () => makeFmt(t, i18n.language, unit),
+    [t, i18n.language, unit],
+  );
 }

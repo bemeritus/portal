@@ -25,7 +25,10 @@ const KIND_RX: [DeviceKind, RegExp][] = [
   ["blank", /(заглушк|blank)/i],
   ["storage", /(схд|storage|nas|jbod|полка|synology|qnap|netapp)/i],
   ["router", /(маршрутизатор|router|роутер|mikrotik|ccr|juniper mx|asr)/i],
-  ["switch", /(коммутатор|switch|свитч|catalyst|nexus|arista|huawei s\d|qfx|crs\d)/i],
+  [
+    "switch",
+    /(коммутатор|switch|свитч|catalyst|nexus|arista|huawei s\d|qfx|crs\d)/i,
+  ],
 ];
 
 /** A kind from the name; a server when nothing matches. */
@@ -71,7 +74,10 @@ export interface TextError {
   names?: [string, string];
 }
 
-export function parseDevices(text: string, units: number): { devices: ParsedDevice[]; errors: TextError[] } {
+export function parseDevices(
+  text: string,
+  units: number,
+): { devices: ParsedDevice[]; errors: TextError[] } {
   const devices: ParsedDevice[] = [];
   const errors: TextError[] = [];
   text.split("\n").forEach((raw, i) => {
@@ -96,7 +102,16 @@ export function parseDevices(text: string, units: number): { devices: ParsedDevi
       errors.push({ line, code: "emptyName" });
       return;
     }
-    const dev: ParsedDevice = { line, u_bottom: a, u_height: b - a + 1, name, kind: guessKind(name), power_w: null, owner: "", note: "" };
+    const dev: ParsedDevice = {
+      line,
+      u_bottom: a,
+      u_height: b - a + 1,
+      name,
+      kind: guessKind(name),
+      power_w: null,
+      owner: "",
+      note: "",
+    };
     const addNote = (t: string) => {
       if (t) dev.note = dev.note ? `${dev.note} | ${t}` : t;
     };
@@ -107,7 +122,10 @@ export function parseDevices(text: string, units: number): { devices: ParsedDevi
       if (pm) {
         const v = parseFloat(pm[1].replace(",", "."));
         dev.power_w = Math.round(v * (/^(квт|kw)$/i.test(pm[2]) ? 1000 : 1));
-      } else if (km && (DEVICE_KINDS as string[]).includes(km[1].toLowerCase())) {
+      } else if (
+        km &&
+        (DEVICE_KINDS as string[]).includes(km[1].toLowerCase())
+      ) {
         dev.kind = km[1].toLowerCase() as DeviceKind;
       } else if (nm) {
         addNote(nm[1].trim());
@@ -123,13 +141,22 @@ export function parseDevices(text: string, units: number): { devices: ParsedDevi
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
     if (sorted[i].u_bottom < prev.u_bottom + prev.u_height)
-      errors.push({ line: sorted[i].line, code: "overlap", names: [prev.name, sorted[i].name] });
+      errors.push({
+        line: sorted[i].line,
+        code: "overlap",
+        names: [prev.name, sorted[i].name],
+      });
   }
   return { devices, errors };
 }
 
 /** The inverse of [`parseDevices`] for one face's devices, top unit first. */
-export function devicesToText(devices: Pick<DeviceFields, "u_bottom" | "u_height" | "name" | "kind" | "power_w" | "owner" | "note">[]): string {
+export function devicesToText(
+  devices: Pick<
+    DeviceFields,
+    "u_bottom" | "u_height" | "name" | "kind" | "power_w" | "owner" | "note"
+  >[],
+): string {
   return [...devices]
     .sort((a, b) => b.u_bottom - a.u_bottom)
     .map((d) => {
@@ -144,13 +171,25 @@ export function devicesToText(devices: Pick<DeviceFields, "u_bottom" | "u_height
     .join("\n");
 }
 
-export const facesConflict = (a: Face, b: Face) => a === "both" || b === "both" || a === b;
+export const facesConflict = (a: Face, b: Face) =>
+  a === "both" || b === "both" || a === b;
 
 /** Is `u..u+n-1` free on `face`, ignoring device `skip`? */
-export function unitsFree(devices: Device[], units: number, u: number, n: number, face: Face, skip?: number): boolean {
+export function unitsFree(
+  devices: Device[],
+  units: number,
+  u: number,
+  n: number,
+  face: Face,
+  skip?: number,
+): boolean {
   if (u < 1 || u + n - 1 > units) return false;
   return !devices.some(
-    (d) => d.id !== skip && facesConflict(d.face, face) && u < d.u_bottom + d.u_height && d.u_bottom < u + n,
+    (d) =>
+      d.id !== skip &&
+      facesConflict(d.face, face) &&
+      u < d.u_bottom + d.u_height &&
+      d.u_bottom < u + n,
   );
 }
 
@@ -166,7 +205,11 @@ export interface RackStats {
   known: boolean;
 }
 
-export function rackStats(devices: Device[], units: number, contentsKnown: boolean): RackStats {
+export function rackStats(
+  devices: Device[],
+  units: number,
+  contentsKnown: boolean,
+): RackStats {
   const taken = new Set<number>();
   let powerW = 0,
     unknownPower = 0;
@@ -175,15 +218,31 @@ export function rackStats(devices: Device[], units: number, contentsKnown: boole
     if (d.power_w === null) unknownPower++;
     else powerW += d.power_w;
   }
-  return { units, used: taken.size, powerW, unknownPower, count: devices.length, known: contentsKnown };
+  return {
+    units,
+    used: taken.size,
+    powerW,
+    unknownPower,
+    count: devices.length,
+    known: contentsKnown,
+  };
 }
 
 /** Maximal free runs on a face, bottom first — for the fill mode's highlight. */
-export function freeRuns(devices: Device[], units: number, face: Face): { from: number; to: number }[] {
+export function freeRuns(
+  devices: Device[],
+  units: number,
+  face: Face,
+): { from: number; to: number }[] {
   const out: { from: number; to: number }[] = [];
   let start: number | null = null;
   for (let u = 1; u <= units; u++) {
-    const busy = devices.some((d) => facesConflict(d.face, face) && u >= d.u_bottom && u < d.u_bottom + d.u_height);
+    const busy = devices.some(
+      (d) =>
+        facesConflict(d.face, face) &&
+        u >= d.u_bottom &&
+        u < d.u_bottom + d.u_height,
+    );
     if (!busy && start === null) start = u;
     if (busy && start !== null) {
       out.push({ from: start, to: u - 1 });

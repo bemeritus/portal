@@ -40,12 +40,30 @@ function standIn(item: CatalogItem): DcObject {
 }
 
 function build(item: CatalogItem, lib: MaterialLibrary): THREE.Group {
-  const dims: [number, number, number] = [item.width_mm, Math.max(item.depth_mm, 40), item.height_mm];
-  const ctx: BuildContext = { lib, mode: "realistic", devices: [], cells: [], blocked: [], dims, ceilingAbove: 0 };
+  const dims: [number, number, number] = [
+    item.width_mm,
+    Math.max(item.depth_mm, 40),
+    item.height_mm,
+  ];
+  const ctx: BuildContext = {
+    lib,
+    mode: "realistic",
+    devices: [],
+    cells: [],
+    blocked: [],
+    dims,
+    ceilingAbove: 0,
+  };
   const g = RENDERERS[item.kind].build(standIn(item), item, ctx).group;
   g.traverse((o) => {
     const m = o as THREE.Mesh;
-    if (m.isMesh && m.userData.role && !m.userData.fixedMaterial && !m.userData.device) m.material = lib.role(m.userData.role);
+    if (
+      m.isMesh &&
+      m.userData.role &&
+      !m.userData.fixedMaterial &&
+      !m.userData.device
+    )
+      m.material = lib.role(m.userData.role);
   });
   return g;
 }
@@ -59,12 +77,20 @@ function lights(scene: THREE.Scene) {
 
 // --- Thumbnails ------------------------------------------------------------------
 
-let shared: { renderer: THREE.WebGLRenderer; lib: MaterialLibrary; env: THREE.Texture } | null = null;
+let shared: {
+  renderer: THREE.WebGLRenderer;
+  lib: MaterialLibrary;
+  env: THREE.Texture;
+} | null = null;
 const cache = new Map<string, string>();
 
 function sharedRenderer() {
   if (!shared) {
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true,
+    });
     renderer.setSize(320, 240, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const theme = themeFromTokens(TOKENS.light);
@@ -95,7 +121,13 @@ export function thumbnail(item: CatalogItem): string {
   const r = Math.max(size.x, size.y, size.z) * 0.62;
   const cam = new THREE.PerspectiveCamera(30, 320 / 240, 10, 100000);
   // Front is −z: look from front-left, a little above.
-  cam.position.copy(centre).add(new THREE.Vector3(-0.75, 0.55, -1).normalize().multiplyScalar(r / Math.tan((15 * Math.PI) / 180)));
+  cam.position
+    .copy(centre)
+    .add(
+      new THREE.Vector3(-0.75, 0.55, -1)
+        .normalize()
+        .multiplyScalar(r / Math.tan((15 * Math.PI) / 180)),
+    );
   cam.lookAt(centre);
   renderer.setClearColor(0x000000, 0);
   renderer.render(scene, cam);
@@ -122,10 +154,17 @@ export class ItemPreview {
   private controls: OrbitControls;
   private labels: Labels;
   private lib: MaterialLibrary;
-  private arrows: { mesh: THREE.Object3D; from: THREE.Vector3; dir: THREE.Vector3; len: number }[] = [];
+  private arrows: {
+    mesh: THREE.Object3D;
+    from: THREE.Vector3;
+    dir: THREE.Vector3;
+    len: number;
+  }[] = [];
   private raf = 0;
   private ro: ResizeObserver;
-  private readonly reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  private readonly reduced =
+    typeof matchMedia !== "undefined" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   constructor(
     private host: HTMLElement,
@@ -157,7 +196,14 @@ export class ItemPreview {
       const w = item.width_mm,
         h = item.height_mm,
         d = Math.max(item.depth_mm, 40);
-      g.position.set(x + w / 2, item.kind === "cooling" && (item.props as CoolingProps).subtype === "split_cassette" ? 2400 - h : 0, 0);
+      g.position.set(
+        x + w / 2,
+        item.kind === "cooling" &&
+          (item.props as CoolingProps).subtype === "split_cassette"
+          ? 2400 - h
+          : 0,
+        0,
+      );
       this.scene.add(g);
       this.dimensions(g.position, w, d, h, text, theme.dim, `${item.id}`);
       if (item.kind === "cooling") this.airflow(item, g.position, text);
@@ -167,16 +213,32 @@ export class ItemPreview {
     const rackW = 600,
       rackD = 1000,
       rackH = 2040;
-    const rack = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(rackW, rackH, rackD)), new THREE.LineBasicMaterial({ color: theme.inkMuted }));
+    const rack = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(rackW, rackH, rackD)),
+      new THREE.LineBasicMaterial({ color: theme.inkMuted }),
+    );
     rack.position.set(x + rackW / 2, rackH / 2, 0);
     this.scene.add(rack);
-    this.labels.set(`ref:rack`, text.rack, new THREE.Vector3(x + rackW / 2, rackH + 120, 0), { kind: "dim", always: true, priority: 3 });
+    this.labels.set(
+      `ref:rack`,
+      text.rack,
+      new THREE.Vector3(x + rackW / 2, rackH + 120, 0),
+      { kind: "dim", always: true, priority: 3 },
+    );
     x += rackW + gap;
     this.scene.add(this.figure(x + 250, theme.inkMuted));
-    this.labels.set(`ref:person`, text.person, new THREE.Vector3(x + 250, 1880, 0), { kind: "dim", always: true, priority: 3 });
+    this.labels.set(
+      `ref:person`,
+      text.person,
+      new THREE.Vector3(x + 250, 1880, 0),
+      { kind: "dim", always: true, priority: 3 },
+    );
     x += 500;
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(x + 4000, 6000), new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.9 }));
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(x + 4000, 6000),
+      new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.9 }),
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(x / 2, -1, 0);
     this.scene.add(floor);
@@ -191,19 +253,47 @@ export class ItemPreview {
     this.loop();
   }
 
-  private dimensions(at: THREE.Vector3, w: number, d: number, h: number, text: PreviewText, color: string, key: string) {
-    const mat = new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true });
-    const add = (a: THREE.Vector3, b: THREE.Vector3, label: string, k: string) => {
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), mat);
+  private dimensions(
+    at: THREE.Vector3,
+    w: number,
+    d: number,
+    h: number,
+    text: PreviewText,
+    color: string,
+    key: string,
+  ) {
+    const mat = new THREE.LineBasicMaterial({
+      color,
+      depthTest: false,
+      transparent: true,
+    });
+    const add = (
+      a: THREE.Vector3,
+      b: THREE.Vector3,
+      label: string,
+      k: string,
+    ) => {
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([a, b]),
+        mat,
+      );
       line.renderOrder = 999;
       this.scene.add(line);
       for (const p of [a, b]) {
-        const tick = new THREE.Mesh(new THREE.SphereGeometry(12, 8, 6), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+        const tick = new THREE.Mesh(
+          new THREE.SphereGeometry(12, 8, 6),
+          new THREE.MeshBasicMaterial({ color, depthTest: false }),
+        );
         tick.position.copy(p);
         tick.renderOrder = 999;
         this.scene.add(tick);
       }
-      this.labels.set(`dim:${key}:${k}`, label, a.clone().add(b).multiplyScalar(0.5), { kind: "dim", always: true, priority: 9 });
+      this.labels.set(
+        `dim:${key}:${k}`,
+        label,
+        a.clone().add(b).multiplyScalar(0.5),
+        { kind: "dim", always: true, priority: 9 },
+      );
     };
     const x0 = at.x - w / 2,
       x1 = at.x + w / 2,
@@ -211,31 +301,71 @@ export class ItemPreview {
       z1 = d / 2,
       y0 = at.y,
       y1 = at.y + h;
-    add(new THREE.Vector3(x0, y0, z0 - 150), new THREE.Vector3(x1, y0, z0 - 150), text.mm(w), "w");
-    add(new THREE.Vector3(x1 + 150, y0, z0), new THREE.Vector3(x1 + 150, y0, z1), text.mm(d), "d");
-    add(new THREE.Vector3(x0 - 150, y0, z0), new THREE.Vector3(x0 - 150, y1, z0), text.mm(h), "h");
+    add(
+      new THREE.Vector3(x0, y0, z0 - 150),
+      new THREE.Vector3(x1, y0, z0 - 150),
+      text.mm(w),
+      "w",
+    );
+    add(
+      new THREE.Vector3(x1 + 150, y0, z0),
+      new THREE.Vector3(x1 + 150, y0, z1),
+      text.mm(d),
+      "d",
+    );
+    add(
+      new THREE.Vector3(x0 - 150, y0, z0),
+      new THREE.Vector3(x0 - 150, y1, z0),
+      text.mm(h),
+      "h",
+    );
   }
 
   private airflow(item: CatalogItem, at: THREE.Vector3, text: PreviewText) {
     const p = item.props as CoolingProps;
-    const dims: [number, number, number] = [item.width_mm, item.depth_mm, item.height_mm];
+    const dims: [number, number, number] = [
+      item.width_mm,
+      item.depth_mm,
+      item.height_mm,
+    ];
     for (const o of openings(p.subtype, dims, p.discharge_options[0] ?? null)) {
       const color = o.role === "supply" ? 0x3d8bff : 0xff5a4d;
       const len = 500;
       for (let k = 0; k < 3; k++) {
-        const arrow = new THREE.ArrowHelper(o.dir, new THREE.Vector3(), len * 0.6, color, 120, 70);
-        const from = at.clone().add(o.at).add(new THREE.Vector3((k - 1) * o.size[0] * 0.3, 0, 0));
+        const arrow = new THREE.ArrowHelper(
+          o.dir,
+          new THREE.Vector3(),
+          len * 0.6,
+          color,
+          120,
+          70,
+        );
+        const from = at
+          .clone()
+          .add(o.at)
+          .add(new THREE.Vector3((k - 1) * o.size[0] * 0.3, 0, 0));
         // Return arrows arrive at the opening; supply arrows leave it.
-        const start = o.role === "return" ? from.clone().addScaledVector(o.dir, -len) : from;
+        const start =
+          o.role === "return"
+            ? from.clone().addScaledVector(o.dir, -len)
+            : from;
         arrow.position.copy(start);
         this.scene.add(arrow);
         this.arrows.push({ mesh: arrow, from: start, dir: o.dir.clone(), len });
       }
-      this.labels.set(`air:${item.id}:${o.role}:${o.at.x}:${o.at.y}:${o.at.z}`, o.role === "supply" ? text.supply : text.ret, at.clone().add(o.at).addScaledVector(o.dir, o.role === "supply" ? len : -len), {
-        kind: "note",
-        always: true,
-        priority: 4,
-      });
+      this.labels.set(
+        `air:${item.id}:${o.role}:${o.at.x}:${o.at.y}:${o.at.z}`,
+        o.role === "supply" ? text.supply : text.ret,
+        at
+          .clone()
+          .add(o.at)
+          .addScaledVector(o.dir, o.role === "supply" ? len : -len),
+        {
+          kind: "note",
+          always: true,
+          priority: 4,
+        },
+      );
     }
   }
 
@@ -245,11 +375,43 @@ export class ItemPreview {
       g = new THREE.Group();
     const mat = new THREE.LineBasicMaterial({ color });
     const head = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(Array.from({ length: 25 }, (_, i) => new THREE.Vector3(Math.cos((i / 24) * Math.PI * 2) * 110, h - 110 + Math.sin((i / 24) * Math.PI * 2) * 110, 0))),
+      new THREE.BufferGeometry().setFromPoints(
+        Array.from(
+          { length: 25 },
+          (_, i) =>
+            new THREE.Vector3(
+              Math.cos((i / 24) * Math.PI * 2) * 110,
+              h - 110 + Math.sin((i / 24) * Math.PI * 2) * 110,
+              0,
+            ),
+        ),
+      ),
       mat,
     );
-    const seg = (pts: number[][]) => new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(([a, b]) => new THREE.Vector3(a, b, 0))), mat);
-    g.add(head, seg([[0, h - 220], [0, 850]]), seg([[-250, 1150], [0, h - 380], [250, 1150]]), seg([[-180, 0], [0, 850], [180, 0]]));
+    const seg = (pts: number[][]) =>
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(
+          pts.map(([a, b]) => new THREE.Vector3(a, b, 0)),
+        ),
+        mat,
+      );
+    g.add(
+      head,
+      seg([
+        [0, h - 220],
+        [0, 850],
+      ]),
+      seg([
+        [-250, 1150],
+        [0, h - 380],
+        [250, 1150],
+      ]),
+      seg([
+        [-180, 0],
+        [0, 850],
+        [180, 0],
+      ]),
+    );
     g.position.set(x, 0, 0);
     return g;
   }
@@ -269,7 +431,11 @@ export class ItemPreview {
       // Distance at which the span fits the width, with a margin.
       const half = Math.tan((this.cam.fov * Math.PI) / 360);
       const dist = (this.span / 2 / (half * this.cam.aspect)) * 1.25;
-      this.cam.position.set(this.centreX + dist * 0.25, dist * 0.45 + 900, -dist);
+      this.cam.position.set(
+        this.centreX + dist * 0.25,
+        dist * 0.45 + 900,
+        -dist,
+      );
     }
   }
 

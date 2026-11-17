@@ -44,9 +44,17 @@ export function themeFromTokens(t: DcTokens): DcTheme {
 
 /** A CSS `rgba()` laid over an opaque `#rrggbb`, as `#rrggbb` (three.js colours have no alpha). */
 export function opaque(c: string, over: string): string {
-  const m = c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/);
+  const m = c.match(
+    /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/,
+  );
   if (!m) return c;
   const a = m[4] === undefined ? 1 : Number(m[4]);
   const bg = [1, 3, 5].map((i) => parseInt(over.slice(i, i + 2), 16) || 0);
-  return `#${[1, 2, 3].map((i, k) => Math.round(Number(m[i]) * a + bg[k] * (1 - a)).toString(16).padStart(2, "0")).join("")}`;
+  return `#${[1, 2, 3]
+    .map((i, k) =>
+      Math.round(Number(m[i]) * a + bg[k] * (1 - a))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }

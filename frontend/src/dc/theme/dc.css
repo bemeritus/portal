@@ -736,15 +736,15 @@
     margin: 0;
   }
   :root.dc-active[data-dc-theme="studio"] {
-  --dc-surface: #232428;
-}
-:root.dc-active[data-dc-theme="drawing"] {
-  --dc-surface: #fbfaf7;
-}
-:root.dc-active[data-dc-theme="light"] {
-  --dc-surface: #ffffff;
-}
-:root.dc-active body {
+    --dc-surface: #232428;
+  }
+  :root.dc-active[data-dc-theme="drawing"] {
+    --dc-surface: #fbfaf7;
+  }
+  :root.dc-active[data-dc-theme="light"] {
+    --dc-surface: #ffffff;
+  }
+  :root.dc-active body {
     background: #fff;
   }
   .dc-qr-sheet {

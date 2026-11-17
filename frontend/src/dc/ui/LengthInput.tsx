@@ -28,7 +28,9 @@ export function LengthInput({
   const [text, setText] = useState(shown);
   // Follow the value (and the unit) unless what is typed already means it.
   useEffect(() => {
-    setText((cur) => (cur.trim() !== "" && fmt.parse(cur) === value ? cur : shown));
+    setText((cur) =>
+      cur.trim() !== "" && fmt.parse(cur) === value ? cur : shown,
+    );
   }, [shown, value, fmt]);
   const bad = text.trim() !== "" && fmt.parse(text) === null;
   return (

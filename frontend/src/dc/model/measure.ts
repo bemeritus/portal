@@ -9,7 +9,9 @@ import type { Measurement } from "../types";
 export const TAPE_TOLERANCE_MM = 5;
 
 /** Does the model disagree with what was read by more than the tolerance? */
-export function disagrees(m: Pick<Measurement, "value" | "min" | "max" | "model">): boolean {
+export function disagrees(
+  m: Pick<Measurement, "value" | "min" | "max" | "model">,
+): boolean {
   if (m.model === undefined) return false;
   const lo = m.min ?? m.value,
     hi = m.max ?? m.value;
@@ -17,10 +19,13 @@ export function disagrees(m: Pick<Measurement, "value" | "min" | "max" | "model"
 }
 
 /** Was it read as two values? */
-export const isRange = (m: Pick<Measurement, "min" | "max">) => m.min !== undefined && m.max !== undefined && m.min !== m.max;
+export const isRange = (m: Pick<Measurement, "min" | "max">) =>
+  m.min !== undefined && m.max !== undefined && m.min !== m.max;
 
 /** The difference model − tape (against the nearer end of a range), mm. */
-export function difference(m: Pick<Measurement, "value" | "min" | "max" | "model">): number | null {
+export function difference(
+  m: Pick<Measurement, "value" | "min" | "max" | "model">,
+): number | null {
   if (m.model === undefined) return null;
   const lo = m.min ?? m.value,
     hi = m.max ?? m.value;

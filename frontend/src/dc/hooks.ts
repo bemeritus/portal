@@ -40,7 +40,8 @@ export function useRoom(roomId: number) {
       return head;
     },
     enabled: revision !== undefined,
-    refetchInterval: () => (document.visibilityState === "visible" ? POLL_MS : false),
+    refetchInterval: () =>
+      document.visibilityState === "visible" ? POLL_MS : false,
     refetchIntervalInBackground: false,
   });
   return room;
@@ -55,7 +56,10 @@ type TaggedOp = Op & { replaces?: { kind: Kind; id: number } };
 
 /** The operations that undo `ops`, given the state before them; created ids
  *  are filled in after the forward set has run. */
-function inverseOf(ops: Op[], before: RoomData): (created: (number | null)[]) => TaggedOp[] {
+function inverseOf(
+  ops: Op[],
+  before: RoomData,
+): (created: (number | null)[]) => TaggedOp[] {
   return (created) => {
     const inv: TaggedOp[] = [];
     ops.forEach((op, i) => {
@@ -69,18 +73,24 @@ function inverseOf(ops: Op[], before: RoomData): (created: (number | null)[]) =>
           break;
         }
         case "object_create":
-          if (created[i] !== null) inv.push({ op: "object_delete", id: created[i]! });
+          if (created[i] !== null)
+            inv.push({ op: "object_delete", id: created[i]! });
           break;
         case "object_delete": {
           const o = before.objects.find((x) => x.id === op.id);
           if (o) {
             const { id, ...fields } = o;
-            inv.push({ op: "object_create", object: fields, replaces: { kind: "object", id } });
+            inv.push({
+              op: "object_create",
+              object: fields,
+              replaces: { kind: "object", id },
+            });
           }
           break;
         }
         case "device_create":
-          if (created[i] !== null) inv.push({ op: "device_delete", id: created[i]! });
+          if (created[i] !== null)
+            inv.push({ op: "device_delete", id: created[i]! });
           break;
         case "device_update": {
           const d = before.devices.find((x) => x.id === op.id);
@@ -94,29 +104,50 @@ function inverseOf(ops: Op[], before: RoomData): (created: (number | null)[]) =>
           const d = before.devices.find((x) => x.id === op.id);
           if (d) {
             const { id, ...fields } = d;
-            inv.push({ op: "device_create", device: fields, replaces: { kind: "device", id } });
+            inv.push({
+              op: "device_create",
+              device: fields,
+              replaces: { kind: "device", id },
+            });
           }
           break;
         }
         case "cell_set": {
-          const c = before.cells.find((x) => x.shelf_id === op.cell.shelf_id && x.cell_no === op.cell.cell_no);
-          inv.push(c ? { op: "cell_set", cell: c } : { op: "cell_delete", shelf_id: op.cell.shelf_id, cell_no: op.cell.cell_no });
+          const c = before.cells.find(
+            (x) =>
+              x.shelf_id === op.cell.shelf_id && x.cell_no === op.cell.cell_no,
+          );
+          inv.push(
+            c
+              ? { op: "cell_set", cell: c }
+              : {
+                  op: "cell_delete",
+                  shelf_id: op.cell.shelf_id,
+                  cell_no: op.cell.cell_no,
+                },
+          );
           break;
         }
         case "cell_delete": {
-          const c = before.cells.find((x) => x.shelf_id === op.shelf_id && x.cell_no === op.cell_no);
+          const c = before.cells.find(
+            (x) => x.shelf_id === op.shelf_id && x.cell_no === op.cell_no,
+          );
           if (c) inv.push({ op: "cell_set", cell: c });
           break;
         }
         case "annotation_create":
-          if (created[i] !== null) inv.push({ op: "annotation_delete", id: created[i]! });
+          if (created[i] !== null)
+            inv.push({ op: "annotation_delete", id: created[i]! });
           break;
         case "annotation_delete": {
           const a = before.annotations.find((x) => x.id === op.id);
           if (a)
             inv.push({
               op: "annotation_create",
-              annotation: a.kind === "note" ? { kind: "note", payload: a.payload } : { kind: "view", payload: a.payload },
+              annotation:
+                a.kind === "note"
+                  ? { kind: "note", payload: a.payload }
+                  : { kind: "view", payload: a.payload },
               replaces: { kind: "annotation", id: a.id },
             });
           break;
@@ -146,14 +177,23 @@ export function stillValid(op: Op, data: RoomData): boolean {
       const item = data.catalog.find((c) => c.id === rack.catalog_id);
       if (!item || item.kind !== "rack") return false;
       const devs = data.devices.filter((d) => d.rack_id === dev.rack_id);
-      return unitsFree(devs, item.props.units, dev.u_bottom, dev.u_height, dev.face, op.op === "device_update" ? op.id : undefined);
+      return unitsFree(
+        devs,
+        item.props.units,
+        dev.u_bottom,
+        dev.u_height,
+        dev.face,
+        op.op === "device_update" ? op.id : undefined,
+      );
     }
     case "device_delete":
       return hasDevice(op.id);
     case "cell_set":
       return hasObject(op.cell.shelf_id);
     case "cell_delete":
-      return data.cells.some((c) => c.shelf_id === op.shelf_id && c.cell_no === op.cell_no);
+      return data.cells.some(
+        (c) => c.shelf_id === op.shelf_id && c.cell_no === op.cell_no,
+      );
     case "annotation_delete":
       return data.annotations.some((a) => a.id === op.id);
     default:
@@ -207,13 +247,29 @@ export function useChanges(roomId: number, data: RoomData | undefined) {
       case "object_delete":
         return { ...op, id: resolve("object", op.id) };
       case "device_update":
-        return { ...op, id: resolve("device", op.id), device: { ...op.device, rack_id: resolve("object", op.device.rack_id) } };
+        return {
+          ...op,
+          id: resolve("device", op.id),
+          device: {
+            ...op.device,
+            rack_id: resolve("object", op.device.rack_id),
+          },
+        };
       case "device_create":
-        return { ...op, device: { ...op.device, rack_id: resolve("object", op.device.rack_id) } };
+        return {
+          ...op,
+          device: {
+            ...op.device,
+            rack_id: resolve("object", op.device.rack_id),
+          },
+        };
       case "device_delete":
         return { ...op, id: resolve("device", op.id) };
       case "cell_set":
-        return { ...op, cell: { ...op.cell, shelf_id: resolve("object", op.cell.shelf_id) } };
+        return {
+          ...op,
+          cell: { ...op.cell, shelf_id: resolve("object", op.cell.shelf_id) },
+        };
       case "cell_delete":
         return { ...op, shelf_id: resolve("object", op.shelf_id) };
       case "annotation_delete":
@@ -225,14 +281,21 @@ export function useChanges(roomId: number, data: RoomData | undefined) {
 
   const refresh = useCallback(async (): Promise<RoomData> => {
     await qc.invalidateQueries({ queryKey: ["dc", "room", roomId] });
-    return qc.fetchQuery({ queryKey: ["dc", "room", roomId], queryFn: () => dcApi.room(roomId) });
+    return qc.fetchQuery({
+      queryKey: ["dc", "room", roomId],
+      queryFn: () => dcApi.room(roomId),
+    });
   }, [qc, roomId]);
 
   /** Send ops; one automatic retry after a 409 if they still fit. */
   const send = useCallback(
-    async (ops: TaggedOp[], summary: string): Promise<{ applied: Applied; before: RoomData } | ChangeResult> => {
+    async (
+      ops: TaggedOp[],
+      summary: string,
+    ): Promise<{ applied: Applied; before: RoomData } | ChangeResult> => {
       let current = dataRef.current;
-      if (!current) return { ok: false, conflict: false, error: "Room not found" };
+      if (!current)
+        return { ok: false, conflict: false, error: "Room not found" };
       const strip = (o: TaggedOp): Op => {
         const copy = { ...o };
         delete copy.replaces;
@@ -241,23 +304,40 @@ export function useChanges(roomId: number, data: RoomData | undefined) {
       for (let attempt = 0; attempt < 2; attempt++) {
         const mapped = ops.map(remap);
         try {
-          const applied = await dcApi.changes(roomId, current.room.revision, mapped.map(strip), summary);
+          const applied = await dcApi.changes(
+            roomId,
+            current.room.revision,
+            mapped.map(strip),
+            summary,
+          );
           mapped.forEach((op, i) => {
             const id = applied.created[i];
-            if (op.replaces && id !== null && id !== undefined) ids.current.set(`${op.replaces.kind}:${op.replaces.id}`, id);
+            if (op.replaces && id !== null && id !== undefined)
+              ids.current.set(`${op.replaces.kind}:${op.replaces.id}`, id);
           });
           return { applied, before: current };
         } catch (e) {
-          if (e instanceof ApiError && e.status === 409 && typeof e.body.revision === "number") {
+          if (
+            e instanceof ApiError &&
+            e.status === 409 &&
+            typeof e.body.revision === "number"
+          ) {
             current = await refresh();
             dataRef.current = current;
-            if (attempt === 0 && mapped.every((op) => stillValid(op, current!))) {
+            if (
+              attempt === 0 &&
+              mapped.every((op) => stillValid(op, current!))
+            ) {
               setNotice("dc.conflict.reapplied");
               continue;
             }
             return { ok: false, conflict: true, error: e.message };
           }
-          return { ok: false, conflict: false, error: e instanceof Error ? e.message : String(e) };
+          return {
+            ok: false,
+            conflict: false,
+            error: e instanceof Error ? e.message : String(e),
+          };
         }
       }
       return { ok: false, conflict: true, error: "" };
@@ -283,7 +363,11 @@ export function useChanges(roomId: number, data: RoomData | undefined) {
         const r = await send(ops, label);
         if ("ok" in r) return r;
         const inverse = inverseOf(ops, r.before)(r.applied.created);
-        undoStack.current.push({ label, forward: ops.map((op, i) => withCreated(op, r.applied.created[i])), inverse });
+        undoStack.current.push({
+          label,
+          forward: ops.map((op, i) => withCreated(op, r.applied.created[i])),
+          inverse,
+        });
         redoStack.current = [];
         await finish(r.applied);
         bump((n) => n + 1);
@@ -342,8 +426,11 @@ export function useChanges(roomId: number, data: RoomData | undefined) {
  */
 function withCreated(op: Op, created: number | null | undefined): TaggedOp {
   if (created === null || created === undefined) return op;
-  if (op.op === "object_create") return { ...op, replaces: { kind: "object", id: created } };
-  if (op.op === "device_create") return { ...op, replaces: { kind: "device", id: created } };
-  if (op.op === "annotation_create") return { ...op, replaces: { kind: "annotation", id: created } };
+  if (op.op === "object_create")
+    return { ...op, replaces: { kind: "object", id: created } };
+  if (op.op === "device_create")
+    return { ...op, replaces: { kind: "device", id: created } };
+  if (op.op === "annotation_create")
+    return { ...op, replaces: { kind: "annotation", id: created } };
   return op;
 }

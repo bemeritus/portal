@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { lengthInput, lengthNumber, parseLength, rangeNumber, UNITS } from "./units";
+import {
+  lengthInput,
+  lengthNumber,
+  parseLength,
+  rangeNumber,
+  UNITS,
+} from "./units";
 
 describe("display units", () => {
   it("formats as the spec says", () => {

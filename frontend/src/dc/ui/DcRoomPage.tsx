@@ -13,19 +13,60 @@
  */
 
 import type { TFunction } from "i18next";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Box, Download, Eye, EyeOff, Footprints, History, MapPin, MousePointer2, Move, Redo2, Ruler, Undo2, Upload, X } from "lucide-react";
+import {
+  Box,
+  Download,
+  Eye,
+  EyeOff,
+  Footprints,
+  History,
+  MapPin,
+  MousePointer2,
+  Move,
+  Redo2,
+  Ruler,
+  Undo2,
+  Upload,
+  X,
+} from "lucide-react";
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { errorMessage } from "../../api/client";
 import { useToolAccess } from "../../auth/useToolAccess";
 import { ErrorFlash, Flash } from "../../components/Flash";
 import { Spinner } from "../../components/Loading";
 import { translateApiError } from "../../i18n/errors";
 import { dcApi } from "../api";
-import { DcEngine, type EngineModel, type Measure, type Mode, type RulerMode, type SelRef, type Tool } from "../engine/DcEngine";
+import {
+  DcEngine,
+  type EngineModel,
+  type Measure,
+  type Mode,
+  type RulerMode,
+  type SelRef,
+  type Tool,
+} from "../engine/DcEngine";
 import type { Preset, View } from "../engine/camera";
 import type { Fmt } from "../format";
 import { useChanges, useRoom } from "../hooks";
@@ -34,7 +75,14 @@ import { difference, disagrees, isRange } from "../model/measure";
 import type { SnapKind } from "../model/ruler";
 import { useDcSettings, useFmt } from "../settings";
 import { TOKENS } from "../theme/tokens";
-import type { CatalogItem, DcObject, Measurement, Op, RoomData, ViewPayload } from "../types";
+import type {
+  CatalogItem,
+  DcObject,
+  Measurement,
+  Op,
+  RoomData,
+  ViewPayload,
+} from "../types";
 import type { CapacityRequest } from "./CapacityPanel";
 import type { PaletteObject } from "./CommandPalette";
 import { useShell } from "./DcShell";
@@ -87,22 +135,42 @@ export function objectFields(o: DcObject): Omit<DcObject, "id"> {
 
 /** `?cam=x,y,z,tx,ty,tz,fov,o` ↔ a camera view. */
 function camParam(v: View): string {
-  return [...v.position, ...v.target, v.fov, v.ortho ? 1 : 0].map((n) => Math.round(n)).join(",");
+  return [...v.position, ...v.target, v.fov, v.ortho ? 1 : 0]
+    .map((n) => Math.round(n))
+    .join(",");
 }
 function parseCam(s: string | null): View | null {
   const n = s?.split(",").map(Number) ?? [];
   if (n.length !== 8 || n.some((x) => !Number.isFinite(x))) return null;
-  return { position: [n[0], n[1], n[2]], target: [n[3], n[4], n[5]], fov: n[6], ortho: n[7] === 1 };
+  return {
+    position: [n[0], n[1], n[2]],
+    target: [n[3], n[4], n[5]],
+    fov: n[6],
+    ortho: n[7] === 1,
+  };
 }
 
 /** The dimension text of a measurement, its tooltip, and its mark. */
-export function measurementText(m: Measurement, fmt: Fmt, t: TFunction): { text: string; title: string; mark: boolean } {
+export function measurementText(
+  m: Measurement,
+  fmt: Fmt,
+  t: TFunction,
+): { text: string; title: string; mark: boolean } {
   const read = isRange(m) ? fmt.range(m.min!, m.max!) : fmt.mm(m.value);
   const mark = disagrees(m);
-  const lines = [`${measureLabel(m.key, t)}`, `${t(`dc.src.${m.src}`)}: ${read}`];
-  if (m.model !== undefined && m.model !== null) lines.push(t("dc.measure.modelValue", { v: fmt.mm(m.model) }));
+  const lines = [
+    `${measureLabel(m.key, t)}`,
+    `${t(`dc.src.${m.src}`)}: ${read}`,
+  ];
+  if (m.model !== undefined && m.model !== null)
+    lines.push(t("dc.measure.modelValue", { v: fmt.mm(m.model) }));
   const diff = difference(m);
-  if (mark && diff !== null) lines.push(t("dc.measure.diff", { v: `${diff > 0 ? "+" : "−"}${fmt.mm(Math.abs(diff))}` }));
+  if (mark && diff !== null)
+    lines.push(
+      t("dc.measure.diff", {
+        v: `${diff > 0 ? "+" : "−"}${fmt.mm(Math.abs(diff))}`,
+      }),
+    );
   if (m.note) lines.push(m.note);
   return { text: read, title: lines.join("\n"), mark };
 }
@@ -126,9 +194,20 @@ export function DcRoomPage() {
 
   const host = useRef<HTMLDivElement>(null);
   const engine = useRef<DcEngine | null>(null);
-  const initial = useRef({ mode: search.get("mode"), owner: search.get("owner"), cam: parseCam(search.get("cam")), tool: search.get("tool") });
-  const [mode, setMode] = useState<Mode>(() => (MODES.includes(initial.current.mode as Mode) ? (initial.current.mode as Mode) : "schema"));
-  const [tool, setTool] = useState<Tool>(() => (initial.current.tool === "ruler" ? "ruler" : "view"));
+  const initial = useRef({
+    mode: search.get("mode"),
+    owner: search.get("owner"),
+    cam: parseCam(search.get("cam")),
+    tool: search.get("tool"),
+  });
+  const [mode, setMode] = useState<Mode>(() =>
+    MODES.includes(initial.current.mode as Mode)
+      ? (initial.current.mode as Mode)
+      : "schema",
+  );
+  const [tool, setTool] = useState<Tool>(() =>
+    initial.current.tool === "ruler" ? "ruler" : "view",
+  );
   const [rulerMode, setRulerMode] = useState<RulerMode>("points");
   const [measures, setMeasures] = useState<Measure[]>([]);
   const [grid, setGrid] = useState(10);
@@ -136,23 +215,48 @@ export function DcRoomPage() {
   const [walking, setWalking] = useState(false);
   const [showAssumptions, setShowAssumptions] = useState(false);
   const [owner, setOwner] = useState<string | null>(initial.current.owner);
-  const [selection, setSelection] = useState<SelRef>(() => parseHash(window.location.hash));
-  const [hover, setHover] = useState<{ ref: SelRef; x: number; y: number } | null>(null);
+  const [selection, setSelection] = useState<SelRef>(() =>
+    parseHash(window.location.hash),
+  );
+  const [hover, setHover] = useState<{
+    ref: SelRef;
+    x: number;
+    y: number;
+  } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; z: number } | null>(null);
-  const [inspector, setInspector] = useState<{ open: boolean; tab: InspectorTab }>({ open: true, tab: initial.current.tool === "ruler" ? "ruler" : "object" });
+  const [inspector, setInspector] = useState<{
+    open: boolean;
+    tab: InspectorTab;
+  }>({
+    open: true,
+    tab: initial.current.tool === "ruler" ? "ruler" : "object",
+  });
   const [capacity, setCapacity] = useState<CapacityRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [notePos, setNotePos] = useState<[number, number, number] | null>(null);
-  const [prefill, setPrefill] = useState<{ rackId: number; u: number; height: number; face: "front" | "rear" | "both"; power: number | null } | null>(null);
+  const [prefill, setPrefill] = useState<{
+    rackId: number;
+    u: number;
+    height: number;
+    face: "front" | "rear" | "both";
+    power: number | null;
+  } | null>(null);
   const flewTo = useRef(false);
 
-  const catalog = useMemo(() => new Map<number, CatalogItem>((data?.catalog ?? []).map((c) => [c.id, c])), [data]);
+  const catalog = useMemo(
+    () =>
+      new Map<number, CatalogItem>((data?.catalog ?? []).map((c) => [c.id, c])),
+    [data],
+  );
 
   useEffect(() => {
-    document.title = t("docTitle", { page: data?.room.name ?? t("dc.title"), app: t("app.name") });
+    document.title = t("docTitle", {
+      page: data?.room.name ?? t("dc.title"),
+      app: t("app.name"),
+    });
   }, [t, data?.room.name]);
 
   // A `?tool=ruler` link (from the palette) switches the tool.
@@ -237,7 +341,10 @@ export function DcRoomPage() {
   useEffect(() => engine.current?.setMode(mode), [mode, loaded]);
   useEffect(() => engine.current?.setTool(tool), [tool, loaded]);
   useEffect(() => engine.current?.setGrid(grid), [grid, loaded]);
-  useEffect(() => engine.current?.setShowAssumptions(showAssumptions), [showAssumptions, loaded]);
+  useEffect(
+    () => engine.current?.setShowAssumptions(showAssumptions),
+    [showAssumptions, loaded],
+  );
   useEffect(() => engine.current?.setRulerMode(rulerMode), [rulerMode, loaded]);
   useEffect(() => engine.current?.setHighlight(owner), [owner, loaded, data]);
 
@@ -258,7 +365,12 @@ export function DcRoomPage() {
     const full = complete(selection, data);
     engine.current?.select(full, false);
     const h = hashOf(full);
-    if (h !== window.location.hash) history.replaceState(null, "", `${window.location.pathname}${window.location.search}${h}`);
+    if (h !== window.location.hash)
+      history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}${h}`,
+      );
     if (!flewTo.current && full) {
       flewTo.current = true;
       setTimeout(() => engine.current?.flyTo(full), 50);
@@ -330,7 +442,10 @@ export function DcRoomPage() {
         ...(owner ? { owner } : {}),
         ...(sel ? { selection: sel } : {}),
       };
-      return run([{ op: "annotation_create", annotation: { kind: "view", payload } }], t("dc.change.view", { name }));
+      return run(
+        [{ op: "annotation_create", annotation: { kind: "view", payload } }],
+        t("dc.change.view", { name }),
+      );
     },
     [run, mode, owner, selection, data, t],
   );
@@ -339,7 +454,12 @@ export function DcRoomPage() {
     if (v.mode) setMode(v.mode);
     setOwner(v.owner ?? null);
     if (v.selection) setSelection(parseHash(`#${v.selection}`));
-    engine.current?.goView({ position: v.position, target: v.target, fov: v.fov, ortho: v.ortho });
+    engine.current?.goView({
+      position: v.position,
+      target: v.target,
+      fov: v.fov,
+      ortho: v.ortho,
+    });
   }, []);
 
   const moveObject = useCallback(
@@ -347,7 +467,18 @@ export function DcRoomPage() {
       const o = data?.objects.find((x) => x.id === id);
       if (!o) return;
       void run(
-        [{ op: "object_update", id, object: { ...objectFields(o), x0_mm: Math.round(x0), z0_mm: Math.round(z0), rotation_deg: rotation as DcObject["rotation_deg"] } }],
+        [
+          {
+            op: "object_update",
+            id,
+            object: {
+              ...objectFields(o),
+              x0_mm: Math.round(x0),
+              z0_mm: Math.round(z0),
+              rotation_deg: rotation as DcObject["rotation_deg"],
+            },
+          },
+        ],
         t("dc.change.move", { name: o.name }),
       );
     },
@@ -355,15 +486,27 @@ export function DcRoomPage() {
   );
 
   useEffect(() => {
-    if (engine.current) engine.current.onMoveCommit = canEdit ? moveObject : () => {};
+    if (engine.current)
+      engine.current.onMoveCommit = canEdit ? moveObject : () => {};
   }, [moveObject, canEdit, loaded]);
 
   // Keyboard: undo/redo; in edit mode, arrows nudge and R rotates.
-  const nudge = useRef<{ id: number; x0: number; z0: number; rot: number; timer: number } | null>(null);
+  const nudge = useRef<{
+    id: number;
+    x0: number;
+    z0: number;
+    rot: number;
+    timer: number;
+  } | null>(null);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
-      if (target.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      if (
+        target.closest(
+          "input, textarea, select, [contenteditable=true], [role=dialog]",
+        )
+      )
+        return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.code === "KeyZ") {
         e.preventDefault();
@@ -373,11 +516,27 @@ export function DcRoomPage() {
         });
         return;
       }
-      if (mod || tool !== "edit" || !canEdit || selection?.type !== "object" || !data) return;
+      if (
+        mod ||
+        tool !== "edit" ||
+        !canEdit ||
+        selection?.type !== "object" ||
+        !data
+      )
+        return;
       const o = data.objects.find((x) => x.id === selection.id);
       if (!o) return;
       const step = e.shiftKey ? 100 : 10;
-      const cur = nudge.current?.id === o.id ? nudge.current : { id: o.id, x0: o.x0_mm, z0: o.z0_mm, rot: o.rotation_deg, timer: 0 };
+      const cur =
+        nudge.current?.id === o.id
+          ? nudge.current
+          : {
+              id: o.id,
+              x0: o.x0_mm,
+              z0: o.z0_mm,
+              rot: o.rotation_deg,
+              timer: 0,
+            };
       let changed = true;
       if (e.code === "ArrowLeft") cur.x0 -= step;
       else if (e.code === "ArrowRight") cur.x0 += step;
@@ -403,9 +562,13 @@ export function DcRoomPage() {
   // --- What the command palette can do here ---
   const owners = useMemo(() => {
     const n = new Map<string, number>();
-    for (const d of data?.devices ?? []) if (d.owner) n.set(d.owner, (n.get(d.owner) ?? 0) + 1);
-    for (const c of data?.cells ?? []) if (c.owner) n.set(c.owner, (n.get(c.owner) ?? 0) + 1);
-    return [...n.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
+    for (const d of data?.devices ?? [])
+      if (d.owner) n.set(d.owner, (n.get(d.owner) ?? 0) + 1);
+    for (const c of data?.cells ?? [])
+      if (c.owner) n.set(c.owner, (n.get(c.owner) ?? 0) + 1);
+    return [...n.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [data]);
 
   useEffect(() => {
@@ -421,13 +584,32 @@ export function DcRoomPage() {
           item.props.units,
           o.contents_known,
         );
-        detail = st.known ? `${t("dc.rack.unitsUsed", { used: st.used, total: st.units })} · ${fmt.w(st.powerW)}` : t("dc.rack.notRecorded");
+        detail = st.known
+          ? `${t("dc.rack.unitsUsed", { used: st.used, total: st.units })} · ${fmt.w(st.powerW)}`
+          : t("dc.rack.notRecorded");
       }
-      objects.push({ key: `o${o.id}`, kind: item?.kind === "rack" ? "rack" : "object", label: o.name, extra: o.note, detail, run: () => select({ type: "object", id: o.id }) });
+      objects.push({
+        key: `o${o.id}`,
+        kind: item?.kind === "rack" ? "rack" : "object",
+        label: o.name,
+        extra: o.note,
+        detail,
+        run: () => select({ type: "object", id: o.id }),
+      });
     }
     for (const d of data.devices) {
-      const u = d.u_height > 1 ? `U${d.u_bottom}–U${d.u_bottom + d.u_height - 1}` : `U${d.u_bottom}`;
-      objects.push({ key: `d${d.id}`, kind: "device", label: d.name, extra: `${d.serial} ${d.owner}`, detail: `${nameOf.get(d.rack_id) ?? ""} · ${u}`, run: () => select({ type: "device", id: d.id, rackId: d.rack_id }) });
+      const u =
+        d.u_height > 1
+          ? `U${d.u_bottom}–U${d.u_bottom + d.u_height - 1}`
+          : `U${d.u_bottom}`;
+      objects.push({
+        key: `d${d.id}`,
+        kind: "device",
+        label: d.name,
+        extra: `${d.serial} ${d.owner}`,
+        detail: `${nameOf.get(d.rack_id) ?? ""} · ${u}`,
+        run: () => select({ type: "device", id: d.id, rackId: d.rack_id }),
+      });
     }
     for (const c of data.cells)
       objects.push({
@@ -436,11 +618,23 @@ export function DcRoomPage() {
         label: c.name,
         extra: c.owner,
         detail: `${nameOf.get(c.shelf_id) ?? ""} · ${t("dc.shelf.cell", { n: c.cell_no })}`,
-        run: () => select({ type: "cell", shelfId: c.shelf_id, cellNo: c.cell_no }),
+        run: () =>
+          select({ type: "cell", shelfId: c.shelf_id, cellNo: c.cell_no }),
       });
     const sel = complete(selection, data);
-    const selObj = sel ? (sel.type === "object" ? sel.id : sel.type === "device" ? sel.rackId : sel.shelfId) : null;
-    const selKind = selObj !== null ? catalog.get(data.objects.find((o) => o.id === selObj)?.catalog_id ?? -1)?.kind : undefined;
+    const selObj = sel
+      ? sel.type === "object"
+        ? sel.id
+        : sel.type === "device"
+          ? sel.rackId
+          : sel.shelfId
+      : null;
+    const selKind =
+      selObj !== null
+        ? catalog.get(
+            data.objects.find((o) => o.id === selObj)?.catalog_id ?? -1,
+          )?.kind
+        : undefined;
     shell.setRoomPalette({
       roomId,
       objects,
@@ -451,7 +645,12 @@ export function DcRoomPage() {
       },
       highlight: setOwner,
       saveView: () => {
-        void saveView(t("dc.views.defaultName", { date: new Date().toLocaleString(i18n.language) }), true).then((ok) => {
+        void saveView(
+          t("dc.views.defaultName", {
+            date: new Date().toLocaleString(i18n.language),
+          }),
+          true,
+        ).then((ok) => {
           if (!ok) return;
           void navigator.clipboard?.writeText(shareLink()).catch(() => {});
           setNotice(t("dc.views.savedCopied"));
@@ -459,12 +658,29 @@ export function DcRoomPage() {
       },
       qr:
         selObj !== null && (selKind === "rack" || selKind === "shelf")
-          ? { label: t("dc.qr.forObject", { name: nameOf.get(selObj) ?? "" }), run: () => navigate(`/dc/${roomId}/labels?object=${selObj}`) }
+          ? {
+              label: t("dc.qr.forObject", { name: nameOf.get(selObj) ?? "" }),
+              run: () => navigate(`/dc/${roomId}/labels?object=${selObj}`),
+            }
           : null,
       setMode,
     });
     return () => shell.setRoomPalette(null);
-  }, [data, catalog, owners, selection, shell, roomId, select, t, fmt, saveView, shareLink, navigate, i18n.language]);
+  }, [
+    data,
+    catalog,
+    owners,
+    selection,
+    shell,
+    roomId,
+    select,
+    t,
+    fmt,
+    saveView,
+    shareLink,
+    navigate,
+    i18n.language,
+  ]);
 
   if (room.isPending) return <Spinner />;
   if (room.error || !data)
@@ -476,15 +692,33 @@ export function DcRoomPage() {
 
   const docked = !tokens.floating;
   const selected = complete(selection, data);
-  const selObjId = selected ? (selected.type === "object" ? selected.id : selected.type === "device" ? selected.rackId : selected.shelfId) : null;
-  const selName = selObjId !== null ? data.objects.find((o) => o.id === selObjId)?.name : null;
+  const selObjId = selected
+    ? selected.type === "object"
+      ? selected.id
+      : selected.type === "device"
+        ? selected.rackId
+        : selected.shelfId
+    : null;
+  const selName =
+    selObjId !== null
+      ? data.objects.find((o) => o.id === selObjId)?.name
+      : null;
   const hoverText = hover ? describe(hover.ref, data, t) : null;
-  const ownerCount = owner ? (owners.find((o) => o.name === owner)?.count ?? 0) : 0;
+  const ownerCount = owner
+    ? (owners.find((o) => o.name === owner)?.count ?? 0)
+    : 0;
   const assumedCount = assumedByObject(data).size;
 
   const rail = (
-    <div className="dc-rail dc-panel no-print" data-docked={docked} role="toolbar" aria-label={t("dc.tool.label")}>
-      {TOOLS.filter((x) => canEdit || x.tool === "view" || x.tool === "ruler").map(({ tool: tl, icon: Icon }) => (
+    <div
+      className="dc-rail dc-panel no-print"
+      data-docked={docked}
+      role="toolbar"
+      aria-label={t("dc.tool.label")}
+    >
+      {TOOLS.filter(
+        (x) => canEdit || x.tool === "view" || x.tool === "ruler",
+      ).map(({ tool: tl, icon: Icon }) => (
         <button
           key={tl}
           type="button"
@@ -507,7 +741,11 @@ export function DcRoomPage() {
         aria-label={t("dc.assumptions.toggle")}
         onClick={() => setShowAssumptions((v) => !v)}
       >
-        {showAssumptions ? <Eye className="size-[18px]" /> : <EyeOff className="size-[18px]" />}
+        {showAssumptions ? (
+          <Eye className="size-[18px]" />
+        ) : (
+          <EyeOff className="size-[18px]" />
+        )}
       </button>
     </div>
   );
@@ -532,12 +770,23 @@ export function DcRoomPage() {
       capacity={capacity}
       onCapacityPick={(c, req) => {
         select({ type: "object", id: c.rack_id });
-        setPrefill({ rackId: c.rack_id, u: c.suggestion.from, height: req.u, face: req.face, power: req.power });
+        setPrefill({
+          rackId: c.rack_id,
+          u: c.suggestion.from,
+          height: req.u,
+          face: req.face,
+          power: req.power,
+        });
       }}
       onFindSpace={() => setInspector({ open: true, tab: "capacity" })}
       saveView={saveView}
       openView={openView}
-      copyLink={() => void navigator.clipboard?.writeText(shareLink()).then(() => setNotice(t("dc.views.linkCopied")), () => setNotice(shareLink()))}
+      copyLink={() =>
+        void navigator.clipboard?.writeText(shareLink()).then(
+          () => setNotice(t("dc.views.linkCopied")),
+          () => setNotice(shareLink()),
+        )
+      }
       ruler={{
         mode: rulerMode,
         setMode: setRulerMode,
@@ -572,15 +821,28 @@ export function DcRoomPage() {
               <mark>
                 {owner} · {t("dc.palette.ownerCount", { count: ownerCount })}
               </mark>
-              <button type="button" aria-label={t("dc.highlight.clear")} title={t("dc.highlight.clear")} onClick={() => setOwner(null)}>
+              <button
+                type="button"
+                aria-label={t("dc.highlight.clear")}
+                title={t("dc.highlight.clear")}
+                onClick={() => setOwner(null)}
+              >
                 <X className="size-3.5" />
               </button>
             </div>
           )}
-          {walking && <div className="dc-chip dc-panel">{t("dc.walk.help")}</div>}
+          {walking && (
+            <div className="dc-chip dc-panel">{t("dc.walk.help")}</div>
+          )}
           {(mode === "fill" || mode === "power") && (
             <div className="dc-chip dc-panel">
-              {mode === "fill" ? t("dc.legend.fill") : data.room.settings.rack_power_budget_w === null ? t("dc.legend.powerNoBudget") : t("dc.legend.power", { w: fmt.w(data.room.settings.rack_power_budget_w) })}
+              {mode === "fill"
+                ? t("dc.legend.fill")
+                : data.room.settings.rack_power_budget_w === null
+                  ? t("dc.legend.powerNoBudget")
+                  : t("dc.legend.power", {
+                      w: fmt.w(data.room.settings.rack_power_budget_w),
+                    })}
             </div>
           )}
           {(error || conflict || changes.notice || notice) && (
@@ -588,16 +850,26 @@ export function DcRoomPage() {
               {conflict && (
                 <Flash kind="error">
                   {t("dc.conflict.title")} {conflict}{" "}
-                  <button type="button" className="underline" onClick={() => setConflict(null)}>
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => setConflict(null)}
+                  >
                     {t("common.close")}
                   </button>
                 </Flash>
               )}
-              {changes.notice && <Flash kind="ok">{t("dc.conflict.reapplied")}</Flash>}
+              {changes.notice && (
+                <Flash kind="ok">{t("dc.conflict.reapplied")}</Flash>
+              )}
               {notice && (
                 <Flash kind="ok">
                   {notice}{" "}
-                  <button type="button" className="underline" onClick={() => setNotice(null)}>
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => setNotice(null)}
+                  >
                     {t("common.close")}
                   </button>
                 </Flash>
@@ -612,30 +884,49 @@ export function DcRoomPage() {
             <div className="dc-legend-sheet dc-panel">
               <div>— — — {t("dc.plan.overhead")}</div>
               <div>
-                <span className="mr-1 inline-block size-1.5 rounded-full align-middle" style={{ background: "var(--dc-warn)" }} /> {t("dc.plan.tapeDiffers")}
+                <span
+                  className="mr-1 inline-block size-1.5 rounded-full align-middle"
+                  style={{ background: "var(--dc-warn)" }}
+                />{" "}
+                {t("dc.plan.tapeDiffers")}
               </div>
               <div>
-                <span className="mr-1 inline-block h-1.5 w-3 align-middle" style={{ background: "var(--dc-warn)", opacity: 0.4 }} /> {t("dc.plan.clearance")}
+                <span
+                  className="mr-1 inline-block h-1.5 w-3 align-middle"
+                  style={{ background: "var(--dc-warn)", opacity: 0.4 }}
+                />{" "}
+                {t("dc.plan.clearance")}
               </div>
             </div>
             <div className="dc-titleblock dc-panel">
               <div>{data.room.name}</div>
               <div>
                 <span>{t("dc.plan.sheet")}</span>
-                <span className="dc-num">{new Date().toLocaleDateString(i18n.language)}</span>
+                <span className="dc-num">
+                  {new Date().toLocaleDateString(i18n.language)}
+                </span>
               </div>
               <div>
                 <span>{t("dc.plan.units", { unit: fmt.unitWord })}</span>
-                <span className="dc-num">{t("dc.revision", { n: data.room.revision })}</span>
+                <span className="dc-num">
+                  {t("dc.revision", { n: data.room.revision })}
+                </span>
               </div>
             </div>
           </>
         )}
 
-        <div className="dc-coords">{cursor ? `x ${fmt.mm(cursor.x)} · z ${fmt.mm(cursor.z)}` : t("dc.revision", { n: data.room.revision })}</div>
+        <div className="dc-coords">
+          {cursor
+            ? `x ${fmt.mm(cursor.x)} · z ${fmt.mm(cursor.z)}`
+            : t("dc.revision", { n: data.room.revision })}
+        </div>
 
         {hover && hoverText && (
-          <div className="dc-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
+          <div
+            className="dc-tooltip"
+            style={{ left: hover.x + 14, top: hover.y + 14 }}
+          >
             {hoverText}
           </div>
         )}
@@ -643,7 +934,18 @@ export function DcRoomPage() {
           <NotePrompt
             onCancel={() => setNotePos(null)}
             onSave={async (text) => {
-              const ok = await run([{ op: "annotation_create", annotation: { kind: "note", payload: { position: notePos, text } } }], t("dc.change.note"));
+              const ok = await run(
+                [
+                  {
+                    op: "annotation_create",
+                    annotation: {
+                      kind: "note",
+                      payload: { position: notePos, text },
+                    },
+                  },
+                ],
+                t("dc.change.note"),
+              );
               if (ok) setNotePos(null);
             }}
           />
@@ -651,36 +953,72 @@ export function DcRoomPage() {
 
         {!docked && inspectorEl}
         {!inspector.open && (
-          <button type="button" className="dc-panel dc-chip" style={{ position: "absolute", top: 14, right: 14, zIndex: 6 }} onClick={() => setInspector((s) => ({ ...s, open: true }))}>
+          <button
+            type="button"
+            className="dc-panel dc-chip"
+            style={{ position: "absolute", top: 14, right: 14, zIndex: 6 }}
+            onClick={() => setInspector((s) => ({ ...s, open: true }))}
+          >
             {t("dc.inspector.open")}
           </button>
         )}
 
         <div className="dc-modebar dc-panel no-print">
-          <div className="dc-seg" role="radiogroup" aria-label={t("dc.mode.label")}>
+          <div
+            className="dc-seg"
+            role="radiogroup"
+            aria-label={t("dc.mode.label")}
+          >
             {MODES.map((m) => (
-              <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}>
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                onClick={() => setMode(m)}
+              >
                 {t(`dc.mode.${m}`)}
               </button>
             ))}
           </div>
           <span className="sep" />
-          <div className="dc-seg" role="group" aria-label={t("dc.view.presets")}>
+          <div
+            className="dc-seg"
+            role="group"
+            aria-label={t("dc.view.presets")}
+          >
             {VIEWS.map((p) => (
-              <button key={p} type="button" onClick={() => engine.current?.preset(p)}>
+              <button
+                key={p}
+                type="button"
+                onClick={() => engine.current?.preset(p)}
+              >
                 {t(`dc.view.${p}`)}
               </button>
             ))}
           </div>
           <span className="sep" />
-          <IconButton label={`${ortho ? t("dc.view.ortho") : t("dc.view.persp")} — ${t("dc.view.projectionHint")}`} pressed={ortho} onClick={() => engine.current?.setOrtho(!ortho)}>
+          <IconButton
+            label={`${ortho ? t("dc.view.ortho") : t("dc.view.persp")} — ${t("dc.view.projectionHint")}`}
+            pressed={ortho}
+            onClick={() => engine.current?.setOrtho(!ortho)}
+          >
             <Box className="size-4" />
           </IconButton>
-          <IconButton label={`${t("dc.walk.label")} — ${t("dc.walk.hint")}`} pressed={walking} onClick={() => engine.current?.setWalk(!walking)}>
+          <IconButton
+            label={`${t("dc.walk.label")} — ${t("dc.walk.hint")}`}
+            pressed={walking}
+            onClick={() => engine.current?.setWalk(!walking)}
+          >
             <Footprints className="size-4" />
           </IconButton>
           {tool === "edit" && (
-            <select className="rounded bg-transparent px-1 py-1 text-xs" value={grid} aria-label={t("dc.grid")} onChange={(e) => setGrid(Number(e.target.value))}>
+            <select
+              className="rounded bg-transparent px-1 py-1 text-xs"
+              value={grid}
+              aria-label={t("dc.grid")}
+              onChange={(e) => setGrid(Number(e.target.value))}
+            >
               {GRIDS.map((g) => (
                 <option key={g} value={g}>
                   {t("dc.grid")} {fmt.mm(g)}
@@ -691,16 +1029,42 @@ export function DcRoomPage() {
           {canEdit && (
             <>
               <IconButton
-                label={changes.undoLabel ? t("dc.undo", { what: changes.undoLabel }) : t("dc.undoNothing")}
+                label={
+                  changes.undoLabel
+                    ? t("dc.undo", { what: changes.undoLabel })
+                    : t("dc.undoNothing")
+                }
                 disabled={!changes.canUndo || changes.pending}
-                onClick={() => void changes.undo().then((r) => r && !r.ok && setError(translateApiError(r.error, i18n.language)))}
+                onClick={() =>
+                  void changes
+                    .undo()
+                    .then(
+                      (r) =>
+                        r &&
+                        !r.ok &&
+                        setError(translateApiError(r.error, i18n.language)),
+                    )
+                }
               >
                 <Undo2 className="size-4" />
               </IconButton>
               <IconButton
-                label={changes.redoLabel ? t("dc.redo", { what: changes.redoLabel }) : t("dc.redoNothing")}
+                label={
+                  changes.redoLabel
+                    ? t("dc.redo", { what: changes.redoLabel })
+                    : t("dc.redoNothing")
+                }
                 disabled={!changes.canRedo || changes.pending}
-                onClick={() => void changes.redo().then((r) => r && !r.ok && setError(translateApiError(r.error, i18n.language)))}
+                onClick={() =>
+                  void changes
+                    .redo()
+                    .then(
+                      (r) =>
+                        r &&
+                        !r.ok &&
+                        setError(translateApiError(r.error, i18n.language)),
+                    )
+                }
               >
                 <Redo2 className="size-4" />
               </IconButton>
@@ -708,7 +1072,12 @@ export function DcRoomPage() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button" className="grid size-8 place-items-center" title={t("dc.export.label")} aria-label={t("dc.export.label")}>
+              <button
+                type="button"
+                className="grid size-8 place-items-center"
+                title={t("dc.export.label")}
+                aria-label={t("dc.export.label")}
+              >
                 <Download className="size-4" />
               </button>
             </DropdownMenuTrigger>
@@ -723,7 +1092,11 @@ export function DcRoomPage() {
                   {t("dc.export.csv")}
                 </a>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => savePng(engine.current, data.room.name)}>{t("dc.export.png")}</DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => savePng(engine.current, data.room.name)}
+              >
+                {t("dc.export.png")}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link to={`/dc/${roomId}/labels`}>{t("dc.qr.all")}</Link>
@@ -731,38 +1104,89 @@ export function DcRoomPage() {
             </DropdownMenuContent>
           </DropdownMenu>
           {canEdit && (
-            <IconButton label={t("dc.import.button")} onClick={() => setImportOpen(true)}>
+            <IconButton
+              label={t("dc.import.button")}
+              onClick={() => setImportOpen(true)}
+            >
               <Upload className="size-4" />
             </IconButton>
           )}
-          <Link to={`/dc/${roomId}/history`} className="grid size-8 place-items-center" title={t("dc.history.button")} aria-label={t("dc.history.button")}>
+          <Link
+            to={`/dc/${roomId}/history`}
+            className="grid size-8 place-items-center"
+            title={t("dc.history.button")}
+            aria-label={t("dc.history.button")}
+          >
             <History className="size-4" />
           </Link>
         </div>
       </div>
       {docked && inspectorEl}
 
-      {importOpen && <ImportDialog roomId={roomId} revision={data.room.revision} onClose={() => setImportOpen(false)} onDone={() => void changes.refresh()} />}
+      {importOpen && (
+        <ImportDialog
+          roomId={roomId}
+          revision={data.room.revision}
+          onClose={() => setImportOpen(false)}
+          onDone={() => void changes.refresh()}
+        />
+      )}
     </div>
   );
 }
 
 /** `face ⟂ face · 59,5 см (z)`. */
-export function rulerText(r: Measure, fmt: Fmt, t: TFunction, snapWord: (k: SnapKind) => string): string {
-  const how = r.how === "face_face" ? t("dc.ruler.faceFace") : r.how === "object_gap" ? t("dc.ruler.objectGap") : `${snapWord(r.kinds[0])} → ${snapWord(r.kinds[1])}`;
+export function rulerText(
+  r: Measure,
+  fmt: Fmt,
+  t: TFunction,
+  snapWord: (k: SnapKind) => string,
+): string {
+  const how =
+    r.how === "face_face"
+      ? t("dc.ruler.faceFace")
+      : r.how === "object_gap"
+        ? t("dc.ruler.objectGap")
+        : `${snapWord(r.kinds[0])} → ${snapWord(r.kinds[1])}`;
   const axis = r.axis === null ? "" : ` (${"xyz"[r.axis]})`;
   return `${how} · ${fmt.mm(Math.round(r.distance))}${axis}`;
 }
 
-function IconButton({ label, pressed, disabled, onClick, children }: { label: string; pressed?: boolean; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+function IconButton({
+  label,
+  pressed,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <button type="button" className="dc-icon-btn" title={label} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
+    <button
+      type="button"
+      className="dc-icon-btn"
+      title={label}
+      aria-label={label}
+      aria-pressed={pressed}
+      disabled={disabled}
+      onClick={onClick}
+    >
       {children}
     </button>
   );
 }
 
-function NotePrompt({ onSave, onCancel }: { onSave: (text: string) => Promise<void>; onCancel: () => void }) {
+function NotePrompt({
+  onSave,
+  onCancel,
+}: {
+  onSave: (text: string) => Promise<void>;
+  onCancel: () => void;
+}) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
   return (
@@ -776,12 +1200,23 @@ function NotePrompt({ onSave, onCancel }: { onSave: (text: string) => Promise<vo
       <label className="text-xs font-medium" htmlFor="dc-note">
         {t("dc.note.prompt")}
       </label>
-      <textarea id="dc-note" autoFocus rows={3} className="w-full rounded border bg-transparent p-1 text-sm" value={text} onChange={(e) => setText(e.target.value)} />
+      <textarea
+        id="dc-note"
+        autoFocus
+        rows={3}
+        className="w-full rounded border bg-transparent p-1 text-sm"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
       <div className="flex justify-end gap-2">
         <button type="button" className="dc-btn" onClick={onCancel}>
           {t("common.cancel")}
         </button>
-        <button type="submit" className="dc-btn dc-btn-primary" disabled={!text.trim()}>
+        <button
+          type="submit"
+          className="dc-btn dc-btn-primary"
+          disabled={!text.trim()}
+        >
           {t("common.save")}
         </button>
       </div>
@@ -790,7 +1225,10 @@ function NotePrompt({ onSave, onCancel }: { onSave: (text: string) => Promise<vo
 }
 
 /** The model the engine draws. */
-export function toModel(data: RoomData, catalog: Map<number, CatalogItem>): EngineModel {
+export function toModel(
+  data: RoomData,
+  catalog: Map<number, CatalogItem>,
+): EngineModel {
   return {
     room: data.room,
     catalog,
@@ -808,12 +1246,19 @@ function describe(ref: SelRef, data: RoomData, t: TFunction): string | null {
   if (ref.type === "device") {
     const d = data.devices.find((x) => x.id === ref.id);
     if (!d) return null;
-    const units = d.u_height > 1 ? `U${d.u_bottom}–${d.u_bottom + d.u_height - 1}` : `U${d.u_bottom}`;
+    const units =
+      d.u_height > 1
+        ? `U${d.u_bottom}–${d.u_bottom + d.u_height - 1}`
+        : `U${d.u_bottom}`;
     return `${d.name} · ${units} · ${t(`dc.face.${d.face}`)}${d.owner ? ` · ${d.owner}` : ""}`;
   }
   if (ref.type === "cell") {
-    const c = data.cells.find((x) => x.shelf_id === ref.shelfId && x.cell_no === ref.cellNo);
-    return c ? `${t("dc.shelf.cell", { n: ref.cellNo })}: ${c.name}${c.owner ? ` · ${c.owner}` : ""}` : t("dc.shelf.cellEmpty", { n: ref.cellNo });
+    const c = data.cells.find(
+      (x) => x.shelf_id === ref.shelfId && x.cell_no === ref.cellNo,
+    );
+    return c
+      ? `${t("dc.shelf.cell", { n: ref.cellNo })}: ${c.name}${c.owner ? ` · ${c.owner}` : ""}`
+      : t("dc.shelf.cellEmpty", { n: ref.cellNo });
   }
   return data.objects.find((o) => o.id === ref.id)?.name ?? null;
 }

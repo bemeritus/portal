@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import type { Device } from "../types";
-import { devicesToText, freeRuns, guessKind, parseDevices, rackStats, unitsFree } from "./devices";
+import {
+  devicesToText,
+  freeRuns,
+  guessKind,
+  parseDevices,
+  rackStats,
+  unitsFree,
+} from "./devices";
 
-const dev = (id: number, u: number, h: number, face: Device["face"], power: number | null = null): Device => ({
+const dev = (
+  id: number,
+  u: number,
+  h: number,
+  face: Device["face"],
+  power: number | null = null,
+): Device => ({
   id,
   rack_id: 1,
   u_bottom: u,
@@ -22,15 +35,37 @@ const dev = (id: number, u: number, h: number, face: Device["face"], power: numb
 
 describe("parseDevices", () => {
   it("reads the spec's example line", () => {
-    const { devices, errors } = parseDevices("10-11 DELL R740 | 450 Вт | клиент X", 42);
+    const { devices, errors } = parseDevices(
+      "10-11 DELL R740 | 450 Вт | клиент X",
+      42,
+    );
     expect(errors).toEqual([]);
-    expect(devices[0]).toMatchObject({ u_bottom: 10, u_height: 2, name: "DELL R740", power_w: 450, owner: "клиент X", kind: "server" });
+    expect(devices[0]).toMatchObject({
+      u_bottom: 10,
+      u_height: 2,
+      name: "DELL R740",
+      power_w: 450,
+      owner: "клиент X",
+      kind: "server",
+    });
   });
 
   it("accepts reversed ranges, kW and kinds", () => {
-    const { devices } = parseDevices("12-10 Huawei S5720 | 1,2 кВт\n40 X | tur=pdu | note=left side", 42);
-    expect(devices[0]).toMatchObject({ u_bottom: 10, u_height: 3, kind: "switch", power_w: 1200 });
-    expect(devices[1]).toMatchObject({ kind: "pdu", note: "left side", owner: "" });
+    const { devices } = parseDevices(
+      "12-10 Huawei S5720 | 1,2 кВт\n40 X | tur=pdu | note=left side",
+      42,
+    );
+    expect(devices[0]).toMatchObject({
+      u_bottom: 10,
+      u_height: 3,
+      kind: "switch",
+      power_w: 1200,
+    });
+    expect(devices[1]).toMatchObject({
+      kind: "pdu",
+      note: "left side",
+      owner: "",
+    });
   });
 
   it("guesses kinds like the prototype", () => {
@@ -53,16 +88,23 @@ describe("parseDevices", () => {
   });
 
   it("round-trips through text", () => {
-    const text = "10-11 DELL R740 | 450 W | клиент X | note=договор 118\n1 Патч-панель\n5 Box | type=kvm";
+    const text =
+      "10-11 DELL R740 | 450 W | клиент X | note=договор 118\n1 Патч-панель\n5 Box | type=kvm";
     const { devices } = parseDevices(text, 42);
     const again = parseDevices(devicesToText(devices), 42).devices;
     const strip = (d: (typeof devices)[number]) => ({ ...d, line: 0 });
-    expect(again.map(strip).sort((a, b) => a.u_bottom - b.u_bottom)).toEqual(devices.map(strip).sort((a, b) => a.u_bottom - b.u_bottom));
+    expect(again.map(strip).sort((a, b) => a.u_bottom - b.u_bottom)).toEqual(
+      devices.map(strip).sort((a, b) => a.u_bottom - b.u_bottom),
+    );
   });
 });
 
 describe("units", () => {
-  const devices = [dev(1, 10, 2, "front"), dev(2, 20, 1, "rear"), dev(3, 30, 1, "both", 100)];
+  const devices = [
+    dev(1, 10, 2, "front"),
+    dev(2, 20, 1, "rear"),
+    dev(3, 30, 1, "both", 100),
+  ];
 
   it("checks free units per face", () => {
     expect(unitsFree(devices, 42, 10, 1, "front")).toBe(false);
@@ -84,6 +126,11 @@ describe("units", () => {
 
   it("totals power without treating unknown as zero", () => {
     const s = rackStats(devices, 42, true);
-    expect(s).toMatchObject({ used: 4, powerW: 100, unknownPower: 2, count: 3 });
+    expect(s).toMatchObject({
+      used: 4,
+      powerW: 100,
+      unknownPower: 2,
+      count: 3,
+    });
   });
 });

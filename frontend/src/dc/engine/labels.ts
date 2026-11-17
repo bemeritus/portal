@@ -7,7 +7,8 @@
 
 import * as THREE from "three";
 
-export type LabelKind = "name" | "dim" | "warn" | "assumed" | "note" | "measure";
+export type LabelKind =
+  "name" | "dim" | "warn" | "assumed" | "note" | "measure";
 
 export interface LabelOptions {
   priority?: number;
@@ -55,7 +56,17 @@ export class Labels {
     if (!l) {
       const el = document.createElement("div");
       this.root.appendChild(el);
-      l = { el, pos: pos.clone(), priority: 0, kind, always: false, w: 0, h: 0, group: key.split(":")[0], span: null };
+      l = {
+        el,
+        pos: pos.clone(),
+        priority: 0,
+        kind,
+        always: false,
+        w: 0,
+        h: 0,
+        group: key.split(":")[0],
+        span: null,
+      };
       this.labels.set(key, l);
     }
     l.pos.copy(pos);
@@ -91,22 +102,35 @@ export class Labels {
 
   update(camera: THREE.Camera, width: number, height: number) {
     const placed: [number, number, number, number][] = [];
-    const list = [...this.labels.entries()].sort((a, b) => b[1].priority - a[1].priority);
+    const list = [...this.labels.entries()].sort(
+      (a, b) => b[1].priority - a[1].priority,
+    );
     for (const [key, l] of list) {
       // Names and assumed-value badges follow the mode (all, or on focus);
       // dimensions, warnings, notes and ruler marks always show.
       const onDemand = l.kind === "name" || l.kind === "assumed";
-      const wanted = l.always || !onDemand || this.showNames || this.focus.has(key.split(":").slice(0, 2).join(":"));
+      const wanted =
+        l.always ||
+        !onDemand ||
+        this.showNames ||
+        this.focus.has(key.split(":").slice(0, 2).join(":"));
       let longEnough = true;
       if (l.span) {
         // A dimension seen end-on (a height in a top view) is not drawn;
         // a short one still is — its text may run past its ends.
         const a = l.span[0].clone().project(camera),
           b = l.span[1].clone().project(camera);
-        longEnough = Math.hypot(((a.x - b.x) * width) / 2, ((a.y - b.y) * height) / 2) > 8;
+        longEnough =
+          Math.hypot(((a.x - b.x) * width) / 2, ((a.y - b.y) * height) / 2) > 8;
       }
       v.copy(l.pos).project(camera);
-      const visible = wanted && longEnough && v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2;
+      const visible =
+        wanted &&
+        longEnough &&
+        v.z > -1 &&
+        v.z < 1 &&
+        Math.abs(v.x) < 1.2 &&
+        Math.abs(v.y) < 1.2;
       if (!visible) {
         l.el.style.display = "none";
         continue;
@@ -119,7 +143,9 @@ export class Labels {
       const x = ((v.x + 1) / 2) * width - l.w / 2;
       const y = ((1 - v.y) / 2) * height - l.h / 2;
       const r: [number, number, number, number] = [x, y, x + l.w, y + l.h];
-      const clash = placed.some((p) => r[0] < p[2] && p[0] < r[2] && r[1] < p[3] && p[1] < r[3]);
+      const clash = placed.some(
+        (p) => r[0] < p[2] && p[0] < r[2] && r[1] < p[3] && p[1] < r[3],
+      );
       if (clash && l.priority < 9) {
         l.el.style.display = "none";
         continue;
