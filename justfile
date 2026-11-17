@@ -156,6 +156,13 @@ migrate-add name:
 migrate-info:
     cd backend && sqlx migrate info
 
+# Re-runnable: a category or document that already exists is left alone, so
+# this never duplicates content or overwrites an edited document.
+#
+# Load the starter technical content — 6 categories, 3 documents each.
+seed:
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/seeds/technical_content.sql
+
 # Drop, recreate and re-migrate the database — DESTROYS all local data.
 db-reset:
     @printf 'This deletes every row in "%s". Ctrl-C to abort, Enter to continue: ' {{pgdb}} && read _
