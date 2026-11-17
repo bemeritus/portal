@@ -636,7 +636,7 @@ mod tests {
         // Against the z = 0 wall, its front facing into the room.
         Solid {
             rotation_deg: 180,
-            ..s("shelf", Kind::Shelf, Rect::new(200, 25, 4730, 935), 0, 1795)
+            ..s("shelf", Kind::Shelf, Rect::new(200, 0, 4730, 910), 0, 1795)
         }
     }
 
@@ -756,12 +756,12 @@ mod tests {
 
     #[test]
     fn gaps_to_walls_and_neighbours() {
-        let r = rack("r", 530, 2275).rect;
+        let r = rack("r", 530, 2250).rect;
         assert_eq!(gap(&r, Dir::Left, &[], &ROOM).mm, 530);
         assert_eq!(
             gap(&r, Dir::Down, &[], &ROOM),
             Gap {
-                mm: 570,
+                mm: 595,
                 obstacle: None
             }
         );
@@ -777,13 +777,13 @@ mod tests {
 
     #[test]
     fn the_seeded_room_gives_rear_warnings_for_racks_one_and_two() {
-        // SPEC §4.4: with 1000/600 defaults, racks 1 and 2 are 570 and 560 mm
-        // from the back wall by the model — a true finding.
+        // SPEC §4.4: with 1000/600 defaults, racks 1 and 2 are short at the
+        // rear (595 and 585 mm by the model of room.json v2) — a true finding.
         let racks = [
-            rack("r1", 530, 2275),
-            rack("r2", 1595, 2285),
-            rack("r3", 2635, 2245),
-            rack("r4", 3435, 2240),
+            rack("r1", 530, 2250),
+            rack("r2", 1595, 2260),
+            rack("r3", 2635, 2220),
+            rack("r4", 3435, 2215),
         ];
         let tray = s(
             "tray",
@@ -802,7 +802,7 @@ mod tests {
             .collect();
         assert_eq!(
             short,
-            vec![("r1", Side::Rear, 570), ("r2", Side::Rear, 560)]
+            vec![("r1", Side::Rear, 595), ("r2", Side::Rear, 585)]
         );
         let front: Vec<_> = c
             .iter()

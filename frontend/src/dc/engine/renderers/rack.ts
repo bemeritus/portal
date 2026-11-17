@@ -76,9 +76,14 @@ export const rackRenderer: ObjectRenderer = {
     const g = new THREE.Group();
     const pick = { type: "object" as const, id: obj.id };
     const t = 15;
-    // Frame: two sides, back posts, top cap, plinth.
-    g.add(box(ctx, "rackFrame", t, h, d, -w / 2 + t / 2, 0, 0, pick));
-    g.add(box(ctx, "rackFrame", t, h, d, w / 2 - t / 2, 0, 0, pick));
+    // Frame: side panels (not on an open frame), posts, top cap, plinth.
+    if (!obj.instance.open_frame) {
+      g.add(box(ctx, "rackFrame", t, h, d, -w / 2 + t / 2, 0, 0, pick));
+      g.add(box(ctx, "rackFrame", t, h, d, w / 2 - t / 2, 0, 0, pick));
+    } else {
+      // Side rails top and bottom tie the posts of an open frame.
+      for (const sx of [-1, 1]) for (const y of [60, h - 80]) g.add(box(ctx, "rackFrame", 30, 30, d, sx * (w / 2 - 25), y, 0, pick));
+    }
     g.add(box(ctx, "rackCap", w + 6, 15, d + 6, 0, h - 15, 0, pick));
     g.add(box(ctx, "rackCap", w, 50, d, 0, 0, 0, pick));
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(ctx, "rackFrame", 30, h, 30, sx * (w / 2 - 25), 0, sz * (d / 2 - 25), pick));

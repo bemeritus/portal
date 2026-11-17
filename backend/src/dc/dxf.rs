@@ -15,8 +15,8 @@
 
 use std::fmt::Write as _;
 
-use super::geometry::{Dir, Rect, Solid, gap};
-use super::model::{CatalogItem, CatalogProps, DcObject, Room, StructureSubtype};
+use super::geometry::{Dir, Solid};
+use super::model::{CatalogItem, CatalogProps, DcObject, Measurement, Room, StructureSubtype};
 use crate::models::Language;
 
 // --- Windows-1251 ------------------------------------------------------------
@@ -227,6 +227,14 @@ impl Writer {
         self.line(layer, x0, y1, x0, y0);
     }
 
+    fn circle(&mut self, layer: &str, x: f64, y: f64, r: f64) {
+        self.entity("CIRCLE", layer);
+        self.n(10, x);
+        self.n(20, y);
+        self.n(30, 0.0);
+        self.n(40, r);
+    }
+
     fn arc(&mut self, layer: &str, x: f64, y: f64, r: f64, a0: f64, a1: f64) {
         self.entity("ARC", layer);
         self.n(10, x);
@@ -338,15 +346,11 @@ pub struct Placed<'a> {
     pub item: &'a CatalogItem,
 }
 
-/// A dimension's text: the measured range where the room record has one for
-/// `key`, the model's own value otherwise.
-fn dim_text(room: &Room, key: &str, computed: i32) -> String {
-    match room.measurements.entries.iter().find(|m| m.key == key) {
-        Some(m) => match (m.min, m.max) {
-            (Some(lo), Some(hi)) if lo != hi => format!("{lo}–{hi}"),
-            _ => computed.to_string(),
-        },
-        None => computed.to_string(),
+/// A measurement as read: both readings of a range, else the value.
+fn tape_text(m: &Measurement) -> String {
+    match (m.min, m.max) {
+        (Some(lo), Some(hi)) if lo != hi => format!("{lo}–{hi}"),
+        _ => m.value.to_string(),
     }
 }
 
@@ -358,7 +362,7 @@ fn layer_of(p: &Placed) -> Layer {
         CatalogProps::CableTray(_) => Layer::Tray,
         CatalogProps::Structure(s) => match s.subtype {
             StructureSubtype::Door => Layer::Door,
-            StructureSubtype::Safe => Layer::Safe,
+            StructureSubtype::Safe | StructureSubtype::Locker => Layer::Safe,
             _ => Layer::Objects,
         },
     }
@@ -381,12 +385,6 @@ pub fn build(room: &Room, placed: &[Placed<'_>], lang: Language) -> Vec<u8> {
         let [bx, bz] = room.floor_plan[(i + 1) % n];
         w.line(l(Layer::Walls), px(ax), py(az), px(bx), py(bz));
     }
-
-    let floor: Vec<Rect> = placed
-        .iter()
-        .filter(|p| p.solid.on_floor())
-        .map(|p| p.solid.rect)
-        .collect();
 
     for p in placed {
         let layer = layer_of(p);
@@ -514,121 +512,21 @@ pub fn build(room: &Room, placed: &[Placed<'_>], lang: Language) -> Vec<u8> {
         }
     }
 
-    // --- Dimensions ---
+    // --- Dimensions: every measurement drawn on the plan, as measured ---
+    // The text is the tape value (both readings for a range), never the
+    // model's; where the model disagrees by more than 5 mm a small circle
+    // marks the dimension.
     let d = l(Layer::Dims);
-    // Room length below the back wall, width left of the left wall.
-    w.dim(
-        d,
-        (px(b.x0), py(b.z1) - 280.0),
-        (px(b.x1), py(b.z1) - 280.0),
-        &dim_text(room, "room.length_x", b.x1 - b.x0),
-    );
-    w.dim(
-        d,
-        (px(b.x0) - 280.0, py(b.z1)),
-        (px(b.x0) - 280.0, py(b.z0)),
-        &dim_text(room, "room.width_z", b.z1 - b.z0),
-    );
-
-    // Racks facing −z, as a row: gaps along x, and to the obstacles in front
-    // and the wall behind.
-    let mut row: Vec<&Placed> = placed
-        .iter()
-        .filter(|p| p.solid.is_rack() && p.solid.rotation_deg == 0)
-        .collect();
-    row.sort_by_key(|p| p.solid.rect.x0);
-    if let Some(first) = row.first() {
-        let zl = py(row.iter().map(|p| p.solid.rect.z0).min().unwrap_or(0)) + 160.0;
-        let mut prev = b.x0;
-        for p in &row {
-            let r = p.solid.rect;
-            w.dim(
-                d,
-                (px(prev), zl),
-                (px(r.x0), zl),
-                &(r.x0 - prev).to_string(),
-            );
-            prev = r.x1;
+    for m in &room.measurements.entries {
+        let Some([p, q]) = m.line else { continue };
+        let (a, b2) = ((px(p[0]), py(p[2])), (px(q[0]), py(q[2])));
+        if (a.0 - b2.0).hypot(a.1 - b2.1) < 1.0 {
+            // Vertical: not on a plan.
+            continue;
         }
-        w.dim(
-            d,
-            (px(prev), zl),
-            (px(b.x1), zl),
-            &(b.x1 - prev).to_string(),
-        );
-        let _ = first;
-        for p in &row {
-            let r = p.solid.rect;
-            let others: Vec<Rect> = floor.iter().copied().filter(|o| *o != r).collect();
-            let cx = px((r.x0 + r.x1) / 2);
-            let front = gap(&r, Dir::Up, &others, &room.floor_plan);
-            if front.mm > 0 {
-                w.dim(
-                    d,
-                    (cx, py(r.z0 - front.mm)),
-                    (cx, py(r.z0)),
-                    &front.mm.to_string(),
-                );
-            }
-            let rear = gap(&r, Dir::Down, &others, &room.floor_plan);
-            if rear.mm > 0 {
-                w.dim(
-                    d,
-                    (cx, py(r.z1)),
-                    (cx, py(r.z1 + rear.mm)),
-                    &rear.mm.to_string(),
-                );
-            }
-        }
-    }
-
-    for p in placed {
-        let r = p.solid.rect;
-        match &p.item.props {
-            CatalogProps::Shelf(_) => {
-                // Length, the gaps to both side walls, the depth.
-                let y = py(r.z1) - 120.0;
-                w.dim(d, (px(r.x0), y), (px(r.x1), y), &(r.x1 - r.x0).to_string());
-                w.dim(
-                    d,
-                    (px(b.x0), y),
-                    (px(r.x0), y),
-                    &dim_text(room, "shelf.x0", r.x0 - b.x0),
-                );
-                w.dim(
-                    d,
-                    (px(r.x1), y),
-                    (px(b.x1), y),
-                    &dim_text(room, "shelf.right_gap", b.x1 - r.x1),
-                );
-                w.dim(
-                    d,
-                    (px(r.x0) - 80.0, py(r.z1)),
-                    (px(r.x0) - 80.0, py(r.z0)),
-                    &(r.z1 - r.z0).to_string(),
-                );
-            }
-            CatalogProps::Structure(s) if s.subtype == StructureSubtype::Door => {
-                // Position and width along its wall, outside the room.
-                if r.x1 - r.x0 < r.z1 - r.z0 {
-                    let out = if r.x0 >= b.x1 { 280.0 } else { -280.0 };
-                    let x = px(r.x0) + out;
-                    w.dim(d, (x, py(b.z0)), (x, py(r.z0)), &(r.z0 - b.z0).to_string());
-                    w.dim(d, (x, py(r.z0)), (x, py(r.z1)), &(r.z1 - r.z0).to_string());
-                } else {
-                    let out = if r.z0 >= b.z1 { -280.0 } else { 280.0 };
-                    let y = py(r.z0) + out;
-                    w.dim(d, (px(b.x0), y), (px(r.x0), y), &(r.x0 - b.x0).to_string());
-                    w.dim(d, (px(r.x0), y), (px(r.x1), y), &(r.x1 - r.x0).to_string());
-                }
-            }
-            CatalogProps::Structure(s) if s.subtype == StructureSubtype::Safe => {
-                let y = py(r.z1) - 80.0;
-                w.dim(d, (px(r.x0), y), (px(r.x1), y), &(r.x1 - r.x0).to_string());
-                let x = px(r.x0) - 40.0;
-                w.dim(d, (x, py(r.z1)), (x, py(r.z0)), &(r.z1 - r.z0).to_string());
-            }
-            _ => {}
+        w.dim(d, a, b2, &tape_text(m));
+        if m.disagrees() {
+            w.circle(d, (a.0 + b2.0) / 2.0, (a.1 + b2.1) / 2.0, 30.0);
         }
     }
 

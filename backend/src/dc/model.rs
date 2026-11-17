@@ -210,6 +210,8 @@ pub enum StructureSubtype {
     Door,
     Window,
     Safe,
+    /// A metal locker / cabinet standing on the floor.
+    Locker,
     Furniture,
     Other,
 }
@@ -333,6 +335,8 @@ pub enum PropSrc {
     Measured,
     Derived,
     Assumed,
+    /// Seen on the site photos.
+    Photo,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -384,6 +388,9 @@ pub struct RackInstance {
     pub door_front: Option<DoorType>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub door_rear: Option<DoorType>,
+    /// An open frame: no side panels (rack 1 on the photos).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_frame: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -395,6 +402,69 @@ pub struct CoolingInstance {
     /// Perimeter units: upflow or downflow, chosen per object.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub discharge: Option<Discharge>,
+    /// Supply outlets with their direction (§14.1). Empty = the subtype's
+    /// default openings apply. Edited by hand from phase 2.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub supply_outlets: Vec<SupplyOutlet>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutletSource {
+    /// Set by hand (deflectors).
+    Manual,
+    /// From the catalog or the subtype's default; not measured.
+    CatalogDefault,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Xyz {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Wh {
+    pub w: i32,
+    pub h: i32,
+}
+
+/// One supply outlet of a cooling unit, aimed by hand (§14.1).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SupplyOutlet {
+    pub id: String,
+    pub label: String,
+    /// Centre of the outlet relative to the unit (local frame, mm).
+    pub pos_mm: Xyz,
+    pub size_mm: Wh,
+    /// 0…90: degrees below horizontal.
+    pub pitch_deg: i32,
+    /// −60…+60: left/right of the supply normal, negative = left as seen
+    /// from behind the unit.
+    pub yaw_deg: i32,
+    pub source: OutletSource,
+}
+
+impl SupplyOutlet {
+    pub fn validate(&self) -> Result<(), String> {
+        if !(0..=90).contains(&self.pitch_deg) {
+            return Err("outlet pitch must be 0…90°".into());
+        }
+        if !(-60..=60).contains(&self.yaw_deg) {
+            return Err("outlet yaw must be −60…+60°".into());
+        }
+        if self.size_mm.w <= 0 || self.size_mm.h <= 0 {
+            return Err("outlet size must be positive".into());
+        }
+        if self.id.trim().is_empty() {
+            return Err("an outlet needs an id".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -450,6 +520,14 @@ impl Instance {
                     && !c.discharge_options.contains(&d)
                 {
                     return Err("that discharge is not offered by this unit".into());
+                }
+                for o in &i.supply_outlets {
+                    o.validate()?;
+                }
+                let mut ids: Vec<&str> = i.supply_outlets.iter().map(|o| o.id.as_str()).collect();
+                ids.sort_unstable();
+                if ids.windows(2).any(|w| w[0] == w[1]) {
+                    return Err("outlet ids must be unique".into());
                 }
                 Instance::Cooling(i)
             }
@@ -528,30 +606,56 @@ pub enum MeasSrc {
     Range,
     Derived,
     Assumed,
+    /// Seen on the site photos: presence certain, size and position estimates.
+    Photo,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Measurement {
-    /// Stable id; the UI translates it (`dc.measure.<key>`), falling back to
-    /// the key itself.
+    /// Stable id; the UI translates it (`dc.measureKey.<key>`), falling back
+    /// to the key itself.
     pub key: String,
-    /// The value the geometry uses (for a range: the midpoint).
+    /// The value as obtained (`src`): the tape reading, the midpoint of two
+    /// readings, a derived or an assumed value. Never replaced by the model.
     pub value: i32,
+    /// Two readings that disagreed: both are kept and both are shown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max: Option<i32>,
     pub src: MeasSrc,
-    /// A tape reading that disagrees with a derived value.
+    /// The same distance in the model, where it is a distance in the model.
+    /// A difference above [`TAPE_TOLERANCE_MM`] is shown, never hidden.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reading: Option<i32>,
+    pub model: Option<i32>,
+    /// Where the dimension is drawn: two points in room coordinates (mm).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<[[i32; 3]; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     /// Names of the objects this number positions or sizes — what the 3D
     /// view marks when the number is assumed.
     #[serde(default)]
     pub objects: Vec<String>,
+}
+
+/// Model and tape may differ by this much before the dimension is marked.
+pub const TAPE_TOLERANCE_MM: i32 = 5;
+
+impl Measurement {
+    /// Does the model disagree with what was read by more than the tolerance?
+    /// For two readings, the model must be within the tolerance of their span.
+    pub fn disagrees(&self) -> bool {
+        let Some(model) = self.model else {
+            return false;
+        };
+        let (lo, hi) = (
+            self.min.unwrap_or(self.value),
+            self.max.unwrap_or(self.value),
+        );
+        model < lo - TAPE_TOLERANCE_MM || model > hi + TAPE_TOLERANCE_MM
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -828,6 +932,48 @@ mod tests {
         let unknown = CatalogProps::from_parts("cooling", unknown).unwrap();
         assert!(Instance::parse(&unknown, &json!({"width_mm": 1250})).is_ok());
         assert!(Instance::parse(&unknown, &json!({"width_mm": 0})).is_err());
+    }
+
+    #[test]
+    fn supply_outlets_are_typed_and_checked() {
+        let base = json!({"subtype": "ducted", "model_known": false, "inverter": null,
+            "designed_24_7": null, "cooling_total_w": null, "cooling_sensible_w": null,
+            "rating_conditions": null, "cooling_range_w": null, "airflow_m3h": [],
+            "power_input_w": null, "eer": null, "esp_pa": null, "weight_kg": null,
+            "refrigerant": null, "power_supply": null, "capacity_modulation": null,
+            "airflow_pattern": null, "source_url": null});
+        let item = CatalogProps::from_parts("cooling", base).unwrap();
+        let outlet = |pitch: i32, yaw: i32| {
+            json!({"supply_outlets": [{"id": "s1", "label": "1",
+            "pos_mm": {"x": 0, "y": 190, "z": -325}, "size_mm": {"w": 800, "h": 200},
+            "pitch_deg": pitch, "yaw_deg": yaw, "source": "manual"}]})
+        };
+        assert!(Instance::parse(&item, &outlet(30, -20)).is_ok());
+        assert!(Instance::parse(&item, &outlet(95, 0)).is_err());
+        assert!(Instance::parse(&item, &outlet(10, 61)).is_err());
+        let mut extra = outlet(0, 0);
+        extra["supply_outlets"][0]["speed"] = json!(3);
+        assert!(Instance::parse(&item, &extra).is_err());
+    }
+
+    #[test]
+    fn a_tape_reading_outside_the_tolerance_is_flagged() {
+        let m = |value, min, max, model| Measurement {
+            key: "k".into(),
+            value,
+            min,
+            max,
+            src: MeasSrc::Measured,
+            model,
+            line: None,
+            note: None,
+            objects: vec![],
+        };
+        assert!(m(610, None, None, Some(595)).disagrees());
+        assert!(!m(635, None, None, Some(630)).disagrees());
+        assert!(m(1498, Some(1495), Some(1500), Some(1510)).disagrees());
+        assert!(!m(600, Some(600), Some(605), Some(600)).disagrees());
+        assert!(!m(600, None, None, None).disagrees());
     }
 
     #[test]

@@ -38,6 +38,14 @@ export const structureRenderer: ObjectRenderer = {
         g.add(dial);
         break;
       }
+      case "locker": {
+        // Grey two-section metal locker (photos 02, 06): body, a seam between
+        // the two doors, two handles.
+        g.add(box(ctx, "locker", w, h, d, 0, 0, 0, pick));
+        g.add(box(ctx, "rail", w - 20, 6, 6, 0, h / 2, -d / 2 - 3, pick));
+        for (const y of [h * 0.75, h * 0.25]) g.add(box(ctx, "rail", 30, 60, 14, w / 2 - 50, y, -d / 2 - 7, pick));
+        break;
+      }
       case "window":
         g.add(box(ctx, "glass", w, h, Math.max(d, 20), 0, 0, 0, pick));
         break;

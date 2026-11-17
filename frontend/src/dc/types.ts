@@ -15,7 +15,7 @@ export type CoolingSubtype =
   | "in_row"
   | "precision_perimeter";
 export type Discharge = "upflow" | "downflow";
-export type StructureSubtype = "wall" | "column" | "door" | "window" | "safe" | "furniture" | "other";
+export type StructureSubtype = "wall" | "column" | "door" | "window" | "safe" | "locker" | "furniture" | "other";
 export type TrayType = "tray" | "ladder" | "basket";
 
 export interface RackProps {
@@ -70,7 +70,7 @@ export interface StructureProps {
   subtype: StructureSubtype;
 }
 
-export type PropSrc = "datasheet" | "measured" | "derived" | "assumed";
+export type PropSrc = "datasheet" | "measured" | "derived" | "assumed" | "photo";
 export interface PropSource {
   src: PropSrc;
   url?: string;
@@ -106,6 +106,22 @@ export interface Instance {
   length_mm?: number;
   discharge?: Discharge;
   hinge?: "low" | "high";
+  /** Racks: an open frame, no side panels. */
+  open_frame?: boolean;
+  /** Cooling: supply outlets aimed by hand (§14.1); empty = subtype default. */
+  supply_outlets?: SupplyOutlet[];
+}
+
+export interface SupplyOutlet {
+  id: string;
+  label: string;
+  pos_mm: { x: number; y: number; z: number };
+  size_mm: { w: number; h: number };
+  /** 0…90 degrees below horizontal. */
+  pitch_deg: number;
+  /** −60…+60, negative = left as seen from behind the unit. */
+  yaw_deg: number;
+  source: "manual" | "catalog_default";
 }
 
 export interface DcObject {
@@ -193,14 +209,19 @@ export type Annotation = AnnotationPayload & {
   created_at: string;
 };
 
-export type MeasSrc = "measured" | "range" | "derived" | "assumed";
+export type MeasSrc = "measured" | "range" | "derived" | "assumed" | "photo";
 export interface Measurement {
   key: string;
+  /** As obtained (tape reading, midpoint of two readings, derived, assumed). */
   value: number;
+  /** Two readings that disagreed. */
   min?: number;
   max?: number;
   src: MeasSrc;
-  reading?: number;
+  /** The same distance in the model. */
+  model?: number;
+  /** Where the dimension is drawn, room coordinates in mm. */
+  line?: [[number, number, number], [number, number, number]];
   note?: string;
   objects: string[];
 }
