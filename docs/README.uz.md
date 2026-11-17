@@ -284,9 +284,9 @@ frontend/
   hech qachon mijozning fayl nomidan emas.
 - O'zgarishlar tarixi serverda admin bilan cheklangan va hech qanday sirni
   yozmaydi — parolni tiklash sodir bo'lgani yoziladi, parolning o'zi emas.
-- Sessiyalar xotiradagi omborda — qayta ishga tushirishlardan omon qolishi
-  uchun tower-sessions ning Postgres omborini qo'ying (`DEPLOY.uz.md`, B
-  ilovasi).
+- Sessiyalar Postgres'da saqlanadi, shuning uchun qayta ishga tushirish hech
+  kimni tizimdan chiqarmaydi va cookie faqat sessiya id'sini olib yuradi
+  (`DEPLOY.uz.md`, B ilovasi).
 
 ## Ma'lum kamchiliklar
 

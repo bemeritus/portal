@@ -297,10 +297,9 @@ sudo systemctl start portal
 
 New migrations in `backend/migrations/` are applied automatically on start.
 
-> **Sessions reset on restart.** The app uses an in-memory session store, so
-> every redeploy logs users out. That's fine for a single instance; to keep
-> sessions (and to run more than one instance) switch to a Postgres-backed store
-> — see [Appendix B](#appendix-b--persistent-sessions-recommended-for-production).
+> **Sessions survive a restart.** They are stored in Postgres, so a redeploy no
+> longer logs everyone out and more than one instance can share them — see
+> [Appendix B](#appendix-b--sessions).
 
 ## Backups
 
@@ -333,33 +332,29 @@ On the server, move them into place as in step 5 and restart the service. For a
 fully static binary you could instead build for
 `x86_64-unknown-linux-musl`, which avoids glibc-version mismatches.
 
-## Appendix B — persistent sessions (recommended for production)
+## Appendix B — sessions
 
-Replace the in-memory store with the SQLx Postgres store so sessions survive
-restarts and can be shared across instances.
+Sessions live in Postgres, in a table the session store owns and creates itself
+on startup: schema `tower_sessions`, table `session`. It is **not** part of
+`backend/migrations/`, so `sqlx migrate` says nothing about it — the only
+requirement is that the application's database role may create a schema, which
+the role from step 2 can.
 
-1. Add the dependency in `backend/Cargo.toml`:
+A cookie holds nothing but the session id; the row holds the signed-in user id
+and the expiry. Two consequences worth knowing:
 
-   ```toml
-   tower-sessions-sqlx-store = { version = "0.14", features = ["postgres"] }
-   ```
+- `pg_dump` of the database includes live sessions. Restoring an old dump
+  restores sessions that were valid at the time — they stay valid until they
+  expire.
+- To sign everyone out at once (a leaked backup, a compromised account), empty
+  the table:
 
-2. In `backend/src/main.rs`, swap `MemoryStore` for the Postgres store and
-   run its migration once at startup:
+  ```sh
+  sudo -u postgres psql portal -c 'delete from tower_sessions.session;'
+  ```
 
-   ```rust
-   use tower_sessions_sqlx_store::PostgresStore;
-
-   let session_store = PostgresStore::new(state.pool.clone());
-   session_store.migrate().await.expect("session store migrate");
-   let session_layer = SessionManagerLayer::new(session_store)
-       .with_http_only(true)
-       .with_same_site(SameSite::Lax)
-       // Still from the environment — do not hardcode it here either.
-       .with_secure(config.secure_cookie);
-   ```
-
-3. Rebuild and redeploy.
+Expired rows are swept hourly by a background task in the process, so the table
+does not grow without bound.
 
 ## Appendix C — Docker
 
@@ -410,5 +405,5 @@ rebuild, since it is read from the environment at startup.
 | The frontend build fails with a syntax error in `.ts`/`.tsx` | Node is too old. `node --version` must be v20+; Ubuntu 22.04's default is 12. |
 | A frontend request returns HTML instead of JSON | nginx is answering a `/api/*` path itself. The proxy block must cover `/`, not just the SPA routes. |
 | Uploads fail with 413 | Raise nginx `client_max_body_size` (and `MAX_UPLOAD_BYTES`). |
-| Logged out after every deploy | Expected with the in-memory store — see Appendix B. |
+| Logged out after every deploy | Sessions are in Postgres now, so this means the session table is being lost or unreachable — check Appendix B and the startup log for `could not prepare the session table`. |
 | A user logs in but sees nothing at all | They have no category grants. Access comes only from the matrix at `/admin/users`; there are no global permission flags. |

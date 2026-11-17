@@ -27,8 +27,10 @@ use axum::response::{IntoResponse, Response};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
+use tower_sessions::SessionManagerLayer;
 use tower_sessions::cookie::SameSite;
-use tower_sessions::{MemoryStore, SessionManagerLayer};
+use tower_sessions::session_store::ExpiredDeletion;
+use tower_sessions_sqlx_store::PostgresStore;
 
 use crate::auth::SESSION_UID;
 use crate::config::Config;
@@ -67,6 +69,30 @@ async fn main() {
         tracing::info!("telegram notifications enabled");
     }
 
+    // Sessions live in Postgres, not in this process: an in-memory store loses
+    // every login on restart, which signs everyone out on each deploy and fills
+    // the log with `record not found in store` from browsers still holding a
+    // cookie for a session that died with the old process.
+    let session_store = PostgresStore::new(pool.clone());
+    // The store owns its own schema and table, so it migrates itself rather
+    // than riding along in `migrations/`.
+    if let Err(e) = session_store.migrate().await {
+        panic!("could not prepare the session table: {e}");
+    }
+
+    // Expired rows are not cleaned up by anyone else; without this the table
+    // only ever grows. Errors here are not fatal — a failed sweep means stale
+    // rows, not broken sessions — so they are logged and the task ends.
+    let session_store_for_cleanup = session_store.clone();
+    tokio::spawn(async move {
+        if let Err(e) = session_store_for_cleanup
+            .continuously_delete_expired(tokio::time::Duration::from_secs(60 * 60))
+            .await
+        {
+            tracing::error!("the expired-session sweep stopped: {e}");
+        }
+    });
+
     let state = AppState {
         pool,
         config: config.clone(),
@@ -76,7 +102,7 @@ async fn main() {
     // Session cookies (SR-2). `Secure` comes from the environment rather than
     // from an edit to this file before every production build — the previous
     // arrangement meant a forgotten edit shipped cookies that travel in clear.
-    let session_layer = SessionManagerLayer::new(MemoryStore::default())
+    let session_layer = SessionManagerLayer::new(session_store)
         .with_http_only(true)
         .with_same_site(SameSite::Lax)
         .with_secure(config.secure_cookie);

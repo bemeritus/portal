@@ -303,11 +303,9 @@ sudo systemctl start portal
 
 `backend/migrations/` dagi yangi migratsiyalar ishga tushishda avtomatik qo'llanadi.
 
-> **Qayta ishga tushirishda sessiyalar nolga tushadi.** Ilova xotiradagi sessiya
-> omborini ishlatadi, shuning uchun har bir qayta joylashtirish foydalanuvchilarni
-> tizimdan chiqaradi. Bitta nusxa uchun bu joiz; sessiyalarni saqlash (va bir
-> nechta nusxa ishlatish) uchun Postgres asosidagi omborga o'ting —
-> [B ilovasi](#b-ilovasi--doimiy-sessiyalar-ishlab-chiqarish-uchun-tavsiya-etiladi).
+> **Sessiyalar qayta ishga tushirishdan omon qoladi.** Ular Postgres'da
+> saqlanadi, shuning uchun qayta joylashtirish endi hammani tizimdan chiqarmaydi
+> va bir nechta nusxa sessiyalarni bo'lishishi mumkin — [B ilovasi](#b-ilovasi--sessiyalar).
 
 ## Zaxira nusxalar
 
@@ -341,34 +339,29 @@ Serverda ularni 5-qadamdagidek joyiga qo'ying va xizmatni qayta ishga tushiring.
 To'liq statik ikkilik fayl uchun `x86_64-unknown-linux-musl` uchun qurishingiz
 mumkin — bu glibc versiyalari nomuvofiqligini yo'q qiladi.
 
-## B ilovasi — doimiy sessiyalar (ishlab chiqarish uchun tavsiya etiladi)
+## B ilovasi — sessiyalar
 
-Xotiradagi omborni SQLx Postgres ombori bilan almashtiring, shunda sessiyalar
-qayta ishga tushirishlardan omon qoladi va bir nechta nusxa o'rtasida
-bo'lishilishi mumkin.
+Sessiyalar Postgres'da yashaydi — ombor o'zi egalik qiladigan va ishga tushishda
+o'zi yaratadigan jadvalda: `tower_sessions` sxemasi, `session` jadvali. U
+`backend/migrations/` tarkibiga **kirmaydi**, shuning uchun `sqlx migrate` u
+haqida hech narsa demaydi; yagona talab — ilovaning ma'lumotlar bazasi roli
+sxema yarata olishi, 2-qadamdagi rol buni uddalaydi.
 
-1. `backend/Cargo.toml` ga bog'liqlikni qo'shing:
+Cookie'da session id'dan boshqa hech narsa yo'q; qator esa tizimga kirgan
+foydalanuvchi id'si va amal qilish muddatini saqlaydi. Bundan ikki xulosa:
 
-   ```toml
-   tower-sessions-sqlx-store = { version = "0.14", features = ["postgres"] }
-   ```
+- Bazaning `pg_dump` nusxasi jonli sessiyalarni ham o'z ichiga oladi. Eski
+  nusxani tiklash o'sha paytda amal qilgan sessiyalarni tiklaydi — ular muddati
+  tugaguncha amal qiladi.
+- Hammani bir yo'la tizimdan chiqarish uchun (zaxira nusxa sizib chiqdi, akkaunt
+  buzildi) jadvalni bo'shating:
 
-2. `backend/src/main.rs` da `MemoryStore` ni Postgres ombori bilan
-   almashtiring va ishga tushishda uning migratsiyasini bir marta bajaring:
+  ```sh
+  sudo -u postgres psql portal -c 'delete from tower_sessions.session;'
+  ```
 
-   ```rust
-   use tower_sessions_sqlx_store::PostgresStore;
-
-   let session_store = PostgresStore::new(state.pool.clone());
-   session_store.migrate().await.expect("session store migrate");
-   let session_layer = SessionManagerLayer::new(session_store)
-       .with_http_only(true)
-       .with_same_site(SameSite::Lax)
-       // Still from the environment — do not hardcode it here either.
-       .with_secure(config.secure_cookie);
-   ```
-
-3. Qayta quring va qayta joylashtiring.
+Muddati o'tgan qatorlarni jarayon ichidagi fon vazifasi har soatda tozalab
+turadi, shuning uchun jadval cheksiz o'smaydi.
 
 ## C ilovasi — Docker
 
@@ -422,5 +415,5 @@ tushishda muhitdan o'qiladi.
 | Frontend qurilishi `.ts`/`.tsx` da sintaksis xatosi bilan tushadi | Node juda eski. `node --version` v20+ bo'lishi kerak; Ubuntu 22.04 da standart 12. |
 | Frontend so'rovi JSON o'rniga HTML qaytaradi | nginx `/api/*` yo'lini o'zi javoblayapti. Proksi bloki faqat SPA marshrutlarini emas, `/` ni qoplashi kerak. |
 | Yuklamalar 413 bilan tushadi | nginx `client_max_body_size` ni (va `MAX_UPLOAD_BYTES` ni) oshiring. |
-| Har bir joylashtirishdan keyin tizimdan chiqib ketish | Xotiradagi ombor bilan bu kutilgan holat — B ilovasiga qarang. |
+| Har bir joylashtirishdan keyin tizimdan chiqib ketish | Sessiyalar endi Postgres'da, demak sessiya jadvali yo'qolmoqda yoki unga ulanib bo'lmayapti — B ilovasini va ishga tushish logida `could not prepare the session table` borligini tekshiring. |
 | Foydalanuvchi kiradi, lekin umuman hech narsa ko'rmaydi | Unda kategoriya grantlari yo'q. Kirish faqat `/admin/users` dagi matritsadan keladi; global ruxsat bayroqlari mavjud emas. |

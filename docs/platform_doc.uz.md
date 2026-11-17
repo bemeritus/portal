@@ -78,7 +78,8 @@ bir tomonda o'zgargan struktura ikkinchi tomonga qarz bo'lib qoladi.
   bo'ladi
 
 ### Autentifikatsiya va xavfsizlik
-- **Sessiyalar:** `tower-sessions` 0.14, xotiradagi ombor, `HttpOnly` cookie
+- **Sessiyalar:** `tower-sessions` 0.15, Postgres ombori
+  (`tower-sessions-sqlx-store`, `tower_sessions` sxemasi), `HttpOnly` cookie
 - **Parol xeshlash:** `argon2` 0.5
 - **Qorovullar:** Axum ekstraktorlari (`CurrentUser`, `AdminUser`) — ularni
   qabul qiladigan ishlovchi ularsiz ishga tusha olmaydi
@@ -874,7 +875,3 @@ platform/
     tekshiruvidan o'tadi va ish vaqtida tushadi. TypeScript ni Rust dan
     generatsiya qilish yoki shartnomani testda tasdiqlash buni yopardi;
     ikkalasi ham ajratish keltirib chiqargan ish va hech biri qilinmagan.
-14. Sessiyalar xotirada, shuning uchun har bir qayta ishga tushirish hammani
-    tizimdan chiqaradi va ikkinchi nusxa ularni bo'lisha olmaydi.
-    `DEPLOY.uz.md` ning B ilovasida Postgres ombori bor; kodda buni to'sadigan
-    narsa yo'q, shunchaki almashtirilmagan.

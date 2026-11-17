@@ -66,12 +66,14 @@ one side is a change owed on the other.
   time, which is what lets the Docker image build without one)
 - **Database:** PostgreSQL 15
 - **Migrations:** `sqlx-cli` (`sqlx migrate`); also embedded in the binary and
-  applied on startup
+  applied on startup. The session table is outside this set — the session store
+  creates and migrates its own schema
 - **Static files:** `tower-http`'s `ServeDir`, with a fallback to `index.html`
   so the client router owns deep links
 
 ### Authentication & Security
-- **Sessions:** `tower-sessions` 0.14, in-memory store, `HttpOnly` cookie
+- **Sessions:** `tower-sessions` 0.15, Postgres store
+  (`tower-sessions-sqlx-store`, schema `tower_sessions`), `HttpOnly` cookie
 - **Password hashing:** `argon2` 0.5
 - **Guards:** Axum extractors (`CurrentUser`, `AdminUser`) — a handler that
   takes one cannot run without it
@@ -790,6 +792,3 @@ platform/
     renamed on one side type-checks on both and fails at runtime. Generating the
     TypeScript from the Rust, or asserting the contract in a test, would close
     it; both are work the split created and neither is done.
-14. Sessions are in memory, so every restart signs everyone out and a second
-    instance would not share them. `DEPLOY.md` Appendix B has the Postgres
-    store; nothing in the code prevents it, it simply has not been switched.

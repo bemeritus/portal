@@ -269,8 +269,8 @@ frontend/
   filename.
 - The change history is admin-gated on the server and records no secrets — a
   password reset is logged as having happened, never the password.
-- Sessions use an in-memory store — swap in the tower-sessions Postgres store
-  for persistence across restarts (`docs/DEPLOY.md`, Appendix B).
+- Sessions are stored in Postgres, so a restart does not sign anyone out and the
+  cookie carries only a session id (`docs/DEPLOY.md`, Appendix B).
 
 ## Known gaps
 
