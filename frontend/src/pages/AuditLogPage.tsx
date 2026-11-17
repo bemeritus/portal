@@ -58,6 +58,7 @@ const KINDS = [
   { value: "category", key: "log.kindCategories" },
   { value: "document", key: "log.kindDocuments" },
   { value: "upload", key: "log.kindUploads" },
+  { value: "dc", key: "log.kindDc" },
 ] as const;
 
 export function AuditLogPage() {

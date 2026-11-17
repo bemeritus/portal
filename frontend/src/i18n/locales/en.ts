@@ -243,6 +243,7 @@ export const en = {
       entries_one: "{{count}} entry",
       entries_other: "{{count}} entries",
       serverMax: " (server maximum)",
+      kindDc: "Server room",
     },
 
     users: {

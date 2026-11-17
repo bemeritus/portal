@@ -244,6 +244,7 @@ export const uz = {
       entries_one: "{{count}} ta yozuv",
       entries_other: "{{count}} ta yozuv",
       serverMax: " (server maksimumi)",
+      kindDc: "Server xonasi",
     },
 
     users: {

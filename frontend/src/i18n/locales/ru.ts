@@ -261,6 +261,7 @@ export const ru = {
       entries_many: "{{count}} записей",
       entries_other: "{{count}} записи",
       serverMax: " (максимум сервера)",
+      kindDc: "Серверная",
     },
 
     users: {
