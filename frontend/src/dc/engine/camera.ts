@@ -238,12 +238,20 @@ export class CameraRig {
     );
   }
 
+  /**
+   * Keep the target near the room. The camera moves by the same amount, so
+   * this pans and never turns the view (a zoom out from a top view used to
+   * pull the target below the floor and tilt the plan).
+   */
   private clampTarget() {
     const t = this.controls.target,
       r = this.room;
+    const before = t.clone();
     t.x = clamp(t.x, r.x0 - 2000, r.x1 + 2000);
     t.y = clamp(t.y, 0, this.roomHeight + 600);
     t.z = clamp(t.z, r.z0 - 2000, r.z1 + 2000);
+    const d = t.clone().sub(before);
+    if (d.lengthSq() > 0) this.cam.position.add(d);
   }
 
   /** Zoom by factor `s` toward `pivot` (the surface under the cursor). */
