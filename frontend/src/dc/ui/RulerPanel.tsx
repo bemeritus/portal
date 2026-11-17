@@ -7,9 +7,18 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { Measure, RulerMode } from "../engine/DcEngine";
 import type { Vec3 } from "../model/ruler";
 import { useFmt } from "../settings";
-import type { RulerProps } from "./Inspector";
+
+export interface RulerProps {
+  mode: RulerMode;
+  setMode: (m: RulerMode) => void;
+  measures: Measure[];
+  clear: () => void;
+  setEnd: (i: number, end: "a" | "b", p: Vec3) => void;
+  text: (m: Measure) => string;
+}
 
 export function RulerPanel({
   mode,

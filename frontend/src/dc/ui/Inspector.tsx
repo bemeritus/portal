@@ -10,11 +10,10 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
-import type { Measure, RulerMode, SelRef } from "../engine/DcEngine";
+import type { SelRef } from "../engine/DcEngine";
 import { rackStats } from "../model/devices";
 import type { Problem } from "../model/geometry";
 import { disagrees, isRange } from "../model/measure";
-import type { Vec3 } from "../model/ruler";
 import { useFmt } from "../settings";
 import type {
   CapacityCandidate,
@@ -25,9 +24,13 @@ import type {
   ViewPayload,
 } from "../types";
 import { CapacityPanel, type CapacityRequest } from "./CapacityPanel";
-import { MeasurementsPanel, assumedByObject } from "./MeasurementsPanel";
+import { assumedByObject } from "../model/objects";
+import { MeasurementsPanel } from "./MeasurementsPanel";
+import { measureLabel } from "./measureLabel";
+import type { RulerProps } from "./RulerPanel";
 import { RulerPanel } from "./RulerPanel";
-import { measureLabel, SelectionPanel, type Prefill } from "./SelectionPanel";
+import type { Prefill } from "./RackPanel";
+import { SelectionPanel } from "./SelectionPanel";
 import { ViewsPanel } from "./ViewsPanel";
 
 export type InspectorTab =
@@ -39,15 +42,6 @@ const TABS: InspectorTab[] = [
   "views",
   "ruler",
 ];
-
-export interface RulerProps {
-  mode: RulerMode;
-  setMode: (m: RulerMode) => void;
-  measures: Measure[];
-  clear: () => void;
-  setEnd: (i: number, end: "a" | "b", p: Vec3) => void;
-  text: (m: Measure) => string;
-}
 
 interface Props {
   docked: boolean;

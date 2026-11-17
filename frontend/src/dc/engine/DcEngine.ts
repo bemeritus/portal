@@ -14,10 +14,8 @@
 
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { mergeStatic } from "./merge";
+import type { PostFx } from "./postfx";
 
 import type {
   Annotation,
@@ -159,11 +157,23 @@ export class DcEngine {
   private readonly snapMarker: HTMLDivElement;
   private showAssumptions = false;
   private highlightOwner: string | null = null;
-  private composer: {
-    fx: EffectComposer;
-    render: RenderPass;
-    ao: GTAOPass;
-  } | null = null;
+  private composer: PostFx | null = null;
+  private composerLoading = false;
+  /**
+   * Rendering quality, stepped down automatically when frames get slow:
+   * 2 — ambient occlusion, ceiling lights, 2048 px shadows, up to 1.5× pixels;
+   * 1 — no ambient occlusion or point lights, 1024 px shadows, 1× pixels;
+   * 0 — no shadows either.
+   */
+  private quality: 0 | 1 | 2 = DcEngine.initialQuality();
+  private frameTimes: number[] = [];
+
+  private static initialQuality(): 0 | 1 | 2 {
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const cores = nav.hardwareConcurrency ?? 8;
+    const mem = nav.deviceMemory ?? 8;
+    return cores <= 2 || mem <= 2 ? 0 : cores <= 4 || mem <= 4 ? 1 : 2;
+  }
   private drag: null | {
     id: number;
     dx: number;
@@ -193,6 +203,9 @@ export class DcEngine {
   onPlaceNote: (p: [number, number, number]) => void = () => {};
   onWalk: (on: boolean) => void = () => {};
   onProjection: (ortho: boolean) => void = () => {};
+  /** The rendering quality was lowered because frames were slow. */
+  onQuality: (q: 0 | 1 | 2) => void = () => {};
+  private disposed = false;
 
   constructor(
     private readonly host: HTMLElement,
@@ -206,7 +219,7 @@ export class DcEngine {
       antialias: true,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.domElement.className = "dc-canvas";
@@ -288,35 +301,9 @@ export class DcEngine {
     if (mode === this.mode) return;
     this.mode = mode;
     this.lib.reset(mode, this.theme);
-    this.renderer.shadowMap.enabled = mode === "realistic";
-    // Ambient occlusion: post-processing only in the mode that needs it.
-    if (mode === "realistic" && !this.composer) {
-      const fx = new EffectComposer(this.renderer);
-      const render = new RenderPass(this.scene, this.rig.cam);
-      const ao = new GTAOPass(
-        this.scene,
-        this.rig.cam,
-        this.host.clientWidth,
-        this.host.clientHeight,
-      );
-      ao.updateGtaoMaterial({
-        radius: 400,
-        distanceExponent: 1,
-        thickness: 200,
-        scale: 1,
-      });
-      fx.addPass(render);
-      fx.addPass(ao);
-      fx.addPass(new OutputPass());
-      fx.setSize(this.host.clientWidth, this.host.clientHeight);
-      this.composer = { fx, render, ao };
-    }
+    this.ensurePostFx();
     this.scene.environment = mode === "realistic" ? this.env() : null;
-    this.lights.children.forEach(
-      (l) =>
-        (l.visible =
-          mode === "realistic" ? l.userData.realistic : l.userData.schema),
-    );
+    this.applyQuality();
     this.labels.showNames = mode !== "realistic";
     this.applyTheme();
     // Shadows and textured fronts are decided at build time.
@@ -356,6 +343,11 @@ export class DcEngine {
       );
     }
     this.dirty = true;
+  }
+
+  /** All labels and dimensions on or off. */
+  setLabelsVisible(on: boolean) {
+    this.labels.setVisible(on);
   }
 
   /** Colour one owner's devices and cells, dim everything else (§11.4). */
@@ -564,12 +556,84 @@ export class DcEngine {
 
   private renderFrame() {
     this.updatePlanView();
-    if (this.mode === "realistic" && this.composer) {
-      // The camera may have switched between perspective and orthographic.
-      this.composer.render.camera = this.rig.cam;
-      this.composer.ao.camera = this.rig.cam;
-      this.composer.fx.render();
-    } else this.renderer.render(this.scene, this.rig.cam);
+    if (this.mode === "realistic" && this.quality === 2 && this.composer)
+      this.composer.render(this.rig.cam);
+    else this.renderer.render(this.scene, this.rig.cam);
+  }
+
+  private pixelRatio(): number {
+    return Math.min(window.devicePixelRatio, this.quality === 2 ? 1.5 : 1);
+  }
+
+  /** Ambient occlusion: downloaded and built only when it will be used. */
+  private ensurePostFx() {
+    if (
+      this.mode !== "realistic" ||
+      this.quality < 2 ||
+      this.composer ||
+      this.composerLoading
+    )
+      return;
+    this.composerLoading = true;
+    void import("./postfx").then(({ makePostFx }) => {
+      this.composerLoading = false;
+      if (this.disposed) return;
+      this.composer = makePostFx(
+        this.renderer,
+        this.scene,
+        this.rig.cam,
+        this.host.clientWidth,
+        this.host.clientHeight,
+      );
+      this.dirty = true;
+    });
+  }
+
+  /** Lights, shadows and resolution for the current mode and quality. */
+  private applyQuality() {
+    const realistic = this.mode === "realistic";
+    this.renderer.setPixelRatio(this.pixelRatio());
+    this.renderer.shadowMap.enabled = realistic && this.quality > 0;
+    this.lights.traverse((l) => {
+      if (!(l as THREE.Light).isLight) return;
+      l.visible = realistic ? l.userData.realistic : l.userData.schema;
+      const shadow = (l as THREE.DirectionalLight).shadow;
+      if (shadow && (l as THREE.DirectionalLight).castShadow) {
+        const size = this.quality === 2 ? 2048 : 1024;
+        if (shadow.mapSize.x !== size) {
+          shadow.mapSize.set(size, size);
+          shadow.map?.dispose();
+          shadow.map = null;
+        }
+      }
+    });
+    // The ceiling tubes' point lights cost per pixel; below quality 2 the
+    // tubes still glow, the room is lit by the sky and the sun.
+    this.roomGroup.traverse((o) => {
+      if ((o as THREE.PointLight).isPointLight) o.visible = this.quality === 2;
+    });
+    this.resize();
+    this.dirty = true;
+  }
+
+  /**
+   * Watch frame times while something moves; when the median of 45 frames is
+   * slower than 25 fps, step the quality down (never back up by itself).
+   */
+  private watchFrame(interval: number) {
+    if (interval > 120) {
+      this.frameTimes = [];
+      return;
+    }
+    this.frameTimes.push(interval);
+    if (this.frameTimes.length < 45) return;
+    const sorted = [...this.frameTimes].sort((a, b) => a - b);
+    this.frameTimes = [];
+    if (sorted[22] > 40 && this.quality > 0) {
+      this.quality = (this.quality - 1) as 0 | 1;
+      this.applyQuality();
+      this.onQuality(this.quality);
+    }
   }
 
   snapshotPng(): string {
@@ -618,7 +682,8 @@ export class DcEngine {
     disposeTree(this.dims);
     disposeTree(this.ledGroup);
     this.lib.dispose();
-    this.composer?.fx.dispose();
+    this.composer?.dispose();
+    this.disposed = true;
     this.envMap?.dispose();
     this.rig.dispose();
     this.labels.dispose();
@@ -769,17 +834,26 @@ export class DcEngine {
         tube.userData.fixedMaterial = true;
         this.roomGroup.add(tube);
         const light = new THREE.PointLight(0xffffff, 0.5, 0, 0);
+        light.visible = this.quality === 2;
         light.position.set((b.x0 + b.x1) / 2, H - 120, z);
         this.roomGroup.add(light);
       }
     }
+    // The floor grid: centred on the room with the same margin on every
+    // side, 500 mm cells on whole half-metres of the room's own axes.
+    const gb = bounds(poly);
+    const CELL = 500;
+    const snap = (v: number) => Math.round(v / CELL) * CELL;
+    const half =
+      Math.ceil((Math.max(gb.x1 - gb.x0, gb.z1 - gb.z0) / 2 + 4000) / CELL) *
+      CELL;
     const grid = new THREE.GridHelper(
-      Math.max(bounds(poly).x1, bounds(poly).z1) * 2,
-      40,
+      2 * half,
+      (2 * half) / CELL,
       this.theme.line,
       this.theme.line,
     );
-    grid.position.set(0, 1, 0);
+    grid.position.set(snap((gb.x0 + gb.x1) / 2), 1, snap((gb.z0 + gb.z1) / 2));
     (grid.material as THREE.Material).transparent = true;
     (grid.material as THREE.Material).opacity =
       this.mode === "realistic" ? 0 : 0.35;
@@ -809,6 +883,7 @@ export class DcEngine {
     });
     const s = solid(obj, item, m.room.floor_plan);
     const g = built.group;
+    mergeStatic(g);
     g.position.set(
       (s.rect.x0 + s.rect.x1) / 2,
       obj.y0_mm,
@@ -1915,10 +1990,12 @@ export class DcEngine {
     const w = Math.max(1, this.host.clientWidth),
       h = Math.max(1, this.host.clientHeight);
     this.renderer.setSize(w, h, false);
-    this.composer?.fx.setSize(w, h);
+    this.composer?.setSize(w, h);
     this.rig.resize(w, h);
     this.dirty = true;
   }
+
+  private lastFrame = 0;
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
@@ -1935,7 +2012,12 @@ export class DcEngine {
       !this.rig.reducedMotion &&
       this.ledGroup.children.length > 0;
     if (blinking) this.tickLeds(now);
-    if (!(moving || blinking || this.dirty)) return;
+    if (!(moving || blinking || this.dirty)) {
+      this.lastFrame = 0;
+      return;
+    }
+    if (this.lastFrame) this.watchFrame(now - this.lastFrame);
+    this.lastFrame = now;
     this.dirty = false;
     this.renderFrame();
     this.labels.update(

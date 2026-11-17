@@ -6,7 +6,6 @@
 
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
-import i18n from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { tDyn } from "../../i18n";
+import { measureLabel } from "./measureLabel";
 import type { SelRef } from "../engine/DcEngine";
 import type { Fmt } from "../format";
 import { useFmt } from "../settings";
@@ -27,19 +26,10 @@ import type {
   Op,
   RoomData,
 } from "../types";
-import { objectFields } from "./DcRoomPage";
-import { assumedByObject } from "./MeasurementsPanel";
+import { assumedByObject, objectFields } from "../model/objects";
 import { LengthInput } from "./LengthInput";
-import { RackPanel } from "./RackPanel";
+import { RackPanel, type Prefill } from "./RackPanel";
 import { ShelfPanel } from "./ShelfPanel";
-
-export interface Prefill {
-  rackId: number;
-  u: number;
-  height: number;
-  face: "front" | "rear" | "both";
-  power: number | null;
-}
 
 interface Props {
   data: RoomData;
@@ -241,34 +231,6 @@ export function problemText(p: Problem, t: TFunction): string {
     case "blocks_door":
       return t("dc.problem.door", { door: p.door });
   }
-}
-
-/**
- * A measurement or catalog property key in words. Rack and unit numbers fold
- * into one key with `{{n}}` (`racks.back.r2` → `racks_back_n`, n = 2); gaps
- * name both ends. A key with no translation is shown as it is.
- */
-export function measureLabel(key: string, t: TFunction): string {
-  const gapM = key.match(/^racks\.gap\.(.+)-(.+)$/);
-  if (gapM) {
-    const end = (x: string) =>
-      x === "left_wall"
-        ? t("dc.measureKey.leftWall")
-        : x === "right_wall"
-          ? t("dc.measureKey.rightWall")
-          : t("dc.measureKey.rack", { n: x.replace(/\D/g, "") });
-    return t("dc.measureKey.gap", { a: end(gapM[1]), b: end(gapM[2]) });
-  }
-  let n = "";
-  const generic = key.replace(
-    /\b(?:r|ac)(\d+)\b|board_(\d+)/g,
-    (_m, a?: string, b?: string) => {
-      n = a ?? b ?? "";
-      return b ? "board_n" : "n";
-    },
-  );
-  const tk = `dc.measureKey.${generic.replace(/\./g, "_")}`;
-  return i18n.exists(tk) ? tDyn(t, tk, { n }) : key;
 }
 
 function ObjectEditor({

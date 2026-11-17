@@ -39,7 +39,9 @@ import {
   MousePointer2,
   Move,
   Redo2,
+  RotateCcw,
   Ruler,
+  Tag,
   Undo2,
   Upload,
   X,
@@ -88,8 +90,8 @@ import type { PaletteObject } from "./CommandPalette";
 import { useShell } from "./DcShell";
 import { ImportDialog } from "./ImportDialog";
 import { Inspector, type InspectorTab } from "./Inspector";
-import { assumedByObject } from "./MeasurementsPanel";
-import { measureLabel } from "./SelectionPanel";
+import { assumedByObject, objectFields } from "../model/objects";
+import { measureLabel } from "./measureLabel";
 
 const MODES: Mode[] = ["schema", "realistic", "fill", "power"];
 const TOOLS: { tool: Tool; icon: typeof Eye }[] = [
@@ -125,12 +127,6 @@ function complete(ref: SelRef, data: RoomData): SelRef {
     return d ? { type: "device", id: d.id, rackId: d.rack_id } : null;
   }
   return ref;
-}
-
-export function objectFields(o: DcObject): Omit<DcObject, "id"> {
-  const { id: _id, ...rest } = o;
-  void _id;
-  return rest;
 }
 
 /** `?cam=x,y,z,tx,ty,tz,fov,o` ↔ a camera view. */
@@ -214,6 +210,7 @@ export function DcRoomPage() {
   const [ortho, setOrtho] = useState(false);
   const [walking, setWalking] = useState(false);
   const [showAssumptions, setShowAssumptions] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
   const [owner, setOwner] = useState<string | null>(initial.current.owner);
   const [selection, setSelection] = useState<SelRef>(() =>
     parseHash(window.location.hash),
@@ -300,6 +297,7 @@ export function DcRoomPage() {
     e.onProjection = setOrtho;
     e.onPlaceNote = (p) => setNotePos(p);
     e.onRuler = (m) => setMeasures([...m]);
+    e.onQuality = () => setNotice(t("dc.quality.lowered"));
     return () => {
       e.dispose();
       engine.current = null;
@@ -344,6 +342,10 @@ export function DcRoomPage() {
   useEffect(
     () => engine.current?.setShowAssumptions(showAssumptions),
     [showAssumptions, loaded],
+  );
+  useEffect(
+    () => engine.current?.setLabelsVisible(showLabels),
+    [showLabels, loaded],
   );
   useEffect(() => engine.current?.setRulerMode(rulerMode), [rulerMode, loaded]);
   useEffect(() => engine.current?.setHighlight(owner), [owner, loaded, data]);
@@ -449,6 +451,55 @@ export function DcRoomPage() {
     },
     [run, mode, owner, selection, data, t],
   );
+
+  /**
+   * Put every object back where the seed (revision 1) placed it — position
+   * and rotation only; devices, cells, notes and views stay. One change set,
+   * so it can be undone like any other.
+   */
+  const resetLayout = useCallback(async () => {
+    if (!data) return;
+    if (!window.confirm(t("dc.layout.resetConfirm"))) return;
+    setError(null);
+    let first;
+    try {
+      first = await dcApi.revision(roomId, 1);
+    } catch (e) {
+      setError(errorMessage(e));
+      return;
+    }
+    const ops: Op[] = [];
+    for (const o of data.objects) {
+      const was =
+        first.snapshot.objects.find((x) => x.id === o.id) ??
+        first.snapshot.objects.find((x) => x.name === o.name);
+      if (!was) continue;
+      if (
+        was.x0_mm === o.x0_mm &&
+        was.z0_mm === o.z0_mm &&
+        was.y0_mm === o.y0_mm &&
+        was.rotation_deg === o.rotation_deg
+      )
+        continue;
+      ops.push({
+        op: "object_update",
+        id: o.id,
+        object: {
+          ...objectFields(o),
+          x0_mm: was.x0_mm,
+          z0_mm: was.z0_mm,
+          y0_mm: was.y0_mm,
+          rotation_deg: was.rotation_deg,
+        },
+      });
+    }
+    if (ops.length === 0) {
+      setNotice(t("dc.layout.resetNothing"));
+      return;
+    }
+    if (await run(ops, t("dc.layout.resetChange", { count: ops.length })))
+      setNotice(t("dc.layout.resetDone", { count: ops.length }));
+  }, [data, roomId, run, t]);
 
   const openView = useCallback((v: ViewPayload) => {
     if (v.mode) setMode(v.mode);
@@ -734,6 +785,15 @@ export function DcRoomPage() {
         </button>
       ))}
       <hr />
+      <button
+        type="button"
+        aria-pressed={showLabels}
+        title={t("dc.labels.toggle")}
+        aria-label={t("dc.labels.toggle")}
+        onClick={() => setShowLabels((v) => !v)}
+      >
+        <Tag className="size-[18px]" />
+      </button>
       <button
         type="button"
         aria-pressed={showAssumptions}
@@ -1103,6 +1163,15 @@ export function DcRoomPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {canEdit && (
+            <IconButton
+              label={t("dc.layout.reset")}
+              disabled={changes.pending}
+              onClick={() => void resetLayout()}
+            >
+              <RotateCcw className="size-4" />
+            </IconButton>
+          )}
           {canEdit && (
             <IconButton
               label={t("dc.import.button")}

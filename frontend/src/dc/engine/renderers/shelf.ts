@@ -10,6 +10,7 @@ import * as THREE from "three";
 
 import type { CatalogItem, DcObject, ShelfProps } from "../../types";
 import { cellCount, cellInfo } from "../../model/geometry";
+import { PLATE_ATLAS, plateUv } from "../materials";
 import {
   box,
   type BuildContext,
@@ -63,10 +64,15 @@ export const shelfRenderer: ObjectRenderer = {
       g.add(hit);
       // White number plates on the front edge of plated boards (photo 02).
       if (c.plated) {
-        const pl = new THREE.Mesh(
-          new THREE.PlaneGeometry(56, 34),
-          ctx.lib.plate(n),
-        );
+        const geo = new THREE.PlaneGeometry(56, 34);
+        if (n <= PLATE_ATLAS) {
+          // Point the plate at its number in the shared atlas.
+          const [u0, v0, u1, v1] = plateUv(n);
+          const uv = geo.getAttribute("uv");
+          for (let i = 0; i < uv.count; i++)
+            uv.setXY(i, uv.getX(i) ? u1 : u0, uv.getY(i) ? v1 : v0);
+        }
+        const pl = new THREE.Mesh(geo, ctx.lib.plate(n));
         pl.position.set(x, y - 10, -d / 2 - 2);
         pl.rotation.y = Math.PI;
         pl.userData.role = "plate";

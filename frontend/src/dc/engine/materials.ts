@@ -240,6 +240,24 @@ function tiles(): HTMLCanvasElement {
 }
 
 /** A white number plate, as on the shelf's boards (photo 02). */
+/** Numbers 1–64 on one texture, 8 × 8 plates of 64 × 40 px. */
+export const PLATE_ATLAS = 64;
+function plateAtlas(): HTMLCanvasElement {
+  const [c, g] = canvas(8 * 64, 8 * 40);
+  for (let n = 1; n <= PLATE_ATLAS; n++) {
+    const p = plate(n);
+    g.drawImage(p, ((n - 1) % 8) * 64, Math.floor((n - 1) / 8) * 40);
+  }
+  return c;
+}
+
+/** The atlas cell of plate `n` as UV bounds [u0, v0, u1, v1]. */
+export function plateUv(n: number): [number, number, number, number] {
+  const col = (n - 1) % 8,
+    row = Math.floor((n - 1) / 8);
+  return [col / 8, 1 - (row + 1) / 8, (col + 1) / 8, 1 - row / 8];
+}
+
 function plate(n: number): HTMLCanvasElement {
   const [c, g] = canvas(64, 40);
   g.fillStyle = "#f4f4f2";
@@ -510,6 +528,13 @@ export class MaterialLibrary {
 
   /** A shelf number plate. */
   plate(n: number): THREE.Material {
+    // One material for every plate: they merge into one draw call.
+    if (n >= 1 && n <= PLATE_ATLAS)
+      return this.memo(
+        "plates",
+        () =>
+          new THREE.MeshBasicMaterial({ map: this.tex("plates", plateAtlas) }),
+      );
     return this.memo(
       `plate|${n}`,
       () =>

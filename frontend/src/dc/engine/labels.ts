@@ -43,6 +43,11 @@ export class Labels {
   showNames = true;
   focus = new Set<string>();
 
+  /** Hide or show every label at once (the rail's «Подписи» toggle). */
+  setVisible(on: boolean) {
+    this.root.hidden = !on;
+  }
+
   constructor(host: HTMLElement) {
     this.root = document.createElement("div");
     this.root.className = "dc-labels";

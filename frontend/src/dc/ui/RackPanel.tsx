@@ -33,8 +33,16 @@ import type {
   RoomData,
 } from "../types";
 import { DeviceForm } from "./DeviceForm";
-import { objectFields } from "./DcRoomPage";
-import type { Prefill } from "./SelectionPanel";
+import { objectFields } from "../model/objects";
+
+/** The capacity finder's pick, pre-filling the add form. */
+export interface Prefill {
+  rackId: number;
+  u: number;
+  height: number;
+  face: "front" | "rear" | "both";
+  power: number | null;
+}
 
 const ROW = 15;
 
