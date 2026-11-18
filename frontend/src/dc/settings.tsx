@@ -21,6 +21,8 @@ export interface DcSettings {
 
 interface Ctx {
   settings: DcSettings;
+  /** The saved settings have arrived (or failed to: the defaults apply). */
+  ready: boolean;
   /** The theme in effect (resolved from the app's preference when unset). */
   theme: DcThemeName;
   unit: LengthUnit;
@@ -60,6 +62,7 @@ export function DcSettingsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       settings,
+      ready: q.isSuccess || q.isError,
       theme: settings.dc_theme ?? (appIsDark() ? "studio" : "light"),
       unit: settings.dc_unit,
       setUnit: (dc_unit) => save.mutate({ dc_unit }),
@@ -67,7 +70,7 @@ export function DcSettingsProvider({ children }: { children: ReactNode }) {
     }),
     // `save.mutate` is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings],
+    [settings, q.isSuccess, q.isError],
   );
   return (
     <SettingsContext.Provider value={value}>

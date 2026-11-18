@@ -90,6 +90,7 @@ import type { PaletteObject } from "./CommandPalette";
 import { useShell } from "./DcShell";
 import { ImportDialog } from "./ImportDialog";
 import { Inspector, type InspectorTab } from "./Inspector";
+import { planByDefault } from "./landing";
 import { assumedByObject, objectFields } from "../model/objects";
 import { measureLabel } from "./measureLabel";
 
@@ -180,7 +181,7 @@ export function DcRoomPage() {
   const tokens = TOKENS[settings.theme];
   const shell = useShell();
   const navigate = useNavigate();
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const plan = search.get("view") === "plan";
   const tools = useToolAccess();
   const canEdit = tools.can("dc_room", "edit");
@@ -350,16 +351,36 @@ export function DcRoomPage() {
   useEffect(() => engine.current?.setRulerMode(rulerMode), [rulerMode, loaded]);
   useEffect(() => engine.current?.setHighlight(owner), [owner, loaded, data]);
 
+  // Where the room opens: in Чертёж on the plan, unless the link says what
+  // to show (FEEDBACK-2 §3). Once, as soon as the theme is known; a theme
+  // switched later moves nothing.
+  const landed = useRef(false);
+  const toPlan = useRef(false);
+  useEffect(() => {
+    if (landed.current || !settings.ready) return;
+    landed.current = true;
+    if (!planByDefault(settings.theme, search, window.location.hash)) return;
+    toPlan.current = true;
+    const q = new URLSearchParams(search);
+    q.set("view", "plan");
+    setSearch(q, { replace: true });
+    // Only the first render's values matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.ready]);
+
   // The plan: orthographic from above; 3D again when leaving it.
   useEffect(() => {
     const e = engine.current;
-    if (!e) return;
+    if (!e || !settings.ready) return;
+    // On its way to the plan: no 3D view first.
+    if (!plan && toPlan.current) return;
+    toPlan.current = false;
     if (plan) e.preset("top", 0);
     else if (initial.current.cam) {
       e.goView(initial.current.cam);
       initial.current.cam = null;
     } else e.preset("iso", 0);
-  }, [plan, loaded]);
+  }, [plan, loaded, settings.ready]);
 
   // Selection → engine, URL hash.
   useEffect(() => {
@@ -505,13 +526,25 @@ export function DcRoomPage() {
     if (v.mode) setMode(v.mode);
     setOwner(v.owner ?? null);
     if (v.selection) setSelection(parseHash(`#${v.selection}`));
-    engine.current?.goView({
+    const view = {
       position: v.position,
       target: v.target,
       fov: v.fov,
       ortho: v.ortho,
-    });
-  }, []);
+    };
+    // A saved view wins over the plan: one that is not a plan itself
+    // leaves for 3D, where the camera effect applies it.
+    const fromAbove =
+      v.ortho &&
+      Math.hypot(v.position[0] - v.target[0], v.position[2] - v.target[2]) <
+        0.05 * Math.abs(v.position[1] - v.target[1]);
+    if (plan && !fromAbove) {
+      initial.current.cam = view;
+      const q = new URLSearchParams(search);
+      q.set("view", "3d");
+      navigate({ search: q.toString(), hash: window.location.hash });
+    } else engine.current?.goView(view);
+  }, [plan, search, navigate]);
 
   const moveObject = useCallback(
     (id: number, x0: number, z0: number, rotation: number) => {

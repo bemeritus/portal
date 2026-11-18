@@ -181,8 +181,9 @@ function DcShell({ children }: { children: ReactNode }) {
           <nav className="dc-seg" aria-label={t("dc.shell.views")}>
             {target !== null && (
               <>
+                {/* `?view=3d`: chosen, so not sent to the plan. */}
                 <Link
-                  to={`/dc/${target}`}
+                  to={`/dc/${target}?view=3d`}
                   aria-current={tab === "3d" ? "page" : undefined}
                 >
                   3D
