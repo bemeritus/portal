@@ -53,6 +53,8 @@ function build(item: CatalogItem, lib: MaterialLibrary): THREE.Group {
     blocked: [],
     dims,
     ceilingAbove: 0,
+    detail: 2,
+    pxPerMm: null,
   };
   const g = RENDERERS[item.kind].build(standIn(item), item, ctx).group;
   g.traverse((o) => {

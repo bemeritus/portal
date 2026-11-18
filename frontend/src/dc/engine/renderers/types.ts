@@ -11,7 +11,13 @@
 
 import * as THREE from "three";
 
-import type { CatalogItem, DcObject, Device, ShelfCell } from "../../types";
+import type {
+  CatalogItem,
+  DcObject,
+  Device,
+  Finish,
+  ShelfCell,
+} from "../../types";
 import type { MaterialLibrary, Mode } from "../materials";
 
 export type Pick =
@@ -32,6 +38,37 @@ export interface BuildContext {
   dims: [number, number, number];
   /** Clear height from the object's top to the ceiling, mm (hangers). */
   ceilingAbove: number;
+  /**
+   * How much small detail to build: 2 everything, 1 without fan blades,
+   * 0 the silhouette and the big parts only (the room's adaptive quality).
+   */
+  detail: 0 | 1 | 2;
+  /**
+   * Screen pixels per millimetre when known (catalog previews), so fine
+   * patterns such as perforation stay readable; `null` in the room.
+   */
+  pxPerMm: number | null;
+}
+
+/**
+ * A body role carrying the item's finish (FEEDBACK-4 §2): `cooling|powder|#16171a`.
+ * The schema modes use the base role; realistic builds the surface from
+ * the finish. Without a finish the base role's default surface applies.
+ */
+export function surface(base: string, finish: Finish | undefined): string {
+  return finish ? `${base}|${finish.kind}|${finish.color}` : base;
+}
+
+/** The role a `surface()` role starts from. */
+export function baseRole(role: string): string {
+  const i = role.indexOf("|");
+  return i < 0 ? role : role.slice(0, i);
+}
+
+/** The same finish on another base: `withBase("cooling|powder|#16171a", "rim")`. */
+export function withBase(role: string, base: string): string {
+  const i = role.indexOf("|");
+  return i < 0 ? base : base + role.slice(i);
 }
 
 /** What a rack's doors need for the open/close animation. */

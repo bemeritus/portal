@@ -46,6 +46,8 @@ function build(mode: Mode) {
     blocked: [9, 10],
     dims: [2000, 600, 1800],
     ceilingAbove: 0,
+    detail: 2,
+    pxPerMm: null,
   }).group;
 }
 

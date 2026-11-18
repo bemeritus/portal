@@ -60,7 +60,7 @@ import { CameraRig, type Preset, type View } from "./camera";
 import { Labels } from "./labels";
 import { MaterialLibrary, type Mode } from "./materials";
 import { RENDERERS } from "./renderers";
-import type { Built, Pick } from "./renderers/types";
+import { baseRole, type Built, type Pick } from "./renderers/types";
 import { themeFromTokens, type DcTheme } from "./theme";
 import type { DcTokens } from "../theme/tokens";
 import { ViewCube } from "./viewCube";
@@ -687,6 +687,8 @@ export class DcEngine {
     if (sorted[22] > 40 && this.quality > 0) {
       this.quality = (this.quality - 1) as 0 | 1;
       this.applyQuality();
+      // Templates drop their small detail at the lower tiers.
+      this.rebuildAll();
       this.onQuality(this.quality);
     }
   }
@@ -935,6 +937,9 @@ export class DcEngine {
       blocked,
       dims,
       ceilingAbove,
+      // Fan blades, perforation detail and bevels follow the quality tier.
+      detail: this.quality,
+      pxPerMm: null,
     });
     const s = solid(obj, item, m.room.floor_plan);
     const g = built.group;
@@ -1094,7 +1099,7 @@ export class DcEngine {
         return;
       }
       mesh.material =
-        tint && (role === "rackFrame" || role === "rackCap")
+        tint && ["rackFrame", "rackCap"].includes(baseRole(role))
           ? tint
           : this.lib.role(role);
     });

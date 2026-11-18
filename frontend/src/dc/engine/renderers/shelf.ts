@@ -13,6 +13,7 @@ import { cellCount, cellInfo } from "../../model/geometry";
 import { PLATE_ATLAS, plateUv } from "../materials";
 import {
   box,
+  surface,
   type BuildContext,
   type Built,
   type ObjectRenderer,
@@ -36,12 +37,15 @@ export const shelfRenderer: ObjectRenderer = {
       at += sec;
       postX.push(w / 2 - at * cellW);
     }
+    // The posts' and boards' colour and surface come from the item.
+    const postRole = surface("shelf", p.finish);
+    const boardRole = surface("board", p.finish);
     for (const x of postX) {
-      g.add(box(ctx, "shelf", post, h, post, x, 0, -d / 2 + post / 2, pick));
-      g.add(box(ctx, "shelf", post, h, post, x, 0, d / 2 - post / 2, pick));
+      g.add(box(ctx, postRole, post, h, post, x, 0, -d / 2 + post / 2, pick));
+      g.add(box(ctx, postRole, post, h, post, x, 0, d / 2 - post / 2, pick));
     }
     for (const by of p.boards_mm)
-      g.add(box(ctx, "board", w, 20, d, 0, by - 20, 0, pick));
+      g.add(box(ctx, boardRole, w, 20, d, 0, by - 20, 0, pick));
 
     const blocked = new Set(ctx.blocked);
     const cells = new Map(ctx.cells.map((c) => [c.cell_no, c]));
@@ -86,8 +90,7 @@ export const shelfRenderer: ObjectRenderer = {
         // colour appear only while it is hovered or selected (FEEDBACK-2 §2).
         if (ctx.mode === "realistic")
           g.add(blockedMark(ctx, n, cellW - 30, ch, d - 60, x, y));
-        else
-          g.add(box(ctx, "cellBlocked", cellW - 30, 6, d - 60, x, y + 1, 0));
+        else g.add(box(ctx, "cellBlocked", cellW - 30, 6, d - 60, x, y + 1, 0));
       }
       const cell = cells.get(n);
       if (cell) {
@@ -163,14 +166,7 @@ function blockedMark(
   // The front faces −z; the hatch sits just inside the opening.
   const pts: number[] = [];
   for (const [x0, y0, x1, y1] of hatch(w, h, 90))
-    pts.push(
-      x - w / 2 + x0,
-      y + y0,
-      -d / 2,
-      x - w / 2 + x1,
-      y + y1,
-      -d / 2,
-    );
+    pts.push(x - w / 2 + x0, y + y0, -d / 2, x - w / 2 + x1, y + y1, -d / 2);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
   mark.add(new THREE.LineSegments(geo, mat));
