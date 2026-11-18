@@ -57,6 +57,10 @@ export function ShelfPanel({
   let acc = 0;
   for (const s of p.sections.slice(0, -1)) dividers.add((acc += s));
 
+  // A blocked cell gets no form, unless something was recorded there before
+  // (the room view lists that as a problem): then it can be cleared.
+  const formFor = (n: number) => !blocked.has(n) || cells.has(n);
+
   const label = (n: number) => {
     const l = cellLabel(p, n);
     return l.plated ? String(l.n) : t("dc.shelf.bottomN", { n: l.n });
@@ -116,7 +120,12 @@ export function ShelfPanel({
           </div>
         ))}
       </div>
-      {picked !== null && cellInfo(p, picked) && (
+      {picked !== null && blocked.has(picked) && (
+        <p className="dc-blocked-note" role="note" data-testid="cell-blocked">
+          {t("dc.shelf.blocked", { n: label(picked) })}
+        </p>
+      )}
+      {picked !== null && cellInfo(p, picked) && formFor(picked) && (
         <CellForm
           key={`${picked}-${data.room.revision}`}
           shelf={obj}

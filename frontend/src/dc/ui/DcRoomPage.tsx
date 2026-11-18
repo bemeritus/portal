@@ -1322,6 +1322,8 @@ function describe(ref: SelRef, data: RoomData, t: TFunction): string | null {
     return `${d.name} · ${units} · ${t(`dc.face.${d.face}`)}${d.owner ? ` · ${d.owner}` : ""}`;
   }
   if (ref.type === "cell") {
+    if (data.analysis.blocked_cells[String(ref.shelfId)]?.includes(ref.cellNo))
+      return t("dc.shelf.blocked", { n: ref.cellNo });
     const c = data.cells.find(
       (x) => x.shelf_id === ref.shelfId && x.cell_no === ref.cellNo,
     );

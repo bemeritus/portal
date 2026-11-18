@@ -292,6 +292,7 @@ export class DcEngine {
       .filter((e) => onFloor(e.solid))
       .map((e) => e.solid.rect);
     this.rebuildLeds();
+    this.markBlockedCells();
     this.refreshOverlays();
     if (first) this.preset("iso", 0);
     this.dirty = true;
@@ -376,7 +377,6 @@ export class DcEngine {
     this.refreshOverlays();
   }
 
-  /** Project a room point to viewport pixels (tests, popovers). */
   /** An object's box by name, mm (for the ruler's end-to-end test). */
   boxNamed(name: string): { min: Vec3; max: Vec3 } | null {
     for (const e of this.entries.values())
@@ -387,6 +387,32 @@ export class DcEngine {
     return null;
   }
 
+  /** Blocked cells' marks and whether each is shown (Реалистичный; tests). */
+  blockedMarks(): {
+    shelfId: number;
+    cellNo: number;
+    shown: boolean;
+    centre: Vec3;
+  }[] {
+    const out: ReturnType<DcEngine["blockedMarks"]> = [];
+    for (const e of this.entries.values())
+      for (const c of e.built.group.children)
+        if (c.userData.blockedCell !== undefined) {
+          c.updateWorldMatrix(true, true);
+          const p = new THREE.Box3()
+            .setFromObject(c)
+            .getCenter(new THREE.Vector3());
+          out.push({
+            shelfId: e.obj.id,
+            cellNo: c.userData.blockedCell as number,
+            shown: c.visible,
+            centre: [p.x, p.y, p.z],
+          });
+        }
+    return out;
+  }
+
+  /** Project a room point to viewport pixels (tests, popovers). */
   project(p: Vec3): [number, number] {
     const v = new THREE.Vector3(...p).project(this.rig.cam);
     return [
@@ -412,6 +438,7 @@ export class DcEngine {
         `obj:${ref.type === "object" ? ref.id : ref.type === "device" ? ref.rackId : ref.shelfId}`,
       );
     this.refreshOverlays();
+    this.markBlockedCells();
     if (fly && ref) this.flyTo(ref);
     this.dirty = true;
   }
@@ -1253,6 +1280,20 @@ export class DcEngine {
     this.dirty = true;
   }
 
+  /** Реалистичный: a blocked cell's mark shows while hovered or selected. */
+  private markBlockedCells() {
+    const is = (r: SelRef, shelf: number, n: number) =>
+      r?.type === "cell" && r.shelfId === shelf && r.cellNo === n;
+    for (const e of this.entries.values())
+      for (const c of e.built.group.children) {
+        const n = c.userData.blockedCell as number | undefined;
+        if (n === undefined) continue;
+        c.visible =
+          is(this.hover, e.obj.id, n) || is(this.selection, e.obj.id, n);
+      }
+    this.dirty = true;
+  }
+
   private selectedEntry(): Entry | null {
     const s = this.selection;
     if (!s) return null;
@@ -1841,6 +1882,7 @@ export class DcEngine {
           this.labels.focus.add(
             `obj:${s.type === "object" ? s.id : s.type === "device" ? s.rackId : s.shelfId}`,
           );
+        this.markBlockedCells();
         this.dirty = true;
       }
       this.onHover(h, ev.clientX, ev.clientY);
@@ -1849,6 +1891,7 @@ export class DcEngine {
     el.addEventListener("pointerleave", () => {
       this.onCursor(null);
       this.hover = null;
+      this.markBlockedCells();
       this.onHover(null, 0, 0);
     });
 

@@ -811,3 +811,10 @@
     padding: 10mm;
   }
 }
+/* Why a shelf cell cannot be used (under a cooling unit). */
+.dc-blocked-note {
+  padding: 6px 8px;
+  border-left: 2px solid var(--dc-warn);
+  background: color-mix(in srgb, var(--dc-warn) 8%, transparent);
+  font-size: 12px;
+}

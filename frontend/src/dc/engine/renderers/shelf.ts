@@ -81,7 +81,13 @@ export const shelfRenderer: ObjectRenderer = {
         g.add(pl);
       }
       if (blocked.has(n)) {
-        g.add(box(ctx, "cellBlocked", cellW - 30, 6, d - 60, x, y + 1, 0));
+        // Схема, Заполнение, Мощность: a red fill on the board. Реалистичный
+        // shows the cell as it is; an outline and hatch in the warning
+        // colour appear only while it is hovered or selected (FEEDBACK-2 §2).
+        if (ctx.mode === "realistic")
+          g.add(blockedMark(ctx, n, cellW - 30, ch, d - 60, x, y));
+        else
+          g.add(box(ctx, "cellBlocked", cellW - 30, 6, d - 60, x, y + 1, 0));
       }
       const cell = cells.get(n);
       if (cell) {
@@ -112,3 +118,65 @@ export const shelfRenderer: ObjectRenderer = {
     };
   },
 };
+
+/**
+ * 45° hatch lines clipped to a w × h rectangle, `step` apart, as
+ * `[x0, y0, x1, y1]` from its lower-left corner.
+ */
+export function hatch(
+  w: number,
+  h: number,
+  step: number,
+): [number, number, number, number][] {
+  const out: [number, number, number, number][] = [];
+  // The line x + y = c crosses it for x in [max(0, c − h), min(w, c)].
+  for (let c = step; c < w + h; c += step) {
+    const x0 = Math.max(0, c - h);
+    const x1 = Math.min(w, c);
+    out.push([x0, c - x0, x1, c - x1]);
+  }
+  return out;
+}
+
+/**
+ * A blocked cell in Реалистичный: the outline of its space and a hatch over
+ * its front opening, in the theme's warning colour, hidden until the engine
+ * shows it for the hovered or selected cell (`userData.blockedCell`).
+ */
+function blockedMark(
+  ctx: BuildContext,
+  n: number,
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+): THREE.Group {
+  const mat = ctx.lib.line(ctx.lib.theme.warn);
+  const mark = new THREE.Group();
+  const outline = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)),
+    mat,
+  );
+  outline.position.set(x, y + h / 2, 0);
+  mark.add(outline);
+  // The front faces −z; the hatch sits just inside the opening.
+  const pts: number[] = [];
+  for (const [x0, y0, x1, y1] of hatch(w, h, 90))
+    pts.push(
+      x - w / 2 + x0,
+      y + y0,
+      -d / 2,
+      x - w / 2 + x1,
+      y + y1,
+      -d / 2,
+    );
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  mark.add(new THREE.LineSegments(geo, mat));
+  mark.visible = false;
+  mark.renderOrder = 999;
+  mark.children.forEach((c) => (c.renderOrder = 999));
+  mark.userData.blockedCell = n;
+  return mark;
+}
