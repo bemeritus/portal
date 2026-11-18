@@ -4,11 +4,12 @@
  * highlight a client, compare with a revision, save the view, print QR
  * labels, switch mode / theme / unit. Fuzzy search, keyboard only.
  *
- * Actions with parameters show their current values in the row
- * («2U · 0,8 кВт»). Tab, or → at the end of the query, opens them: fields for
- * «Найти свободное место» (units, kW), the owner list for «Подсветить
- * клиента». Enter runs, Esc goes back to the list with the values kept
- * (FEEDBACK-2 §4).
+ * Actions with parameters show their values in the row ("2U · 0.8 kW").
+ * Tab, or → at the end of the query, opens them: fields for find-free-space
+ * (units, kW), the owner list for highlight-a-client. Enter runs, Esc goes
+ * back to the list with the values kept (FEEDBACK-2 §4). Find-free-space
+ * takes its values from the query and assumes none: without a unit count the
+ * row asks for one and Enter opens the fields (FEEDBACK-3 §2).
  */
 
 import {
@@ -43,8 +44,16 @@ import {
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fuzzyFilter, parseSpaceQuery } from "../model/fuzzy";
-import { kwText, MAX_U, parseKw, parseUnits } from "../model/spaceParams";
+import { fuzzyFilter } from "../model/fuzzy";
+import {
+  kwText,
+  MAX_U,
+  parseKw,
+  parseSpaceQuery,
+  parseUnits,
+  stripSpaceParams,
+  withSpaceParams,
+} from "../model/spaceParams";
 import { UNITS } from "../model/units";
 import { useDcSettings } from "../settings";
 import { THEMES } from "../theme/tokens";
@@ -74,18 +83,6 @@ export interface RoomPalette {
 
 type Param = null | "owner" | "space";
 
-interface SpaceParams {
-  u: number;
-  powerW: number | null;
-}
-const NO_SPACE: SpaceParams = { u: 1, powerW: null };
-
-/** What a query's `2U` / `0,8 кВт` changes in the current values. */
-function fromQuery(q: string, cur: SpaceParams): SpaceParams {
-  const p = parseSpaceQuery(q);
-  return { u: p.u ?? cur.u, powerW: p.powerW ?? cur.powerW };
-}
-
 const MODES = ["schema", "realistic", "fill", "power"] as const;
 
 export function CommandPalette({
@@ -105,12 +102,12 @@ export function CommandPalette({
   const lang = i18n.language;
   const [query, setQuery] = useState(initialQuery);
   const [param, setParam] = useState<Param>(null);
-  // Free-space parameters: set by the query as it is typed, or in their
-  // fields (Tab / →); kept while the palette is open.
-  const [space, setSpace] = useState<SpaceParams>(() =>
-    fromQuery(initialQuery, NO_SPACE),
-  );
-  const [fields, setFields] = useState({ u: "1", kw: "" });
+  // Free-space parameters come from the query only (FEEDBACK-3 §2): nothing
+  // is assumed and nothing is remembered between openings. The fields
+  // (Tab / →) write theirs back into the query when left with Esc.
+  const [fields, setFields] = useState({ u: "", kw: "" });
+  // Enter was pressed with no valid unit count: say what is missing.
+  const [tried, setTried] = useState(false);
   // The list's query, given back when a parameter's view is left with Esc.
   const listQuery = useRef("");
 
@@ -118,7 +115,6 @@ export function CommandPalette({
     if (open) {
       setQuery(initialQuery);
       setParam(null);
-      setSpace(fromQuery(initialQuery, NO_SPACE));
     }
   }, [open, initialQuery]);
 
@@ -127,19 +123,27 @@ export function CommandPalette({
     f();
   };
 
-  const spaceText = t("dc.palette.spaceParams", {
-    u: space.u,
-    power:
-      space.powerW === null
-        ? t("dc.palette.anyPower")
-        : t("dc.unit.kw", { v: kwText(space.powerW, lang) }),
-  });
+  /** "2U · 0.8 kW" in the user's language, or null without a unit count. */
+  const spaceText = (u: number | null, powerW: number | null) =>
+    u === null
+      ? null
+      : t("dc.palette.spaceParams", {
+          u,
+          power:
+            powerW === null
+              ? t("dc.palette.anyPower")
+              : t("dc.unit.kw", { v: kwText(powerW, lang) }),
+        });
+  const space = parseSpaceQuery(query);
+  const rowValues = spaceText(space.u, space.powerW);
 
   interface Action {
     key: string;
     label: string;
     /** The parameters' current values, shown in the row. */
     values?: string;
+    /** What is still missing before it can run, shown after a dash. */
+    missing?: string;
     hint: string;
     icon: typeof Box;
     run?: () => void;
@@ -153,10 +157,15 @@ export function CommandPalette({
       out.push({
         key: "space",
         label: t("dc.palette.findSpace"),
-        values: spaceText,
+        values: rowValues ?? undefined,
+        missing: rowValues === null ? t("dc.palette.needUnits") : undefined,
         hint: t("dc.palette.findSpaceHint"),
         icon: Server,
-        run: () => room.findSpace(space.u, space.powerW),
+        // Without a unit count, Enter opens the fields instead of running.
+        run:
+          space.u === null
+            ? undefined
+            : () => room.findSpace(space.u!, space.powerW),
         param: "space",
         keywords: `${t("dc.palette.kwSpace")} free space место U`,
       });
@@ -238,19 +247,16 @@ export function CommandPalette({
       keywords: "catalog каталог",
     });
     return out;
-  }, [room, t, spaceText, space.u, space.powerW, navigate, settings]);
+  }, [room, t, rowValues, space.u, space.powerW, navigate, settings]);
 
-  // A query with "2U" or "кВт" in it is a free-space search first.
-  const words = query
-    .replace(/(\d+(?:[.,]\d+)?)\s*(u|квт|kw|вт|w)\b/gi, " ")
-    .trim();
+  // A query with a unit count or a power in it is a free-space search first.
+  const words = stripSpaceParams(query);
   const shownActions = param
     ? []
     : words
       ? fuzzyFilter(words, actions, (a) => `${a.label} ${a.keywords}`)
       : actions.slice(0, 6);
-  const typed = parseSpaceQuery(query);
-  if (!param && (typed.u !== null || typed.powerW !== null) && room) {
+  if (!param && (space.u !== null || space.powerW !== null) && room) {
     const sp = actions.find((a) => a.key === "space")!;
     if (!shownActions.includes(sp)) shownActions.unshift(sp);
   }
@@ -269,33 +275,40 @@ export function CommandPalette({
       ? fuzzyFilter(query, room.owners, (o) => o.name)
       : [];
 
-  const unitsOk = parseUnits(fields.u) !== undefined;
-  const powerOk = parseKw(fields.kw) !== undefined;
+  const fieldU = parseUnits(fields.u);
+  const fieldPower = parseKw(fields.kw);
+  // An empty unit field is wrong only once Enter was pressed on it.
+  const unitsBad = fieldU === undefined && (tried || fields.u.trim() !== "");
+  const powerOk = fieldPower !== undefined;
 
   const enterParam = (p: Param) => {
     listQuery.current = query;
     setParam(p);
+    setTried(false);
     if (p === "space")
       setFields({
-        u: String(space.u),
+        u: space.u === null ? "" : String(space.u),
         kw: space.powerW === null ? "" : kwText(space.powerW, lang),
       });
     else setQuery("");
   };
 
-  /** Esc in a parameter's view: back to the list, values kept. */
+  /**
+   * Esc in a parameter's view: back to the list. The fields' values go into
+   * the query, which is what the row reads.
+   */
   const back = () => {
     setParam(null);
-    setQuery(listQuery.current);
-  };
-
-  /** A field edited: the row's values follow while they read. */
-  const editField = (k: "u" | "kw", text: string) => {
-    const next = { ...fields, [k]: text };
-    setFields(next);
-    const u = parseUnits(next.u);
-    const powerW = parseKw(next.kw);
-    if (u !== undefined && powerW !== undefined) setSpace({ u, powerW });
+    setQuery(
+      param === "space"
+        ? withSpaceParams(
+            listQuery.current,
+            { u: fieldU ?? null, powerW: fieldPower ?? null },
+            lang,
+            (v) => t("dc.unit.kw", { v }),
+          )
+        : listQuery.current,
+    );
   };
 
   /** The highlighted action, if it takes parameters (cmdk marks it). */
@@ -312,10 +325,14 @@ export function CommandPalette({
       e.stopPropagation();
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const u = parseUnits(fields.u);
-    const powerW = parseKw(fields.kw);
-    if (u === undefined || powerW === undefined || !room) return;
-    run(() => room.findSpace(u, powerW));
+    if (fieldU === undefined) {
+      // Refused until a unit count is entered.
+      setTried(true);
+      document.getElementById("pal-u")?.focus();
+      return;
+    }
+    if (fieldPower === undefined || !room) return;
+    run(() => room.findSpace(fieldU, fieldPower));
   };
 
   return (
@@ -337,7 +354,8 @@ export function CommandPalette({
             <Server className="size-4 text-muted-foreground" />
             <span className="flex-1">{t("dc.palette.findSpace")}</span>
             <span className="dc-num" data-testid="palette-space-values">
-              {spaceText}
+              {spaceText(fieldU ?? null, fieldPower ?? null) ??
+                t("dc.palette.needUnits")}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -349,13 +367,13 @@ export function CommandPalette({
                 inputMode="numeric"
                 className="dc-num"
                 value={fields.u}
-                aria-invalid={!unitsOk}
-                aria-describedby={unitsOk ? undefined : "pal-u-err"}
-                onChange={(e) => editField("u", e.target.value)}
+                aria-invalid={unitsBad}
+                aria-describedby={unitsBad ? "pal-u-err" : undefined}
+                onChange={(e) => setFields({ ...fields, u: e.target.value })}
                 onFocus={(e) => e.target.select()}
                 onKeyDown={fieldKeys}
               />
-              {!unitsOk && (
+              {unitsBad && (
                 <p id="pal-u-err" className="mt-1 text-xs text-destructive">
                   {t("dc.palette.badUnits", { max: MAX_U })}
                 </p>
@@ -371,7 +389,7 @@ export function CommandPalette({
                 value={fields.kw}
                 aria-invalid={!powerOk}
                 aria-describedby={powerOk ? undefined : "pal-kw-err"}
-                onChange={(e) => editField("kw", e.target.value)}
+                onChange={(e) => setFields({ ...fields, kw: e.target.value })}
                 onFocus={(e) => e.target.select()}
                 onKeyDown={fieldKeys}
               />
@@ -388,10 +406,7 @@ export function CommandPalette({
           <CommandInput
             autoFocus
             value={query}
-            onValueChange={(v) => {
-              setQuery(v);
-              if (!param) setSpace((s) => fromQuery(v, s));
-            }}
+            onValueChange={setQuery}
             placeholder={
               param === "owner"
                 ? t("dc.palette.ownerPlaceholder")
@@ -437,6 +452,15 @@ export function CommandPalette({
                           data-testid={`palette-values-${a.key}`}
                         >
                           {a.values}
+                        </span>
+                      )}
+                      {a.missing && (
+                        <span
+                          className="text-muted-foreground"
+                          data-testid={`palette-missing-${a.key}`}
+                        >
+                          {" — "}
+                          {a.missing}
                         </span>
                       )}
                     </span>

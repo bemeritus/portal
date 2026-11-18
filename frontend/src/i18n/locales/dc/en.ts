@@ -660,6 +660,7 @@ export const dcEn = {
     findSpace: "Find free space",
     spaceParams: "{{u}}U · {{power}}",
     anyPower: "any power",
+    needUnits: "enter the units",
     fieldUnits: "Units",
     fieldPower: "Power, kW",
     fieldPowerEmpty: "any",

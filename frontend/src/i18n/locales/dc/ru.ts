@@ -664,6 +664,7 @@ export const dcRu = {
     findSpace: "Найти свободное место",
     spaceParams: "{{u}}U · {{power}}",
     anyPower: "мощность любая",
+    needUnits: "укажите юниты",
     fieldUnits: "Юнитов",
     fieldPower: "Мощность, кВт",
     fieldPowerEmpty: "любая",

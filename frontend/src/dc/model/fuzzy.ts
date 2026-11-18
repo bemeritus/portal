@@ -39,22 +39,3 @@ export function fuzzyFilter<T>(
     .sort((a, b) => b.s - a.s)
     .map((x) => x.it);
 }
-
-/**
- * Parameters typed into a "find free space" query: `2U`, `2 u`, `0,8 кВт`,
- * `800 Вт`, `450 W`, `1.2 kW`. Missing parts are `null`.
- */
-export function parseSpaceQuery(q: string): {
-  u: number | null;
-  powerW: number | null;
-} {
-  const u = q.match(/(\d+)\s*u\b/i) ?? q.match(/(\d+)\s*ю/i);
-  const p = q.match(/(\d+(?:[.,]\d+)?)\s*(квт|kw|вт|w)(?![a-zа-я])/i);
-  const powerW = p
-    ? Math.round(
-        parseFloat(p[1].replace(",", ".")) *
-          (/^(квт|kw)$/i.test(p[2]) ? 1000 : 1),
-      )
-    : null;
-  return { u: u ? Number(u[1]) : null, powerW };
-}

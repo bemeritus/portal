@@ -662,6 +662,7 @@ export const dcUz = {
     findSpace: "Bo'sh joy topish",
     spaceParams: "{{u}}U · {{power}}",
     anyPower: "istalgan quvvat",
+    needUnits: "yunitlar sonini kiriting",
     fieldUnits: "Yunitlar",
     fieldPower: "Quvvat, kVt",
     fieldPowerEmpty: "istalgan",
