@@ -9,6 +9,9 @@ export default defineConfig({
   testDir: "e2e",
   testMatch: "*.e2e.ts",
   timeout: 60_000,
+  // One account for every file, and the files change its language and
+  // theme: one at a time.
+  workers: 1,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
     viewport: { width: 1600, height: 1000 },
