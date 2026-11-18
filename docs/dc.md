@@ -55,12 +55,20 @@ The module opens full screen in its own chrome (mockups in
 user (`user_settings`; with no theme chosen it follows the portal's dark mode).
 The arrow at the top left goes back to the portal.
 
+In *Чертёж* a room opens on its **План**; in the other themes on 3D. A link
+that says what to show wins — the 3D tab (`?view=3d`), a camera (`?cam=`), a
+selection (`#device-7`, as on a QR sticker) — and so does a saved view opened
+from the plan. Switching the theme while the room is open moves nothing.
+
 - **Units**: every length on screen, in the PNG export and in length fields
   is in your unit (mm whole, cm to one decimal, m to three; ranges as
   `5,54–5,55 м`). The API and DXF stay in millimetres.
 - **Modes** (bottom bar): *Схема* (outlines and every tape measurement as a
   dimension; overhead objects dashed on the plan only), *Реалистичный* (after
-  the photos: white walls and ceiling, terracotta tiles, tube lights),
+  the photos: white walls and ceiling, terracotta tiles, tube lights; shelf
+  cells under an air conditioner look as they are, with a thin outline and
+  hatch in the warning colour only while hovered or selected — Схема and
+  Заполнение fill them red),
   *Заполнение* (used units, free runs), *Мощность* (power per rack against the
   room's budget; unknown power hatched, never zero). Views: *Общий*, *Сверху*,
   *Проход* (photo 03's camera, from the door corner), *Стойки*.
@@ -85,13 +93,18 @@ The arrow at the top left goes back to the portal.
   envelope, so an open frame still has faces.
 - **Inspector** (right): the selection's KPIs, its dimensions — tape, and the
   model where they differ — *Открыть стойку*, *Найти место*; then the tabs
-  *Место* (capacity finder), *Замеры*, *Виды*, *Линейка*.
+  *Место* (capacity finder), *Замеры*, *Виды*, *Линейка* — one row in every
+  theme and language: the labels' padding shrinks first, then the last tabs
+  move into «⋯»; ←/→, Home/End go through all of them. A shelf cell under
+  an air conditioner says why it cannot be used.
 - **Racks**: the elevation editor in the inspector or on *Стойки*: click a free
   unit to add a device, drag a device or its top edge, or *Правка текстом*
   (`10-11 DELL R740 | 450 Вт | Клиент X`). A rack whose contents were never
   recorded says so.
 - **⌘K**: racks, devices (name, serial, owner) and cells; actions — find free
-  space (`свободно 2U 0,8 кВт`), highlight a client (Tab, then pick), compare
+  space (its row shows the values, «2U · 0,8 кВт»; type them —
+  `свободно 2U 0,8 кВт` — or press Tab or → for fields; Enter runs, Esc goes
+  back to the list), highlight a client (Tab, then pick), compare
   with a revision, save the view and copy its link, QR stickers for the
   selected rack or shelf, mode, theme, unit. Keyboard only; it takes ⌘K from
   the portal's own palette while the module is open.
@@ -210,9 +223,16 @@ come with phase 2.
   against a throwaway database; CI runs the same against a Postgres service.
 - `just e2e` — Playwright (Chromium) against the running dev servers and the
   seeded room: the ruler's 595 mm (r1 back face → back wall) and 200 mm
-  (r3–r4). `E2E_USER` / `E2E_PASSWORD`: an account with `dc_room` (defaults
-  to the local test account `dcedit`). Set `PLAYWRIGHT_BROWSERS_PATH` where
-  Playwright's browsers are not downloaded (Nix).
+  (r3–r4); the inspector's tabs on one row in every theme × language; blocked
+  shelf cells in Реалистичный; where a room opens in Чертёж; the palette's
+  Tab → edit → Enter. `E2E_USER` / `E2E_PASSWORD`: an account with
+  `dc_room:edit` (defaults to the local test account `dcedit`). The tests
+  change that account's language and theme and put them back afterwards, so
+  they run one at a time; the saved-view test adds a view and deletes it
+  (two revisions). Set `PLAYWRIGHT_BROWSERS_PATH` where Playwright's browsers
+  are not downloaded — on Nix, `nix build nixpkgs#playwright-driver.browsers`
+  of the same version as `@playwright/test`, and run with `LD_LIBRARY_PATH`
+  unset (the dev shell's glibc is older than the browsers').
 - DXF check: `pip install ezdxf`, then
   `python -c "import ezdxf; from ezdxf import recover; d,a=recover.readfile('plan.dxf'); print(len(a.errors), len(a.fixes))"`
   — both must be 0.
@@ -373,6 +393,28 @@ Adjusted to the house style or the data:
   sensible-capacity range, width, sort, search, compare; parametric templates
   per subtype.
 - [x] **`just ci` passes.**
+
+### FEEDBACK-2 (review of e041f29)
+
+1. **Inspector tabs on one row** — a segmented control (`ui/InspectorTabs.tsx`):
+   padding shrinks from 12 to 5 px a side, then the last tabs go into «⋯»
+   (the active one always stays in the row); ←/→, Home/End, roving focus,
+   `aria-selected`; the font is the theme's. RU fits all five everywhere;
+   UZ and EN put one or two into «⋯». Tests: `ui/tabsFit.test.ts`,
+   `e2e/inspector-tabs.e2e.ts` (3 themes × 3 languages: one `top`, no
+   horizontal scroll, font size, every tab reachable).
+2. **Blocked cells in Реалистичный** — no fill; an outline and hatch in the
+   warning token for the hovered or selected cell only; Схема, Заполнение and
+   Мощность keep the red fill; the inspector and the hover tooltip say why.
+   Tests: `engine/renderers/shelf.test.ts`, `e2e/blocked-cells.e2e.ts`.
+3. **Чертёж opens on the plan** — unless the link has `?view=`, `?cam=` or a
+   selection; the 3D tab now links `?view=3d`; a saved view opened on the
+   plan goes to 3D with its camera; a theme switch moves nothing. Tests:
+   `ui/landing.test.ts`, `e2e/plan-landing.e2e.ts`.
+4. **Palette parameters** — the row shows «2U · 0,8 кВт» (or «мощность
+   любая»); Tab or → opens fields for units and kW, Enter runs, Esc returns
+   to the list with the query and values kept (also for the owner list).
+   Tests: `model/spaceParams.test.ts`, `e2e/palette.e2e.ts`.
 
 Before phase 1 is accepted: re-measure the items in `room.json` →
 `remeasure` (listed in the app under *Замеры*). Calculations in phases 3–5
