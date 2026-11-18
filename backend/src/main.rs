@@ -14,11 +14,13 @@ mod auth;
 mod config;
 mod content;
 mod db;
+mod dc;
 mod diff;
 mod error;
 mod models;
 mod routes;
 mod telegram;
+mod tool_access;
 
 use axum::Router;
 use axum::extract::Request;
@@ -49,6 +51,32 @@ async fn main() {
 
     let config = Config::from_env();
     let pool = db::init_pool(&config).await;
+
+    // `portal seed-dc`: load the server room and the cooling catalog, then
+    // exit. Data, not schema — so it runs when asked, never on startup.
+    if std::env::args().nth(1).as_deref() == Some("seed-dc") {
+        match dc::seed::run(&pool).await {
+            Ok(r) => {
+                println!(
+                    "catalog: {} added, {} already present; room '{}': {}",
+                    r.items_added,
+                    r.items_kept,
+                    dc::seed::ROOM_NAME,
+                    if r.room_added {
+                        "created"
+                    } else {
+                        "already present, left as it is"
+                    }
+                );
+                return;
+            }
+            Err(e) => {
+                eprintln!("seeding the server room failed, nothing was written: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     db::seed_admin(&pool, &config).await;
 
     // Every upload writes in here and `/uploads` is served straight off it, so
@@ -200,7 +228,10 @@ fn cors_layer(config: &Config) -> Option<CorsLayer> {
                 Method::DELETE,
                 Method::OPTIONS,
             ])
-            .allow_headers([header::CONTENT_TYPE])
+            .allow_headers([
+                header::CONTENT_TYPE,
+                header::HeaderName::from_static("x-csrf-token"),
+            ])
             .allow_credentials(true),
     )
 }

@@ -18,6 +18,7 @@ import { ArrowLeft, History } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { statusKey } from "../i18n";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -301,11 +302,11 @@ export function HistoryPage() {
                             <span className="font-medium">{t(`history.field.${field.field}`)}</span>
                             {": "}
                             <span className="text-destructive line-through">
-                              {field.field === "status" ? t(`status.${field.old}`) : field.old}
+                              {field.field === "status" ? t(statusKey(field.old)) : field.old}
                             </span>{" "}
                             <span aria-hidden="true">→</span>{" "}
                             <span className="text-success">
-                              {field.field === "status" ? t(`status.${field.new}`) : field.new}
+                              {field.field === "status" ? t(statusKey(field.new)) : field.new}
                             </span>
                           </div>
                         ))}
@@ -325,7 +326,7 @@ export function HistoryPage() {
                 ) : (
                   <div className="space-y-2">
                     <div className="text-sm text-muted-foreground">
-                      {current.title} · {t(`status.${current.status}`)}
+                      {current.title} · {t(statusKey(current.status))}
                       {current.category_name ? ` · ${current.category_name}` : ""}
                     </div>
                     {current.rendered.length === 0 ? (

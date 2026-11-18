@@ -23,6 +23,7 @@ import {
   Settings,
   Star,
   Users,
+  Server,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -39,6 +40,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useToolAccess } from "../auth/useToolAccess";
 import { useAuth } from "../auth/AuthContext";
 import { UserMenu } from "./UserMenu";
 
@@ -50,6 +52,7 @@ interface AppSidebarProps {
 export function AppSidebar({ onSearch }: AppSidebarProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const tools = useToolAccess();
   const location = useLocation();
   const { setOpenMobile } = useSidebar();
 
@@ -183,6 +186,16 @@ export function AppSidebar({ onSearch }: AppSidebarProps) {
           <SidebarGroupLabel>{t("nav.tools")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {tools.can("dc_room") && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip={t("nav.serverRoom")} isActive={path.startsWith("/dc")}>
+                    <Link to="/dc">
+                      <Server />
+                      <span>{t("nav.serverRoom")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild

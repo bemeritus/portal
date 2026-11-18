@@ -18,9 +18,12 @@ import type {
   DocumentDraft,
   DocumentSummary,
   DocumentWithBlocks,
+  Lang,
   PortCheckResult,
   RevisionDetail,
   RevisionSummary,
+  ToolGrant,
+  ToolInfo,
   UploadResponse,
   User,
   Uuid,
@@ -44,6 +47,9 @@ export const auth = {
   logout: () => api.post<void>(`${BASE}/auth/logout`),
   /** 401 when there is no session — the caller treats that as "signed out". */
   me: (signal?: AbortSignal) => api.get<User>(`${BASE}/auth/me`, signal),
+  setLanguage: (language: Lang) => api.put<User>(`${BASE}/auth/me/language`, { language }),
+  /** The internal tools the caller may use (admins: all of them). */
+  tools: (signal?: AbortSignal) => api.get<ToolGrant[]>(`${BASE}/auth/me/tools`, signal),
 };
 
 // The templates section owns categories and documents; its routes moved under
@@ -122,6 +128,12 @@ export const users = {
   setActive: (id: Uuid, active: boolean) => api.put<void>(`${BASE}/users/${id}/active`, { active }),
   resetPassword: (id: Uuid, new_password: string) =>
     api.put<void>(`${BASE}/users/${id}/password`, { new_password }),
+  toolRegistry: (signal?: AbortSignal) =>
+    api.get<ToolInfo[]>(`${BASE}/users/tool-registry`, signal),
+  tools: (id: Uuid, signal?: AbortSignal) =>
+    api.get<ToolGrant[]>(`${BASE}/users/${id}/tools`, signal),
+  setTools: (id: Uuid, grants: ToolGrant[]) =>
+    api.put<ToolGrant[]>(`${BASE}/users/${id}/tools`, { grants }),
 };
 
 export const audit = {

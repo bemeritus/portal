@@ -1,0 +1,4 @@
+﻿room;rack;face;u_bottom;u_height;kind;name;owner;serial;power_w;power_src;status;note
+Серверная;Стойка 2;front;1;2;ups;ИБП APC Smart-UPS 3000;Eskiz;;900;nameplate;active;
+Серверная;Стойка 2;front;10;2;server;DELL R740;Клиент X;ABC123;450;measured;active;договор 118
+Серверная;Стойка 2;front;40;1;switch;Коммутатор;Eskiz;;;;active;мощность неизвестна — оставьте пусто, не 0

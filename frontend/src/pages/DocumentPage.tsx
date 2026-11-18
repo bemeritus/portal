@@ -12,6 +12,7 @@ import { Link, useNavigate, useNavigationType, useParams } from "react-router-do
 import { ArrowLeft, History, Star } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { statusKey } from "../i18n";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,7 +128,7 @@ export function DocumentPage() {
             <span aria-hidden="true">·</span>
             <span>{t("doc.views", { count: doc.view_count })}</span>
             <Badge variant={doc.status === "published" ? "success" : "secondary"}>
-              {t(`status.${doc.status}`)}
+              {t(statusKey(doc.status))}
             </Badge>
           </div>
         </div>

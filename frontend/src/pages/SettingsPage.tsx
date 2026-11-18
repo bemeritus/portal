@@ -13,16 +13,18 @@ import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { useAuth } from "../auth/AuthContext";
+
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
-import { LANGUAGES } from "../i18n";
+import { LANGUAGES, type TKey } from "../i18n";
 import { THEMES, useTheme, type ThemeValue } from "../components/ThemeSelect";
 import { comboFromEvent, formatCombo, SHORTCUTS, type ShortcutDef } from "../shortcuts/registry";
 import { useShortcuts } from "../shortcuts/ShortcutsContext";
 
 /** i18n key for each theme's display name, keyed by its stored value. */
-const THEME_LABEL: Record<ThemeValue, string> = {
+const THEME_LABEL: Record<ThemeValue, TKey> = {
   dark: "settings.themeDark",
   light: "settings.themeLight",
   gruvbox: "settings.themeGruvbox",
@@ -67,6 +69,7 @@ function OptionTile({
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
+  const { setLanguage } = useAuth();
   const [theme, setTheme] = useTheme();
   const currentLang = i18n.language.split("-")[0];
 
@@ -110,7 +113,7 @@ export function SettingsPage() {
             <OptionTile
               key={l.value}
               selected={l.value === currentLang}
-              onClick={() => void i18n.changeLanguage(l.value)}
+              onClick={() => void setLanguage(l.value)}
             >
               <span className="flex-1">{l.label}</span>
             </OptionTile>

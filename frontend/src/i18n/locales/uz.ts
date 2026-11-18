@@ -1,5 +1,6 @@
 /** Uzbek (Latin). Uzbek nouns do not inflect for number, so count keys share
     one form across _one/_other. */
+
 export const uz = {
   translation: {
     app: { name: "Bilimlar bazasi" },
@@ -21,6 +22,7 @@ export const uz = {
       search: "Qidiruv",
       tools: "Vositalar",
       portChecker: "Port tekshirgich",
+      serverRoom: "Server xonasi",
     },
 
     menu: {
@@ -81,6 +83,9 @@ export const uz = {
       clearFilters: "Filtrlarni tozalash",
       loadMore: "Ko'proq yuklash",
       loading: "Yuklanmoqda…",
+      close: "Yopish",
+      yes: "ha",
+      no: "yo'q",
     },
 
     login: {
@@ -238,6 +243,7 @@ export const uz = {
       entries_one: "{{count}} ta yozuv",
       entries_other: "{{count}} ta yozuv",
       serverMax: " (server maksimumi)",
+      kindDc: "Server xonasi",
     },
 
     users: {
@@ -286,6 +292,21 @@ export const uz = {
       resultUnreachable: "{{host}}:{{port}} ga yo'l yo'q (unreachable)",
       resolved: "IP: {{ip}} \u00b7 {{ms}} ms",
       vantage: "Tekshiruv brauzeringizdan emas, ilova serveridan bajariladi.",
+      sectionTitle: "Ichki vositalar",
+      sectionDesc: "Ichki vositalarga ruxsat hujjatlardan alohida beriladi. O'zgarishlar darhol kuchga kiradi va o'zgarishlar tarixiga yoziladi.",
+      user: "Foydalanuvchi",
+      pickUser: "— foydalanuvchini tanlang —",
+      adminHasAll: "Administratorlar bu yerdagi belgilardan qat'i nazar barcha vositalardan barcha darajada foydalana oladi.",
+      thTool: "Vosita",
+      thLevels: "Ruxsat",
+      levelUse: "ko'rish",
+      levelEdit: "tahrirlash",
+      portChecker: "Port tekshirgich",
+      mailTester: "Pochta tekshirgich",
+      onlinePinger: "Onlayn ping",
+      dnsChecker: "DNS tekshirgich",
+      dcRoom: "Server xonasi",
+      dcRoomHint: "ko'rish: xonalar, qidiruv, eksport. tahrirlash: xonalar, obyektlar, qurilmalar, katalogni o'zgartirish; reviziyalarni tiklash. Tahrirlash ko'rishni ham o'z ichiga oladi.",
     },
 
     editor: {
@@ -347,6 +368,5 @@ export const uz = {
       notAllowed: "Ruxsat yo'q",
       adminsOnly: "Bu bo'lim faqat administratorlar uchun.",
     },
-
   },
 };

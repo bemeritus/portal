@@ -1,4 +1,5 @@
 /** Russian. Count keys carry all four CLDR plural forms (one/few/many/other). */
+
 export const ru = {
   translation: {
     app: { name: "База знаний" },
@@ -20,6 +21,7 @@ export const ru = {
       search: "Поиск",
       tools: "Инструменты",
       portChecker: "Проверка порта",
+      serverRoom: "Серверная",
     },
 
     menu: {
@@ -80,6 +82,9 @@ export const ru = {
       clearFilters: "Сбросить фильтры",
       loadMore: "Показать ещё",
       loading: "Загрузка…",
+      close: "Закрыть",
+      yes: "да",
+      no: "нет",
     },
 
     login: {
@@ -255,6 +260,7 @@ export const ru = {
       entries_many: "{{count}} записей",
       entries_other: "{{count}} записи",
       serverMax: " (максимум сервера)",
+      kindDc: "Серверная",
     },
 
     users: {
@@ -303,6 +309,21 @@ export const ru = {
       resultUnreachable: "{{host}}:{{port}} недоступен (нет маршрута)",
       resolved: "Адрес: {{ip}} · {{ms}} мс",
       vantage: "Проверка выполняется с сервера приложения, а не из вашего браузера.",
+      sectionTitle: "Внутренние инструменты",
+      sectionDesc: "Доступ к внутренним инструментам выдаётся отдельно от документов. Изменения действуют сразу и записываются в журнал изменений.",
+      user: "Пользователь",
+      pickUser: "— выберите пользователя —",
+      adminHasAll: "Администраторам доступны все инструменты на всех уровнях, независимо от отметок здесь.",
+      thTool: "Инструмент",
+      thLevels: "Доступ",
+      levelUse: "просмотр",
+      levelEdit: "правка",
+      portChecker: "Проверка порта",
+      mailTester: "Проверка почты",
+      onlinePinger: "Онлайн-пинг",
+      dnsChecker: "Проверка DNS",
+      dcRoom: "Серверная",
+      dcRoomHint: "просмотр: комнаты, поиск, экспорт. правка: изменение комнат, объектов, устройств, каталога; восстановление ревизий. Правка включает просмотр.",
     },
 
     editor: {
@@ -364,6 +385,5 @@ export const ru = {
       notAllowed: "Нет доступа",
       adminsOnly: "Этот раздел только для администраторов.",
     },
-
   },
 };

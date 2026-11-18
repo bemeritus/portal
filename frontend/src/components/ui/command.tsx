@@ -23,11 +23,14 @@ function CommandDialog({
   description = "Search for a command to run...",
   children,
   className,
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   title?: string;
   description?: string;
   className?: string;
+  /** Esc inside the dialog; `preventDefault()` keeps it open. */
+  onEscapeKeyDown?: React.ComponentProps<typeof DialogContent>["onEscapeKeyDown"];
 }) {
   return (
     <Dialog {...props}>
@@ -37,6 +40,7 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         showCloseButton={false}
+        onEscapeKeyDown={onEscapeKeyDown}
         className={cn("top-[20%] translate-y-0 overflow-hidden p-0", className)}
       >
         <Command

@@ -7,10 +7,12 @@
  * forwards to the documents list.
  */
 
+import { lazy, Suspense } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
+import { Spinner } from "./components/Loading";
 import { RequireAdmin, RequireAuth } from "./components/RequireAuth";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -25,6 +27,16 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { PortCheckerPage } from "./pages/PortCheckerPage";
 import { SettingsPage } from "./pages/SettingsPage";
+
+// The server room pages carry three.js; they load on first visit, so the rest
+// of the app does not download a 3D engine it never uses.
+const DcRoomsPage = lazy(() => import("./dc/ui/DcRoomsPage").then((m) => ({ default: m.DcRoomsPage })));
+const DcRoomPage = lazy(() => import("./dc/ui/DcRoomPage").then((m) => ({ default: m.DcRoomPage })));
+const DcHistoryPage = lazy(() => import("./dc/ui/DcHistoryPage").then((m) => ({ default: m.DcHistoryPage })));
+const DcShellRoute = lazy(() => import("./dc/ui/DcShell").then((m) => ({ default: m.DcShellRoute })));
+const DcRacksPage = lazy(() => import("./dc/ui/DcRacksPage").then((m) => ({ default: m.DcRacksPage })));
+const DcLabelsPage = lazy(() => import("./dc/ui/DcLabelsPage").then((m) => ({ default: m.DcLabelsPage })));
+const DcCatalogPage = lazy(() => import("./dc/ui/DcCatalogPage").then((m) => ({ default: m.DcCatalogPage })));
 
 function NotFound() {
   return (
@@ -44,6 +56,24 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<RequireAuth />}>
+        {/* The server room module, behind the internal tools family → dc_room.
+            Its own full-screen chrome (SPEC §10.1), outside the host layout. */}
+        <Route
+          path="dc"
+          element={
+            <Suspense fallback={<Spinner />}>
+              <DcShellRoute />
+            </Suspense>
+          }
+        >
+          <Route index element={<DcRoomsPage />} />
+          <Route path="catalog" element={<DcCatalogPage />} />
+          <Route path=":roomId" element={<DcRoomPage />} />
+          <Route path=":roomId/racks" element={<DcRacksPage />} />
+          <Route path=":roomId/labels" element={<DcLabelsPage />} />
+          <Route path=":roomId/history" element={<DcHistoryPage />} />
+        </Route>
+
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/templates" replace />} />
 

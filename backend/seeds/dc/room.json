@@ -1,0 +1,432 @@
+{
+ "schema": "eskiz-dc-room/2",
+ "units": "mm",
+ "coordinates": {
+  "x": "from the left wall (chairs side) toward the right wall (door side)",
+  "z": "from the shelf wall (z = 0) toward the wall behind the racks",
+  "y": "up from the finished floor",
+  "plan_view": "top view with the shelf wall at the top and the door on the right"
+ },
+ "provenance": {
+  "measured": "taken with a tape on site; value is the reading (see data/drawing-hand.png)",
+  "range": "two readings disagreed; min and max are both kept, value is the midpoint used for geometry",
+  "derived": "computed from measured values; not measured directly",
+  "assumed": "estimated from photos or typical sizes; must be re-measured before it is trusted",
+  "photo": "seen on the site photos (data/photos/); presence is certain, size and position are estimates"
+ },
+ "room": {
+  "length_x": {
+   "value": 5545,
+   "min": 5540,
+   "max": 5550,
+   "src": "range"
+  },
+  "width_z": {
+   "value": 3845,
+   "min": 3840,
+   "max": 3850,
+   "src": "range"
+  },
+  "height_y": {
+   "value": 2410,
+   "min": 2400,
+   "max": 2420,
+   "src": "range"
+  }
+ },
+ "rack_type": {
+  "width": 600,
+  "depth": 1000,
+  "height": 2040,
+  "units": 42,
+  "note": "Fixed by decision of the team: every rack is 600 x 1000 x 2040. Units: floor(((2040 - 160) / 44.45)) = 42, U1 starts 100 mm above the floor (assumed plinth + top cap of 160 mm in total)."
+ },
+ "racks": [
+  {
+   "id": "r1",
+   "name": "Стойка 1",
+   "door": "glass",
+   "x0": 530,
+   "front_z": 2250,
+   "rotation_deg": 0,
+   "measured_width": [
+    600,
+    605
+   ]
+  },
+  {
+   "id": "r2",
+   "name": "Стойка 2",
+   "door": "perforated",
+   "x0": 1595,
+   "front_z": 2260,
+   "rotation_deg": 0,
+   "measured_width": [
+    595,
+    600
+   ]
+  },
+  {
+   "id": "r3",
+   "name": "Стойка 3",
+   "door": "glass",
+   "x0": 2635,
+   "front_z": 2220,
+   "rotation_deg": 0,
+   "measured_width": [
+    600
+   ]
+  },
+  {
+   "id": "r4",
+   "name": "Стойка 4",
+   "door": "perforated",
+   "x0": 3435,
+   "front_z": 2215,
+   "rotation_deg": 0,
+   "measured_width": [
+    595,
+    600
+   ]
+  }
+ ],
+ "rack_measurements": {
+  "front_faces_toward": "the shelf (z decreases from back to front)",
+  "gaps_x_left_to_right": [
+   {
+    "between": [
+     "left wall",
+     "r1"
+    ],
+    "value": 530,
+    "src": "measured"
+   },
+   {
+    "between": [
+     "r1",
+     "r2"
+    ],
+    "value": 465,
+    "src": "measured"
+   },
+   {
+    "between": [
+     "r2",
+     "r3"
+    ],
+    "value": 440,
+    "src": "measured"
+   },
+   {
+    "between": [
+     "r3",
+     "r4"
+    ],
+    "value": 200,
+    "src": "measured"
+   },
+   {
+    "between": [
+     "r4",
+     "right wall"
+    ],
+    "value": 1510,
+    "min": 1495,
+    "max": 1500,
+    "src": "derived",
+    "note": "tape 1495-1500; with 600 mm racks and the measured gaps the remainder is 1510"
+   }
+  ],
+  "aisle_shelf_front_to_rack_front": [
+   {
+    "rack": "r1",
+    "value": 1340,
+    "src": "measured"
+   },
+   {
+    "rack": "r2",
+    "value": 1350,
+    "src": "measured"
+   },
+   {
+    "rack": "r3",
+    "value": 1310,
+    "src": "measured"
+   },
+   {
+    "rack": "r4",
+    "value": 1305,
+    "src": "measured"
+   }
+  ],
+  "rack_back_to_wall": [
+   {
+    "rack": "r1",
+    "model": 595,
+    "measured": 610,
+    "diff": -15
+   },
+   {
+    "rack": "r2",
+    "model": 585,
+    "measured": 555,
+    "diff": 30
+   },
+   {
+    "rack": "r3",
+    "model": 625,
+    "measured": 625,
+    "diff": 0
+   },
+   {
+    "rack": "r4",
+    "model": 630,
+    "measured": 635,
+    "diff": -5
+   }
+  ],
+  "conflict": "Racks are placed by the measured aisle from the shelf. The back gap then follows from room width 3845 (a 3840-3850 range): model vs tape differ by -15, +30, 0, -5 mm (r1..r4). Show both values; do not hide the difference. r2 (+30 mm) is worth re-measuring.",
+  "depth": {
+   "value": 1000,
+   "src": "measured",
+   "note": "100 cm on the drawing for every rack"
+  },
+  "height": {
+   "value": 2040,
+   "src": "measured"
+  }
+ },
+ "shelf": {
+  "name": "Стелаж colocation (Tower)",
+  "x0": {
+   "value": 200,
+   "min": 200,
+   "max": 300,
+   "src": "range",
+   "note": "left gap read as 200-300; 200 used"
+  },
+  "length_x": {
+   "value": 4530,
+   "src": "measured"
+  },
+  "z0": {
+   "value": 0,
+   "src": "measured",
+   "note": "drawn against the wall on the hand drawing; depth 910 is measured from the wall"
+  },
+  "depth_z": {
+   "value": 910,
+   "src": "measured"
+  },
+  "height_y": {
+   "value": 1795,
+   "min": 1795,
+   "max": 1800,
+   "src": "range"
+  },
+  "right_gap": {
+   "value": 815,
+   "min": 800,
+   "max": 1000,
+   "src": "derived"
+  },
+  "boards_y": [
+   {
+    "value": 100,
+    "src": "assumed"
+   },
+   {
+    "value": 947.5,
+    "src": "assumed",
+    "note": "equal spacing assumed"
+   },
+   {
+    "value": 1795,
+    "src": "measured"
+   }
+  ],
+  "sections": [
+   {
+    "cells": 5
+   },
+   {
+    "cells": 9
+   }
+  ],
+  "cells_per_board": 14,
+  "cell_numbering": "top board 1-14, middle board 15-28 (plates on the boards), bottom board has no plates",
+  "src_sections": "assumed from photos"
+ },
+ "air_conditioners": [
+  {
+   "id": "ac1",
+   "x0": 4005,
+   "x1": 5255,
+   "length": {
+    "value": 1250,
+    "min": 1200,
+    "max": 1300,
+    "src": "range"
+   },
+   "gap_to_ceiling": {
+    "value": 70,
+    "src": "measured"
+   },
+   "y0": 1960,
+   "y1": 2340
+  },
+  {
+   "id": "ac2",
+   "x0": 2487.5,
+   "x1": 3632.5,
+   "length": {
+    "value": 1145,
+    "min": 1140,
+    "max": 1150,
+    "src": "range"
+   },
+   "gap_to_ceiling": {
+    "value": 65,
+    "src": "measured"
+   },
+   "y0": 1965,
+   "y1": 2345
+  },
+  {
+   "id": "ac3",
+   "x0": 297.5,
+   "x1": 1442.5,
+   "length": {
+    "value": 1145,
+    "min": 1140,
+    "max": 1150,
+    "src": "range"
+   },
+   "gap_to_ceiling": {
+    "value": 95,
+    "src": "measured"
+   },
+   "y0": 1935,
+   "y1": 2315
+  }
+ ],
+ "air_conditioner_common": {
+  "unit_height": {
+   "value": 380,
+   "src": "measured"
+  },
+  "depth_z": {
+   "value": 650,
+   "min": 630,
+   "max": 670,
+   "src": "range"
+  },
+  "z0": {
+   "value": 30,
+   "src": "assumed"
+  },
+  "ac1_to_right_wall": {
+   "value": 290,
+   "src": "measured"
+  },
+  "gap_ac1_ac2": {
+   "value": 372.5,
+   "min": 330,
+   "max": 415,
+   "src": "range"
+  },
+  "gap_ac2_ac3": {
+   "value": 1045,
+   "min": 1040,
+   "max": 1050,
+   "src": "range"
+  },
+  "airflow": {
+   "src": "unknown",
+   "note": "supply direction, flow (m3/h) and set point not recorded"
+  },
+  "type": {
+   "value": "ducted",
+   "src": "photo",
+   "note": "indoor units hang on threaded rods under the ceiling above the shelf (photos 02, 06). Their supply ducts over the aisle are intentionally not modelled (team decision). Model and capacity unknown."
+  }
+ },
+ "door": {
+  "wall": "right (x = room length)",
+  "z0": {
+   "value": 860,
+   "src": "measured"
+  },
+  "width": {
+   "value": 930,
+   "src": "measured"
+  },
+  "height": {
+   "value": 1970,
+   "src": "measured"
+  },
+  "hinge_z": 1790,
+  "opens": "inward, leaf swings toward the shelf wall"
+ },
+ "safe": {
+  "width_x": {
+   "value": 506,
+   "src": "measured"
+  },
+  "depth_z": {
+   "value": 400,
+   "src": "measured"
+  },
+  "height_y": {
+   "value": 1230,
+   "src": "measured"
+  },
+  "x1": {
+   "value": 5515,
+   "src": "assumed",
+   "note": "30 mm from the right wall"
+  },
+  "z0": {
+   "value": 5,
+   "src": "assumed"
+  },
+  "name": "Металлический шкаф (локер)",
+  "note": "grey two-section metal locker next to the shelf at the door end (photos 02, 06); measured 506 x 400 x 1230"
+ },
+ "cable_tray": {
+  "route": "along the wall behind the racks only (rear aisle); there is NO tray along the left wall",
+  "top_below_ceiling": {
+   "value": 360,
+   "src": "measured"
+  },
+  "kind": "wire mesh basket (photos 04, 05)",
+  "width": {
+   "value": 200,
+   "src": "assumed"
+  },
+  "side_height": {
+   "value": 60,
+   "src": "assumed"
+  },
+  "extent_x": {
+   "value": [
+    0,
+    5545
+   ],
+   "src": "assumed",
+   "note": "drawn along the whole wall"
+  }
+ },
+ "remeasure": [
+  "r2: gap from back to wall (model and tape differ by 30 mm)",
+  "gap from r4 to the right wall (1495-1500 vs 1510)",
+  "shelf: left gap (200 or 300), middle board height",
+  "cable tray: width and exact extent"
+ ],
+ "not_modelled": [
+  "supply ducts over the aisle, UPS units, electrical box, wall controllers, chairs, lights: seen on photos, intentionally not modelled (team decision)"
+ ],
+ "not_modelled_or_assumed_only": [
+  "power chain: unknown"
+ ]
+}

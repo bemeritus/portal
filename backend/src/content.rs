@@ -34,7 +34,7 @@ pub fn slugify(name: &str) -> String {
         }
     }
     let trimmed = slug.trim_matches('-').to_string();
-    // A name with no ASCII alphanumerics at all — "Что нового", "設計" — would
+    // A name with no ASCII alphanumerics at all — all Cyrillic, or "設計" — would
     // otherwise slug to the empty string, and the second such category would
     // collide with the first on a unique index.
     if trimmed.is_empty() {

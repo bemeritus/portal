@@ -1,4 +1,5 @@
 /** English — the source strings, and the fallback for anything untranslated. */
+
 export const en = {
   translation: {
     app: { name: "Knowledge Base" },
@@ -20,6 +21,7 @@ export const en = {
       search: "Search",
       tools: "Tools",
       portChecker: "Port checker",
+      serverRoom: "Server room",
     },
 
     menu: {
@@ -80,6 +82,9 @@ export const en = {
       clearFilters: "Clear filters",
       loadMore: "Load more",
       loading: "Loading…",
+      close: "Close",
+      yes: "yes",
+      no: "no",
     },
 
     login: {
@@ -237,6 +242,7 @@ export const en = {
       entries_one: "{{count}} entry",
       entries_other: "{{count}} entries",
       serverMax: " (server maximum)",
+      kindDc: "Server room",
     },
 
     users: {
@@ -285,6 +291,21 @@ export const en = {
       resultUnreachable: "{{host}}:{{port}} is unreachable (no route)",
       resolved: "Resolved to {{ip}} \u00b7 {{ms}} ms",
       vantage: "The check runs from the app server, not from your browser.",
+      sectionTitle: "Internal tools",
+      sectionDesc: "Access to internal tools is granted separately from documents. Changes take effect immediately and are recorded in the change history.",
+      user: "User",
+      pickUser: "— choose a user —",
+      adminHasAll: "Administrators can use every tool at every level, whatever is ticked here.",
+      thTool: "Tool",
+      thLevels: "Access",
+      levelUse: "use",
+      levelEdit: "edit",
+      portChecker: "Port checker",
+      mailTester: "Mail tester",
+      onlinePinger: "Online pinger",
+      dnsChecker: "DNS checker",
+      dcRoom: "Server room",
+      dcRoomHint: "use: view rooms, search, export. edit: change rooms, objects, devices, catalog; restore revisions. Edit includes use.",
     },
 
     editor: {
@@ -346,7 +367,6 @@ export const en = {
       notAllowed: "Not allowed",
       adminsOnly: "This section is for administrators.",
     },
-
   },
 };
 

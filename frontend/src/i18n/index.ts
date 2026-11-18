@@ -61,3 +61,24 @@ i18n.on("languageChanged", (lng) => {
 document.documentElement.lang = i18n.language;
 
 export default i18n;
+
+/** Any key of the message catalog; `t()` accepts nothing else. */
+export type TKey = import("i18next").ParseKeys;
+
+/**
+ * The key for a document status as the API sends it. Statuses are free text on
+ * the wire, so an unknown one falls back to `draft` rather than to a raw key.
+ */
+export function statusKey(status: string): "status.draft" | "status.published" {
+  return status === "published" ? "status.published" : "status.draft";
+}
+
+/**
+ * `t()` for a key assembled at run time (`dc.subtype.${s}`) — the typed `t`
+ * cannot check those, and asking it to makes TypeScript recurse too deep. The
+ * locale tests still hold every language to the same key set; a key missing
+ * from all of them falls back to `defaultValue` or the key.
+ */
+export function tDyn(t: unknown, key: string, options?: Record<string, unknown>): string {
+  return (t as (k: string, o?: Record<string, unknown>) => string)(key, options);
+}

@@ -2,7 +2,7 @@
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::Deserialize;
 use tower_sessions::Session;
@@ -10,13 +10,40 @@ use tower_sessions::Session;
 use crate::auth::{CurrentUser, SESSION_UID, verify_password};
 use crate::db::AppState;
 use crate::error::{ApiError, ApiResult, internal};
-use crate::models::User;
+use crate::models::{Language, User};
+use crate::tool_access::{ToolGrant, effective_grants};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
         .route("/logout", post(logout))
         .route("/me", get(me))
+        .route("/me/language", put(set_language))
+        .route("/me/tools", get(my_tools))
+}
+
+#[derive(Deserialize)]
+pub struct LanguageBody {
+    language: Language,
+}
+
+/// Save the caller's UI language. A personal preference, so it is not an
+/// audited change; an unknown language is rejected by deserialization (422).
+async fn set_language(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Json(body): Json<LanguageBody>,
+) -> ApiResult<Json<User>> {
+    let user = sqlx::query_as::<_, User>(
+        "UPDATE users SET language = $2 WHERE id = $1
+         RETURNING id, username, is_admin, is_active, created_at, language",
+    )
+    .bind(user.id)
+    .bind(body.language.as_str())
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| internal("saving the user's language", e))?;
+    Ok(Json(user))
 }
 
 #[derive(Deserialize)]
@@ -92,4 +119,13 @@ async fn logout(session: Session) -> ApiResult<StatusCode> {
 /// decides, on first load, whether to show the app or the login page.
 async fn me(CurrentUser(user): CurrentUser) -> Json<User> {
     Json(user)
+}
+
+/// The internal tools the caller may use, level by level — what navigation is
+/// built from. Admins get every level of every tool.
+async fn my_tools(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<Vec<ToolGrant>>> {
+    Ok(Json(effective_grants(&state.pool, &user).await?))
 }

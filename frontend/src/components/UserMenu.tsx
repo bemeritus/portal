@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
+import type { Lang } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { LANGUAGES } from "../i18n";
 import { useTheme } from "./ThemeSelect";
@@ -55,7 +56,7 @@ function Avatar({ username, className = "size-8" }: { username: string; classNam
 }
 
 export function UserMenu({ user }: { user: User }) {
-  const { logout } = useAuth();
+  const { logout, setLanguage } = useAuth();
   const navigate = useNavigate();
   const { isMobile } = useSidebar();
   const [theme, setTheme] = useTheme();
@@ -153,7 +154,7 @@ export function UserMenu({ user }: { user: User }) {
                 <DropdownMenuSubContent>
                   <DropdownMenuRadioGroup
                     value={currentLang}
-                    onValueChange={(value) => void i18n.changeLanguage(value)}
+                    onValueChange={(value) => void setLanguage(value as Lang)}
                   >
                     {LANGUAGES.map((l) => (
                       <DropdownMenuRadioItem key={l.value} value={l.value}>

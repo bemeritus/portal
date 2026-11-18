@@ -23,7 +23,12 @@ export interface User {
   is_admin: boolean;
   is_active: boolean;
   created_at: Timestamp;
+  /** UI language, saved with the user (`users.language`). */
+  language: Lang;
 }
+
+/** The three UI languages; mirrors `models::Language`. */
+export type Lang = "ru" | "uz" | "en";
 
 export interface Category {
   id: Uuid;
@@ -205,4 +210,19 @@ export interface PortCheckResult {
   resolved_ip: string;
   state: "open" | "closed" | "timeout" | "unreachable";
   elapsed_ms: number;
+}
+
+// --- Internal tools (mirrors `tool_access.rs`) -----------------------------
+
+export type ToolKey = "port_checker" | "mail_tester" | "online_pinger" | "dns_checker" | "dc_room";
+export type ToolLevel = "use" | "edit";
+
+export interface ToolGrant {
+  tool: ToolKey;
+  level: ToolLevel;
+}
+
+export interface ToolInfo {
+  tool: ToolKey;
+  levels: ToolLevel[];
 }

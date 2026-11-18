@@ -82,9 +82,16 @@ ports:
 
 # --- Checks -----------------------------------------------------------------
 
+# Unit tests, both halves.
+test: test-api test-web
+
 # Backend unit tests.
-test:
+test-api:
     cd backend && cargo test
+
+# Frontend unit tests (Vitest), including the locale key-parity check.
+test-web:
+    cd frontend && npm test
 
 # Type-check both halves.
 check: check-api check-web
@@ -162,6 +169,31 @@ migrate-info:
 # Load the starter technical content — 6 categories, 3 documents each.
 seed:
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/seeds/technical_content.sql
+
+# Re-runnable: catalog items and the room are matched and left alone when
+# they exist, so this never overwrites edits made since.
+#
+# Load the server room (dc-handoff/data/room.json) and the cooling catalog.
+# Browser end-to-end checks against the running dev servers (`just dev`) and
+# the seeded room; E2E_USER / E2E_PASSWORD: an account with dc_room access.
+e2e:
+    cd frontend && npx playwright test
+
+seed-dc:
+    cd backend && cargo run -q -- seed-dc
+
+# Database-level DC rules (no-overlap, rack fit, …) against a scratch
+# database that is created, migrated and dropped again. Needs the local
+# cluster running; the database in DATABASE_URL is not touched.
+test-db:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db=portal_dc_test_$$
+    url="postgres://{{pguser}}@127.0.0.1:{{pgport}}/$db"
+    createdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} "$db"
+    trap 'dropdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} --if-exists "$db"' EXIT
+    (cd backend && DATABASE_URL="$url" sqlx migrate run > /dev/null)
+    psql "$url" -q -v ON_ERROR_STOP=1 -f backend/tests/dc_constraints.sql
 
 # Drop, recreate and re-migrate the database — DESTROYS all local data.
 db-reset:

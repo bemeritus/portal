@@ -1,0 +1,603 @@
+{
+ "schema": "eskiz-dc-catalog/1",
+ "kind": "cooling",
+ "units": {
+  "length": "mm",
+  "power": "W",
+  "airflow": "m3/h",
+  "pressure": "Pa",
+  "mass": "kg"
+ },
+ "notes": [
+  "Values are copied from manufacturer or distributor datasheets; every item carries its source URL. Re-check against the datasheet before a purchase decision.",
+  "dims: width x depth x height of the indoor unit as installed (for wall units, depth is the projection from the wall).",
+  "cooling_total_w is the rated (nominal) cooling capacity at the manufacturer's standard conditions (typically 27 °C DB / 19 °C WB indoor, 35 °C outdoor) unless 'conditions' says otherwise.",
+  "cooling_sensible_w is published only by Daikin here. For units without it, the calculation uses cooling_total_w x the room's sensible heat ratio setting and marks the result as estimated. Daikin's own figures below give a ratio of 0.66-0.73 for comfort units, so 0.7 is a reasonable default.",
+  "power_input_w: rated electrical input in cooling at the same conditions (indoor + outdoor). 'derived' means computed from capacity / EER.",
+  "airflow_m3h: indoor fan steps, highest first. The highest step is used for airflow checks.",
+  "Comfort units (split_wall, ducted) are not designed as server room units: their sensible share is about 70 % and they are built for comfort duty. Precision units (in_row, precision_perimeter) are: sensible share close to 100 %, 24/7 duty, airflow sized for IT load. The rules engine flags comfort units cooling IT load (SPEC 12.3).",
+  "Precision units are rated at their own test conditions (return air temperature and humidity in 'conditions'); these are hotter than comfort ratings, which is normal for server rooms."
+ ],
+ "items": [
+  {
+   "id": "midea-msafb-12hrdn1",
+   "manufacturer": "Midea",
+   "model": "MSAFB-12HRDN1-QC0 (Jungle Inverter)",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    805,
+    194,
+    285
+   ],
+   "weight_kg": 8.2,
+   "cooling_total_w": 3517,
+   "cooling_total_btuh": 12000,
+   "cooling_range_btuh": [
+    2700,
+    12400
+   ],
+   "cooling_sensible_w": null,
+   "power_input_w": 1096,
+   "eer": 3.21,
+   "airflow_m3h": [
+    600,
+    450,
+    350
+   ],
+   "power_supply": "220-240 V, 1 ph, 50 Hz",
+   "source": "https://midea.com/ly/heating-cooling/jungle-inverter/jungle-inverter-a-energy-class-msafb-12hrdn1-qc0",
+   "designed_24_7": false
+  },
+  {
+   "id": "midea-msaf-24crdn1",
+   "manufacturer": "Midea",
+   "model": "MSAF-24CRDN1 (Forest Inverter)",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    1040,
+    220,
+    327
+   ],
+   "weight_kg": 13.6,
+   "cooling_total_w": 7034,
+   "cooling_total_btuh": 24000,
+   "cooling_sensible_w": null,
+   "power_input_w": 2269,
+   "power_input_src": "derived (7034 W / EER 3.1)",
+   "eer": 3.1,
+   "airflow_m3h": [
+    1005,
+    802,
+    650
+   ],
+   "source": "https://midea.com/westafrica/air-conditioner/forest-inverter/24000-btu-forest-inverter",
+   "designed_24_7": false
+  },
+  {
+   "id": "midea-mtiu-12hwfnx",
+   "manufacturer": "Midea",
+   "model": "MTIU-12HWFNX-QRD0W(GA) (A6 Duct)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    700,
+    450,
+    200
+   ],
+   "weight_kg": 17.8,
+   "cooling_total_w": 3520,
+   "cooling_total_btuh": 12000,
+   "cooling_range_w": [
+    530,
+    3990
+   ],
+   "cooling_sensible_w": null,
+   "power_input_w": 1053,
+   "airflow_m3h": [
+    600,
+    480,
+    300
+   ],
+   "esp_pa": {
+    "rated": 25,
+    "min": 0,
+    "max": 60
+   },
+   "source": "https://uploads.prod01.london.platform-os.com/instances/827/assets/documentation/GAIN-36HWFNX/Fiche-produit-Midea-mti-36hwfnx-ui-clim-cash.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "midea-mtiu-18hwfnx",
+   "manufacturer": "Midea",
+   "model": "MTIU-18HWFNX-QRD0W(GA) (A6 Duct)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    880,
+    674,
+    210
+   ],
+   "weight_kg": 24.4,
+   "cooling_total_w": 5280,
+   "cooling_total_btuh": 18000,
+   "cooling_range_w": [
+    2550,
+    5860
+   ],
+   "cooling_sensible_w": null,
+   "power_input_w": 1530,
+   "airflow_m3h": [
+    911,
+    706,
+    515
+   ],
+   "esp_pa": {
+    "rated": 25,
+    "min": 0,
+    "max": 100
+   },
+   "source": "https://uploads.prod01.london.platform-os.com/instances/827/assets/documentation/GAIN-36HWFNX/Fiche-produit-Midea-mti-36hwfnx-ui-clim-cash.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "midea-mti-24hwfnx",
+   "manufacturer": "Midea",
+   "model": "MTI-24HWFNX-QRD0W(GA) (A6 Duct)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    1100,
+    774,
+    249
+   ],
+   "weight_kg": 32.3,
+   "cooling_total_w": 7030,
+   "cooling_total_btuh": 24000,
+   "cooling_range_w": [
+    3280,
+    8160
+   ],
+   "cooling_sensible_w": null,
+   "power_input_w": 2190,
+   "airflow_m3h": [
+    1229,
+    1035,
+    825
+   ],
+   "esp_pa": {
+    "rated": 25,
+    "min": 0,
+    "max": 160
+   },
+   "source": "https://uploads.prod01.london.platform-os.com/instances/827/assets/documentation/GAIN-36HWFNX/Fiche-produit-Midea-mti-36hwfnx-ui-clim-cash.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "gree-gwh12aec",
+   "manufacturer": "Gree",
+   "model": "GWH12AEC-K6DNA1A (G-Tech)",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    945,
+    225,
+    293
+   ],
+   "weight_kg": 14,
+   "cooling_total_w": 3500,
+   "cooling_sensible_w": null,
+   "power_input_w": 875,
+   "eer": 4.0,
+   "airflow_m3h": [
+    750,
+    650,
+    600,
+    510,
+    470,
+    360,
+    200
+   ],
+   "power_supply": "220-240 V, 1 ph, 50 Hz",
+   "source": "https://static.elitesecurity.org/uploads/3/9/3935302/G-TECH%20Tehnicka%20Specifikacija.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "gree-gwh24ye",
+   "manufacturer": "Gree",
+   "model": "GWH24YE-K6DNA1A (Amber)",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    1101,
+    249,
+    327
+   ],
+   "weight_kg": 16.5,
+   "cooling_total_w": 7000,
+   "cooling_range_w": [
+    1100,
+    9050
+   ],
+   "cooling_sensible_w": null,
+   "power_input_w": 2000,
+   "eer": 3.5,
+   "airflow_m3h": [
+    1250,
+    1100,
+    1000,
+    950,
+    900,
+    850,
+    750
+   ],
+   "power_supply": "220-240 V, 1 ph, 50 Hz",
+   "source": "https://www.profishop.de/media/pdf/52/7d/88/GWH24YE-K6DNA1A-GREE_Single-Split-Klimaanlage_Amber_Kaelteleistung_7_kW_24000_Btu-h_GWH24YE-6734808cb2110.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "gree-gfh24k",
+   "manufacturer": "Gree",
+   "model": "GFH24K (duct, outdoor GUHD24N)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    1226,
+    775,
+    290
+   ],
+   "weight_kg": 46,
+   "cooling_total_w": 7000,
+   "cooling_sensible_w": null,
+   "power_input_w": 2180,
+   "airflow_m3h": [
+    1500
+   ],
+   "esp_pa": {
+    "rated": 50,
+    "min": 0,
+    "max": 150
+   },
+   "source": "https://gree-iran.com/wp-content/uploads/2020/12/Gree-Duct.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "gree-gfh36k",
+   "manufacturer": "Gree",
+   "model": "GFH36K (duct, outdoor GUHD36N)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    1340,
+    750,
+    350
+   ],
+   "weight_kg": 56,
+   "cooling_total_w": 10000,
+   "cooling_sensible_w": null,
+   "power_input_w": 3200,
+   "airflow_m3h": [
+    2000
+   ],
+   "esp_pa": {
+    "rated": 50,
+    "min": 0,
+    "max": 200
+   },
+   "source": "https://gree-iran.com/wp-content/uploads/2020/12/Gree-Duct.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "gree-gfh48k",
+   "manufacturer": "Gree",
+   "model": "GFH48K (duct, outdoor GUHD48N)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    1340,
+    750,
+    350
+   ],
+   "weight_kg": 56,
+   "cooling_total_w": 14000,
+   "cooling_sensible_w": null,
+   "power_input_w": 4700,
+   "airflow_m3h": [
+    2500
+   ],
+   "esp_pa": {
+    "rated": 50,
+    "min": 0,
+    "max": 200
+   },
+   "source": "https://gree-iran.com/wp-content/uploads/2020/12/Gree-Duct.pdf",
+   "designed_24_7": false
+  },
+  {
+   "id": "daikin-ftxm35r",
+   "manufacturer": "Daikin",
+   "model": "FTXM35R + RXM35R",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    778,
+    272,
+    295
+   ],
+   "weight_kg": 10,
+   "cooling_total_w": 3400,
+   "cooling_at_uk_conditions": {
+    "total_w": 3320,
+    "sensible_w": 2310
+   },
+   "cooling_sensible_w": 2310,
+   "sensible_conditions": "Daikin UK rating conditions",
+   "power_input_w": null,
+   "airflow_m3h": [
+    677
+   ],
+   "source": [
+    "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10768421/file/document",
+    "https://oceanairuk.com/cdn/shop/files/FTXM-R_RZAG-A_Datasheet_10851_FTXM35R.pdf"
+   ],
+   "designed_24_7": false
+  },
+  {
+   "id": "daikin-ftxm50r",
+   "manufacturer": "Daikin",
+   "model": "FTXM50R + RXM50R",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    998,
+    292,
+    299
+   ],
+   "weight_kg": 14.5,
+   "cooling_total_w": 5000,
+   "cooling_at_uk_conditions": {
+    "total_w": 4890,
+    "sensible_w": 3550
+   },
+   "cooling_sensible_w": 3550,
+   "sensible_conditions": "Daikin UK rating conditions",
+   "power_input_w": null,
+   "airflow_m3h": [
+    947
+   ],
+   "source": [
+    "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10768421/file/document",
+    "https://oceanairuk.com/cdn/shop/files/FTXM-R_RZAG-A_Datasheet_10851_FTXM35R.pdf"
+   ],
+   "designed_24_7": false
+  },
+  {
+   "id": "daikin-ftxm60r",
+   "manufacturer": "Daikin",
+   "model": "FTXM60R + RXM60R",
+   "subtype": "split_wall",
+   "inverter": true,
+   "dims": [
+    998,
+    292,
+    299
+   ],
+   "weight_kg": 14.5,
+   "cooling_total_w": 6000,
+   "cooling_at_uk_conditions": {
+    "total_w": 5860,
+    "sensible_w": 3840
+   },
+   "cooling_sensible_w": 3840,
+   "sensible_conditions": "Daikin UK rating conditions",
+   "power_input_w": null,
+   "airflow_m3h": [
+    1001
+   ],
+   "source": [
+    "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10768421/file/document",
+    "https://oceanairuk.com/cdn/shop/files/FTXM-R_RZAG-A_Datasheet_10851_FTXM35R.pdf"
+   ],
+   "designed_24_7": false
+  },
+  {
+   "id": "daikin-fdxm35f9",
+   "manufacturer": "Daikin",
+   "model": "FDXM35F9 (slim duct)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    750,
+    620,
+    200
+   ],
+   "weight_kg": 21,
+   "cooling_total_w": 3400,
+   "cooling_at_uk_conditions": {
+    "total_w": 3320,
+    "sensible_w": 2260
+   },
+   "cooling_sensible_w": 2260,
+   "sensible_conditions": "Daikin UK rating conditions",
+   "power_input_w": null,
+   "airflow_m3h": [
+    522,
+    479,
+    439
+   ],
+   "esp_pa": {
+    "rated": 30,
+    "min": null,
+    "max": 40
+   },
+   "source": "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10315888/file/document",
+   "designed_24_7": false
+  },
+  {
+   "id": "daikin-fdxm50f9",
+   "manufacturer": "Daikin",
+   "model": "FDXM50F9 (slim duct)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    1150,
+    620,
+    200
+   ],
+   "weight_kg": 28,
+   "cooling_total_w": 5000,
+   "cooling_at_uk_conditions": {
+    "total_w": 4890,
+    "sensible_w": 3330
+   },
+   "cooling_sensible_w": 3330,
+   "sensible_conditions": "Daikin UK rating conditions",
+   "power_input_w": null,
+   "airflow_m3h": [
+    947,
+    875,
+    799
+   ],
+   "esp_pa": {
+    "rated": 40,
+    "min": null,
+    "max": 40
+   },
+   "source": "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10315888/file/document",
+   "designed_24_7": false
+  },
+  {
+   "id": "daikin-fdxm60f9",
+   "manufacturer": "Daikin",
+   "model": "FDXM60F9 (slim duct)",
+   "subtype": "ducted",
+   "inverter": true,
+   "dims": [
+    1150,
+    620,
+    200
+   ],
+   "weight_kg": 28,
+   "cooling_total_w": 6000,
+   "cooling_at_uk_conditions": {
+    "total_w": 5860,
+    "sensible_w": 4110
+   },
+   "cooling_sensible_w": 4110,
+   "sensible_conditions": "Daikin UK rating conditions",
+   "power_input_w": null,
+   "airflow_m3h": [
+    961,
+    889,
+    810
+   ],
+   "esp_pa": {
+    "rated": 40,
+    "min": null,
+    "max": 40
+   },
+   "source": "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10315888/file/document",
+   "designed_24_7": false
+  },
+  {
+   "id": "vertiv-crv-crd10",
+   "manufacturer": "Vertiv",
+   "model": "Liebert CRV CRD10 (DX, air-cooled)",
+   "subtype": "in_row",
+   "inverter": true,
+   "designed_24_7": true,
+   "dims": [
+    300,
+    1132,
+    2000
+   ],
+   "weight_kg": 230,
+   "cooling_total_w": null,
+   "cooling_sensible_w": 10000,
+   "conditions": "return air 37 °C, 24 % RH; outdoor 35 °C",
+   "capacity_modulation": "20-100 %",
+   "power_input_w": null,
+   "airflow_m3h": [
+    3200
+   ],
+   "airflow_pattern": "draws from the hot aisle at the rear, discharges to the cold aisle at the front",
+   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf"
+  },
+  {
+   "id": "vertiv-crv-crd25",
+   "manufacturer": "Vertiv",
+   "model": "Liebert CRV CRD25 (DX, air-cooled)",
+   "subtype": "in_row",
+   "inverter": true,
+   "designed_24_7": true,
+   "dims": [
+    300,
+    1132,
+    2000
+   ],
+   "weight_kg": 272,
+   "cooling_total_w": null,
+   "cooling_sensible_w": 25000,
+   "conditions": "return air 37 °C, 24 % RH; outdoor 35 °C",
+   "capacity_modulation": "20-100 %",
+   "power_input_w": null,
+   "airflow_m3h": [
+    5200
+   ],
+   "airflow_pattern": "draws from the hot aisle at the rear, discharges to the cold aisle at the front",
+   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf"
+  },
+  {
+   "id": "vertiv-crv-crd35",
+   "manufacturer": "Vertiv",
+   "model": "Liebert CRV CRD35 (DX, air-cooled)",
+   "subtype": "in_row",
+   "inverter": true,
+   "designed_24_7": true,
+   "dims": [
+    600,
+    1132,
+    2000
+   ],
+   "weight_kg": 358,
+   "cooling_total_w": null,
+   "cooling_sensible_w": 36000,
+   "conditions": "return air 37 °C, 24 % RH; outdoor 35 °C",
+   "capacity_modulation": "20-100 %",
+   "power_input_w": null,
+   "airflow_m3h": [
+    8000
+   ],
+   "airflow_pattern": "draws from the hot aisle at the rear, discharges to the cold aisle at the front",
+   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf"
+  },
+  {
+   "id": "vertiv-pdx-px011",
+   "manufacturer": "Vertiv",
+   "model": "Liebert PDX PX011 (DX, perimeter)",
+   "subtype": "precision_perimeter",
+   "inverter": false,
+   "designed_24_7": true,
+   "dims": [
+    876,
+    879,
+    1970
+   ],
+   "weight_kg": 272,
+   "cooling_total_w": 11000,
+   "cooling_sensible_w": 9500,
+   "conditions": "manufacturer nominal",
+   "power_input_w": null,
+   "airflow_m3h": [
+    3058
+   ],
+   "airflow_src": "1800 CFM converted",
+   "discharge_options": [
+    "upflow",
+    "downflow"
+   ],
+   "source": "https://www.vertiv.com/en-cn/products-catalog/thermal-management/room-cooling/px011-11kw/"
+  }
+ ]
+}
