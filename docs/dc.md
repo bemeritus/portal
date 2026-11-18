@@ -79,7 +79,13 @@ from the plan. Switching the theme while the room is open moves nothing.
 - **«Показать допущения»** (eye at the bottom of the tool rail, off by
   default) outlines and badges what rests on assumptions.
 - **Clearance**: a violated service clearance is a thin red zone on the floor
-  with one label; zones that are fine show while editing.
+  with one label; zones that are fine show while editing. The inspector says
+  what a shortfall means: how much room there is and to what (a wall or an
+  object), what servicing needs, and what will not work (the rear door may
+  not open fully, a server on rails may not slide out). The numbers are the
+  measured ones and the requirement is not lowered; it is a warning from the
+  measurements, not an error in the model. Clicking it selects the rack and
+  draws the gap with its dimension, as the ruler does, in every mode.
 - **Tools** (left rail): *Обзор*, *Правка* (drag with snapping to walls and
   neighbours within 25 mm, or the grid; arrows 10 mm, Shift 100 mm, `R`
   90°), *Линейка*, *Заметка*.
@@ -102,9 +108,12 @@ from the plan. Switching the theme while the room is open moves nothing.
   (`10-11 DELL R740 | 450 Вт | Клиент X`). A rack whose contents were never
   recorded says so.
 - **⌘K**: racks, devices (name, serial, owner) and cells; actions — find free
-  space (its row shows the values, «2U · 0,8 кВт»; type them —
-  `свободно 2U 0,8 кВт` — or press Tab or → for fields; Enter runs, Esc goes
-  back to the list), highlight a client (Tab, then pick), compare
+  space (its values come only from the query: a unit count and a power in
+  kW or W, typed in Russian, Uzbek or English, in any order; the row shows
+  them. Without a unit count nothing is assumed: the row asks for one, and
+  Enter or Tab opens the fields with units empty — Enter is refused until
+  1–42. Empty power means any. Esc writes the fields back into the query),
+  highlight a client (Tab, then pick), compare
   with a revision, save the view and copy its link, QR stickers for the
   selected rack or shelf, mode, theme, unit. Keyboard only; it takes ⌘K from
   the portal's own palette while the module is open.
@@ -224,8 +233,9 @@ come with phase 2.
 - `just e2e` — Playwright (Chromium) against the running dev servers and the
   seeded room: the ruler's 595 mm (r1 back face → back wall) and 200 mm
   (r3–r4); the inspector's tabs on one row in every theme × language; blocked
-  shelf cells in Реалистичный; where a room opens in Чертёж; the palette's
-  Tab → edit → Enter. `E2E_USER` / `E2E_PASSWORD`: an account with
+  shelf cells in the realistic mode; where a room opens in the drawing theme;
+  the palette's find-free-space parameters; the docked rail's separators;
+  the clearance warning. `E2E_USER` / `E2E_PASSWORD`: an account with
   `dc_room:edit` (defaults to the local test account `dcedit`). The tests
   change that account's language and theme and put them back afterwards, so
   they run one at a time; the saved-view test adds a view and deletes it
@@ -415,6 +425,28 @@ Adjusted to the house style or the data:
    любая»); Tab or → opens fields for units and kW, Enter runs, Esc returns
    to the list with the query and values kept (also for the owner list).
    Tests: `model/spaceParams.test.ts`, `e2e/palette.e2e.ts`.
+
+### FEEDBACK-3 (review of 790cd9f)
+
+1. **One rule between tool groups in the docked rail** (drawing theme): the
+   `<hr>` draws nothing there and the button above it ends in a 2 px rule
+   instead of 1 px; the floating rail (studio, light) is unchanged. Test:
+   `e2e/rail.e2e.ts` — every pair of horizontal rules has at least half a
+   button between them (the review asked for 2 px, but the reported lines
+   were 3 px apart, so 2 px would not have caught them), plus the computed
+   styles of the `<hr>` and the button above it.
+2. **No silent 1U** in find-free-space: the parser
+   (`model/spaceParams.ts`: RU / UZ / EN unit words, kW or W, any order)
+   fills the row and the fields from the query; nothing is assumed or
+   remembered between openings; Enter is refused until 1–42 units. Tests:
+   `model/spaceParams.test.ts` (table-driven), `e2e/palette.e2e.ts` (a query
+   with inline parameters, one without).
+3. **The clearance warning says what it means** — new title, front and rear
+   lines, note and plan legend in all three languages; clicking selects the
+   rack and draws the gap like a ruler result. Test: `e2e/clearance.e2e.ts`.
+   The optional per-warning acknowledgement was **not built** (see the
+   report): the note still asks to mark an intended shortfall, and there is
+   no control for that yet.
 
 Before phase 1 is accepted: re-measure the items in `room.json` →
 `remeasure` (listed in the app under *Замеры*). Calculations in phases 3–5
