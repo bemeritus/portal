@@ -257,13 +257,16 @@ function DcShell({ children }: { children: ReactNode }) {
             <UserButton />
           </div>
         </header>
-        {/* The room is full-bleed; every other page scrolls under the top
-            bar in the portal's usual column (1200 px, the same padding). */}
+        {/* The room is full-bleed; the catalog uses the whole width for its
+            sidebar and grid; every other page scrolls under the top bar in
+            the portal's usual column (1200 px, the same padding). */}
         {roomPage ? (
           children
         ) : (
           <main className="dc-scroll">
-            <div className="dc-page">{children}</div>
+            <div className={tab === "catalog" ? "dc-page-wide" : "dc-page"}>
+              {children}
+            </div>
           </main>
         )}
         <CommandPalette

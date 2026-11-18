@@ -1,605 +1,957 @@
 /**
- * `/dc/catalog` — the equipment catalog as pictures, not a list of names
- * (SPEC §11.3). Read-only in phase 1: placing items in a room and editing the
- * catalog are phase 2.
+ * `/dc/catalog/:section` — the equipment catalog as pictures, not a list of
+ * names (SPEC §11.3, FEEDBACK-4 §3.1; mockup `design/CatalogList.png`).
+ * Read-only in phase 1: placing items in a room and editing the catalog are
+ * phase 2.
+ *
+ * A sidebar of sections and filters, a header that says what the list is,
+ * cards or a sortable table, and a comparison tray. Every filter, the sort,
+ * the view and the picked items live in the URL, so a filtered list can be
+ * shared.
  */
 
 import type { TFunction } from "i18next";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Slider } from "radix-ui";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Columns2,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { errorMessage } from "../../api/client";
 import { ErrorFlash } from "../../components/Flash";
-import { Spinner } from "../../components/Loading";
 import { tDyn } from "../../i18n";
-import { dcApi } from "../api";
-import { ItemPreview, thumbnail } from "../engine/preview";
 import type { Fmt } from "../format";
-import { dimsText } from "../model/catalog";
-import { useDcSettings, useFmt } from "../settings";
-import { TOKENS } from "../theme/tokens";
-import type { CatalogItem, Kind } from "../types";
+import {
+  airflow,
+  applyFilters,
+  bounds,
+  capacity,
+  counts,
+  dimsNumbers,
+  execution,
+  filtering,
+  filtersToParams,
+  fromRoom,
+  mass,
+  parseFilters,
+  resetFilters,
+  SECTIONS,
+  shortModel,
+  sortItems,
+  usageCount,
+  type Filters,
+  type SortKey,
+} from "../model/catalog";
+import { useFmt } from "../settings";
+import type { CatalogItem } from "../types";
+import { executionLabel, Tags, Thumb, useCatalog } from "./catalogParts";
 
-/** Sections of the catalog (and of the phase 2 palette). */
-const SECTIONS: {
-  key: string;
-  kinds: (Kind | "ups" | "pdu" | "panel" | "raised_floor")[];
-}[] = [
-  { key: "racks", kinds: ["rack", "shelf"] },
-  { key: "cooling", kinds: ["cooling"] },
-  { key: "power", kinds: ["ups", "pdu", "panel"] },
-  { key: "floor", kinds: ["raised_floor"] },
-  { key: "trays", kinds: ["cable_tray"] },
-  { key: "structures", kinds: ["structure"] },
+const SORT_KEYS: SortKey[] = [
+  "cold",
+  "air",
+  "size",
+  "mass",
+  "name",
+  "brand",
+  "exec",
+  "h247",
+  "used",
 ];
 
-type Sort = "capacity" | "size" | "brand";
+type SetFilters = (next: Filters | ((f: Filters) => Filters)) => void;
 
-/** Sensible capacity when published, otherwise null (the card says so). */
-const sensible = (i: CatalogItem) =>
-  i.kind === "cooling" ? i.props.cooling_sensible_w : null;
-const capacity = (i: CatalogItem) =>
-  i.kind === "cooling"
-    ? (i.props.cooling_sensible_w ?? i.props.cooling_total_w ?? 0)
-    : 0;
-const airflow = (i: CatalogItem) =>
-  i.kind === "cooling" ? Math.max(0, ...i.props.airflow_m3h) : 0;
-
-function Thumb({ item }: { item: CatalogItem }) {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    // Let the page paint first; draw one thumbnail per idle moment.
-    const id = window.setTimeout(() => setSrc(thumbnail(item)), 0);
-    return () => window.clearTimeout(id);
-  }, [item]);
-  return (
-    <div className="flex h-36 items-center justify-center rounded bg-muted/40">
-      {src ? (
-        <img src={src} alt="" className="h-36 object-contain" />
-      ) : (
-        <Spinner />
-      )}
-    </div>
-  );
-}
-
-export function Badges({ item }: { item: CatalogItem }) {
-  const { t } = useTranslation();
-  if (item.kind !== "cooling") return null;
-  const p = item.props;
-  const precision =
-    p.subtype === "in_row" || p.subtype === "precision_perimeter";
-  return (
-    <div className="flex flex-wrap gap-1">
-      <Badge variant={precision ? "success" : "secondary"}>
-        {precision ? t("dc.catalog.precision") : t("dc.catalog.comfort")}
-      </Badge>
-      {p.designed_24_7 && <Badge variant="secondary">24/7</Badge>}
-      {p.inverter && (
-        <Badge variant="secondary">{t("dc.catalog.inverter")}</Badge>
-      )}
-      {p.model_known && p.cooling_sensible_w === null && (
-        <Badge variant="destructive">{t("dc.catalog.noSensible")}</Badge>
-      )}
-      {!p.model_known && (
-        <Badge variant="destructive">{t("dc.catalog.modelUnknown")}</Badge>
-      )}
-    </div>
-  );
-}
-
-function keyNumbers(item: CatalogItem, fmt: Fmt, t: TFunction): string[] {
-  const dims = dimsText(item, fmt);
-  switch (item.kind) {
-    case "cooling": {
-      const s = sensible(item);
-      const total = item.props.cooling_total_w;
-      let cap: string = t("dc.catalog.capacityUnknown");
-      if (s !== null) cap = t("dc.catalog.sensibleKw", { v: fmt.kw(s) });
-      else if (total !== null)
-        cap = t("dc.catalog.totalKw", { v: fmt.kw(total) });
-      const air: string = airflow(item)
-        ? fmt.m3h(airflow(item))
-        : t("dc.catalog.airflowUnknown");
-      return [cap, air, dims];
-    }
-    case "rack":
-      return [t("dc.catalog.units", { n: item.props.units }), dims];
-    case "shelf":
-      return [
-        t("dc.catalog.cells", {
-          n: item.props.boards_mm.length * item.props.cells_per_board,
-        }),
-        dims,
-      ];
-    default:
-      return [dims];
-  }
+/**
+ * The filters in the URL, and a setter that writes them back. A function
+ * gets the filters of the address bar as it is now — not of the last
+ * render, as React Router's own functional form does — so quick changes
+ * (two compare toggles before a re-render) do not overwrite each other.
+ */
+function useFilters(): [Filters, SetFilters] {
+  const [search, setSearch] = useSearchParams();
+  const f = useMemo(() => parseFilters(search), [search]);
+  return [
+    f,
+    (next) => {
+      const now = parseFilters(new URLSearchParams(window.location.search));
+      setSearch(
+        filtersToParams(typeof next === "function" ? next(now) : next),
+        {
+          replace: true,
+        },
+      );
+    },
+  ];
 }
 
 export function DcCatalogPage() {
   const { t } = useTranslation();
   const fmt = useFmt();
-  const q = useQuery({
-    queryKey: ["dc", "catalog"],
-    queryFn: ({ signal }) => dcApi.catalog(undefined, signal),
-  });
-  const [section, setSection] = useState("cooling");
-  const [subtype, setSubtype] = useState("");
-  const [brand, setBrand] = useState("");
-  const [minKw, setMinKw] = useState("");
-  const [maxKw, setMaxKw] = useState("");
-  const [maxWidth, setMaxWidth] = useState("");
-  const [text, setText] = useState("");
-  const [sort, setSort] = useState<Sort>("capacity");
-  const [detail, setDetail] = useState<CatalogItem | null>(null);
-  const [compare, setCompare] = useState<number[]>([]);
-  const [comparing, setComparing] = useState(false);
+  const { section = "cooling" } = useParams();
+  const navigate = useNavigate();
+  const { items: q, usage } = useCatalog();
+  const [f, setF] = useFilters();
+  const searchRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     document.title = t("docTitle", {
-      page: t("dc.catalog.title"),
+      page: tDyn(t, `dc.section.${section}`),
       app: t("app.name"),
     });
-  }, [t]);
+  }, [t, section]);
 
-  const items = q.data ?? [];
-  const kinds = SECTIONS.find((s) => s.key === section)!.kinds as string[];
-  const inSection = items.filter((i) => kinds.includes(i.kind));
-  const brands = [
-    ...new Set(inSection.map((i) => i.manufacturer).filter(Boolean)),
-  ].sort();
-  const subtypes = [
-    ...new Set(
-      inSection.flatMap((i) =>
-        i.kind === "cooling"
-          ? [i.props.subtype]
-          : i.kind === "structure"
-            ? [i.props.subtype]
-            : [],
-      ),
-    ),
-  ];
-  const shown = inSection
-    .filter(
-      (i) =>
-        !subtype ||
-        (i.kind === "cooling" && i.props.subtype === subtype) ||
-        (i.kind === "structure" && i.props.subtype === subtype),
-    )
-    .filter((i) => !brand || i.manufacturer === brand)
-    .filter((i) => !minKw || capacity(i) >= Number(minKw) * 1000)
-    .filter((i) => !maxKw || capacity(i) <= Number(maxKw) * 1000)
-    .filter((i) => !maxWidth || i.width_mm <= Number(maxWidth))
-    .filter(
-      (i) =>
-        !text.trim() ||
-        `${i.manufacturer} ${i.model}`
-          .toLowerCase()
-          .includes(text.trim().toLowerCase()),
-    )
-    .sort((a, b) =>
-      sort === "capacity"
-        ? capacity(b) - capacity(a)
-        : sort === "size"
-          ? a.width_mm * a.depth_mm - b.width_mm * b.depth_mm
-          : `${a.manufacturer} ${a.model}`.localeCompare(
-              `${b.manufacturer} ${b.model}`,
-            ),
-    );
-
-  return (
-    <>
-      <p className="mb-2">
-        <Link to="/dc" className="text-sm text-link hover:underline">
-          ← {t("dc.rooms")}
-        </Link>
-      </p>
-      <h1>{t("dc.catalog.title")}</h1>
-      <p className="text-sm text-muted-foreground">{t("dc.catalog.intro")}</p>
-      <div className="my-3 flex flex-wrap gap-1" role="tablist">
-        {SECTIONS.map((s) => {
-          const n = items.filter((i) =>
-            (s.kinds as string[]).includes(i.kind),
-          ).length;
-          return (
-            <button
-              key={s.key}
-              type="button"
-              role="tab"
-              aria-selected={section === s.key}
-              className={cn(
-                "rounded-md border px-3 py-1 text-sm",
-                section === s.key
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-accent",
-              )}
-              onClick={() => {
-                setSection(s.key);
-                setSubtype("");
-                setBrand("");
-              }}
-            >
-              {tDyn(t, `dc.section.${s.key}`)}{" "}
-              <span className="opacity-70">{n}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="mb-4 flex flex-wrap items-end gap-2 text-sm">
-        <Input
-          className="h-8 w-52"
-          placeholder={t("dc.catalog.search")}
-          aria-label={t("dc.catalog.search")}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        {subtypes.length > 1 && (
-          <select
-            className="h-8 rounded-md border bg-background px-2"
-            aria-label={t("dc.catalog.subtype")}
-            value={subtype}
-            onChange={(e) => setSubtype(e.target.value)}
-          >
-            <option value="">{t("dc.catalog.allSubtypes")}</option>
-            {subtypes.map((s) => (
-              <option key={s} value={s}>
-                {tDyn(t, `dc.subtype.${s}`)}
-              </option>
-            ))}
-          </select>
-        )}
-        {brands.length > 1 && (
-          <select
-            className="h-8 rounded-md border bg-background px-2"
-            aria-label={t("dc.catalog.brand")}
-            value={brand}
-            onChange={(e) => setBrand(e.target.value)}
-          >
-            <option value="">{t("dc.catalog.allBrands")}</option>
-            {brands.map((b) => (
-              <option key={b}>{b}</option>
-            ))}
-          </select>
-        )}
-        {section === "cooling" && (
-          <label className="flex items-center gap-1">
-            {t("dc.catalog.kwRange")}
-            <Input
-              className="h-8 w-16"
-              type="number"
-              min={0}
-              value={minKw}
-              onChange={(e) => setMinKw(e.target.value)}
-              aria-label={t("dc.catalog.kwMin")}
-            />
-            –
-            <Input
-              className="h-8 w-16"
-              type="number"
-              min={0}
-              value={maxKw}
-              onChange={(e) => setMaxKw(e.target.value)}
-              aria-label={t("dc.catalog.kwMax")}
-            />
-          </label>
-        )}
-        <label className="flex items-center gap-1">
-          {t("dc.catalog.maxWidth")}
-          <Input
-            className="h-8 w-20"
-            type="number"
-            min={0}
-            value={maxWidth}
-            onChange={(e) => setMaxWidth(e.target.value)}
-          />
-        </label>
-        <select
-          className="h-8 rounded-md border bg-background px-2"
-          aria-label={t("dc.catalog.sort")}
-          value={sort}
-          onChange={(e) => setSort(e.target.value as Sort)}
-        >
-          <option value="capacity">{t("dc.catalog.sortCapacity")}</option>
-          <option value="size">{t("dc.catalog.sortSize")}</option>
-          <option value="brand">{t("dc.catalog.sortBrand")}</option>
-        </select>
-        {compare.length > 0 && (
-          <Button size="sm" onClick={() => setComparing(true)}>
-            {t("dc.catalog.compare", { n: compare.length })}
-          </Button>
-        )}
-      </div>
-      {q.isPending ? (
-        <Spinner />
-      ) : q.error ? (
-        <ErrorFlash error={errorMessage(q.error)} />
-      ) : shown.length === 0 ? (
-        <p className="text-muted-foreground">
-          {inSection.length === 0
-            ? t("dc.catalog.emptySection")
-            : t("dc.catalog.noMatch")}
-        </p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {shown.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col gap-2 rounded-lg border p-3"
-            >
-              <button
-                type="button"
-                className="text-left"
-                onClick={() => setDetail(item)}
-                aria-label={t("dc.catalog.open", { model: item.model })}
-              >
-                <Thumb item={item} />
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {item.manufacturer || t("dc.catalog.noBrand")}
-                </div>
-                <div className="font-medium">{item.model}</div>
-              </button>
-              <ul className="text-sm">
-                {keyNumbers(item, fmt, t).map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-              <Badges item={item} />
-              <label className="mt-auto flex items-center gap-2 text-xs">
-                <Checkbox
-                  checked={compare.includes(item.id)}
-                  disabled={!compare.includes(item.id) && compare.length >= 3}
-                  onCheckedChange={(v) =>
-                    setCompare((c) =>
-                      v === true
-                        ? [...c, item.id]
-                        : c.filter((x) => x !== item.id),
-                    )
-                  }
-                />
-                {t("dc.catalog.toCompare")}
-              </label>
-            </div>
-          ))}
-        </div>
-      )}
-      {detail && <DetailDialog item={detail} onClose={() => setDetail(null)} />}
-      {comparing && (
-        <CompareDialog
-          items={items.filter((i) => compare.includes(i.id))}
-          onClose={() => setComparing(false)}
-        />
-      )}
-    </>
+  const sec = SECTIONS.find((s) => s.key === section) ?? SECTIONS[1];
+  const all = q.data ?? [];
+  const inSection = all.filter((i) => sec.kinds.includes(i.kind));
+  const used = useMemo(() => usageCount(usage.data ?? []), [usage.data]);
+  const label = (i: CatalogItem) => executionLabel(i, t);
+  const shown = sortItems(
+    applyFilters(inSection, f),
+    f.sort,
+    f.dir,
+    used,
+    label,
   );
-}
+  const datasheets = inSection.filter((i) => !fromRoom(i)).length;
+  const room = inSection.length - datasheets;
+  const picked = f.compare
+    .map((id) => all.find((i) => i.id === id))
+    .filter((i): i is CatalogItem => !!i);
+  const toggleCompare = (id: number) =>
+    setF((cur) => ({
+      ...cur,
+      compare: cur.compare.includes(id)
+        ? cur.compare.filter((x) => x !== id)
+        : [...cur.compare, id].slice(-3),
+    }));
 
-function Preview({ items }: { items: CatalogItem[] }) {
-  const { t } = useTranslation();
-  const fmt = useFmt();
-  const theme = useDcSettings().theme;
-  const host = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!host.current) return;
-    const p = new ItemPreview(
-      host.current,
-      items,
-      {
-        mm: fmt.mm,
-        supply: t("dc.catalog.supply"),
-        ret: t("dc.catalog.return"),
-        rack: t("dc.catalog.refRack"),
-        person: t("dc.catalog.refPerson"),
-      },
-      TOKENS[theme],
-    );
-    return () => p.dispose();
-  }, [items, t, fmt, theme]);
-  return (
-    <div
-      ref={host}
-      className="dc-host relative h-[380px] overflow-hidden rounded-md border"
-      aria-label={t("dc.catalog.previewLabel")}
+  const sidebar = (
+    <Sidebar
+      section={sec.key}
+      all={all}
+      inSection={inSection}
+      f={f}
+      setF={setF}
+      fmt={fmt}
+      t={t}
     />
   );
-}
 
-/** Every property with its value, unit and where it came from. */
-function specRows(
-  item: CatalogItem,
-  fmt: Fmt,
-  t: TFunction,
-): [string, string, string][] {
-  const src = (k: string) => {
-    const s = item.props_src[k] ?? item.props_src.dims;
-    return s ? tDyn(t, `dc.src.${s.src}`) : "";
-  };
-  const rows: [string, string, string][] = [
-    [
-      t("dc.dims.wdh"),
-      dimsText(item, fmt),
-      src("dims"),
-    ],
-  ];
-  const show = (v: unknown, k: string): string => {
-    if (v === null || v === undefined || (Array.isArray(v) && v.length === 0))
-      return t("dc.catalog.notPublished");
-    if (typeof v === "boolean") return v ? t("common.yes") : t("common.no");
-    if (k.endsWith("_w")) return fmt.w(v as number);
-    if (k === "cooling_range_w")
-      return `${fmt.w((v as number[])[0])} – ${fmt.w((v as number[])[1])}`;
-    if (k === "airflow_m3h")
-      return (v as number[]).map((x) => fmt.m3h(x)).join(" / ");
-    if (k.endsWith("_mm")) return fmt.mm(v as number);
-    if (k === "boards_mm")
-      return (v as number[]).map((x) => fmt.mm(x)).join(", ");
-    if (k === "weight_kg") return fmt.kg(v as number);
-    if (k === "esp_pa") {
-      const e = v as { rated: number; min: number | null; max: number | null };
-      return `${e.rated} Pa (${e.min ?? "?"}–${e.max ?? "?"})`;
-    }
-    if (k === "subtype") return tDyn(t, `dc.subtype.${String(v)}`);
-    if (k === "discharge_options")
-      return (v as string[])
-        .map((x) => tDyn(t, `dc.discharge.${x}`))
-        .join(", ");
-    if (typeof v === "object") return JSON.stringify(v);
-    return String(v);
-  };
-  for (const [k, v] of Object.entries(item.props)) {
-    if (
-      k === "openings" ||
-      k === "derating" ||
-      k === "source_url" ||
-      k === "model_known"
-    )
-      continue;
-    rows.push([
-      tDyn(t, `dc.prop.${k}`, { defaultValue: k }),
-      show(v, k),
-      src(k),
-    ]);
-  }
-  return rows;
-}
-
-function DetailDialog({
-  item,
-  onClose,
-}: {
-  item: CatalogItem;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const fmt = useFmt();
-  const urls = [
-    ...new Set(
-      Object.values(item.props_src)
-        .map((s) => s.url)
-        .filter(Boolean) as string[],
-    ),
-  ];
-  const items = useMemo(() => [item], [item]);
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>
-            {item.manufacturer} {item.model}
-          </DialogTitle>
-        </DialogHeader>
-        <Badges item={item} />
-        <Preview items={items} />
-        <p className="text-xs text-muted-foreground">
-          {t("dc.catalog.previewNote")}
-        </p>
-        <table className="w-full text-sm">
-          <tbody>
-            {specRows(item, fmt, t).map(([k, v, s]) => (
-              <tr key={k} className="border-t">
-                <td className="py-1 pr-3 text-muted-foreground">{k}</td>
-                <td className="pr-3">{v}</td>
-                <td className="text-xs text-muted-foreground">{s}</td>
-              </tr>
+    <div className="dc-cat">
+      <aside className="dc-cat-side" aria-label={t("dc.catalog.filters")}>
+        {sidebar}
+      </aside>
+      <section className="dc-cat-main">
+        <header className="dc-cat-head">
+          <div className="dc-cat-titlerow">
+            <h1>{tDyn(t, `dc.section.${sec.key}`)}</h1>
+            <span className="dc-pill">{t("dc.catalog.readOnly")}</span>
+          </div>
+          <p className="dc-cat-summary">
+            {sec.designer
+              ? t("dc.catalog.designerSection")
+              : [
+                  datasheets > 0 &&
+                    t("dc.catalog.summaryDatasheet", { count: datasheets }),
+                  room > 0 &&
+                    t(
+                      datasheets > 0
+                        ? "dc.catalog.summaryRoom"
+                        : "dc.catalog.summaryRoomOnly",
+                      {
+                        count: room,
+                      },
+                    ),
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+          </p>
+          <div className="dc-cat-tools">
+            <label className="dc-cat-search">
+              <Search className="size-4" aria-hidden />
+              <input
+                ref={searchRef}
+                type="search"
+                value={f.q}
+                placeholder={t("dc.catalog.search")}
+                aria-label={t("dc.catalog.search")}
+                onChange={(e) => setF((c) => ({ ...c, q: e.target.value }))}
+              />
+            </label>
+            <span className="dc-cat-count" data-testid="catalog-count">
+              {t("dc.catalog.shown", {
+                n: shown.length,
+                total: inSection.length,
+              })}
+            </span>
+            <span className="flex-1" />
+            <Sheet>
+              <SheetTrigger asChild>
+                <button type="button" className="dc-btn dc-cat-filters-btn">
+                  <SlidersHorizontal className="size-4" />
+                  {t("dc.catalog.filters")}
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="dc-cat-sheet">
+                <SheetHeader>
+                  <SheetTitle>{t("dc.catalog.filters")}</SheetTitle>
+                </SheetHeader>
+                {sidebar}
+              </SheetContent>
+            </Sheet>
+            <SortButton f={f} setF={setF} t={t} />
+            <div
+              className="dc-seg"
+              role="group"
+              aria-label={t("dc.catalog.views")}
+            >
+              {(["cards", "table"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={f.view === v}
+                  onClick={() => setF((c) => ({ ...c, view: v }))}
+                >
+                  {v === "cards"
+                    ? t("dc.catalog.viewCards")
+                    : t("dc.catalog.viewTable")}
+                </button>
+              ))}
+            </div>
+          </div>
+        </header>
+
+        {q.isPending ? (
+          <div className="dc-cat-grid" aria-busy>
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="dc-cat-card dc-skel-card" />
             ))}
-          </tbody>
-        </table>
-        {Object.entries(item.props_src)
-          .filter(([, s]) => s.note)
-          .map(([k, s]) => (
-            <p key={k} className="text-xs text-muted-foreground">
-              {tDyn(t, `dc.prop.${k}`, { defaultValue: k })}: {s.note}
-            </p>
-          ))}
-        {urls.length > 0 && (
-          <div className="text-sm">
-            {t("dc.catalog.sources")}:{" "}
-            {urls.map((u) => (
-              <a
-                key={u}
-                href={u}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mr-2 break-all text-link underline"
-              >
-                {new URL(u).hostname}
-              </a>
+          </div>
+        ) : q.error ? (
+          <ErrorFlash error={errorMessage(q.error)} />
+        ) : sec.designer || inSection.length === 0 ? (
+          <p className="dc-muted">
+            {sec.designer
+              ? t("dc.catalog.designerSection")
+              : t("dc.catalog.emptySection")}
+          </p>
+        ) : shown.length === 0 ? (
+          <p className="dc-muted">{t("dc.catalog.noMatch")}</p>
+        ) : f.view === "table" ? (
+          <CatalogTable
+            items={shown}
+            f={f}
+            setF={setF}
+            used={used}
+            fmt={fmt}
+            t={t}
+          />
+        ) : (
+          <div className="dc-cat-grid">
+            {shown.map((item) => (
+              <Card
+                key={item.id}
+                item={item}
+                used={used.get(item.id) ?? 0}
+                picked={f.compare.includes(item.id)}
+                onPick={() => toggleCompare(item.id)}
+                fmt={fmt}
+                t={t}
+              />
             ))}
           </div>
         )}
-        {item.kind === "cooling" && (
-          <p className="text-xs text-muted-foreground">
-            {t("dc.catalog.advisory")}
-          </p>
-        )}
-        <div>
-          <Button disabled title={t("dc.catalog.placeLater")}>
-            {t("dc.catalog.place")}
-          </Button>
-          <span className="ml-2 text-xs text-muted-foreground">
-            {t("dc.catalog.placeLater")}
-          </span>
+      </section>
+
+      {picked.length > 0 && (
+        <div
+          className="dc-tray"
+          role="region"
+          aria-label={t("dc.catalog.compareTray")}
+        >
+          <span className="dc-tray-title">{t("dc.catalog.compareTray")}</span>
+          {picked.map((i) => (
+            <span key={i.id} className="dc-tray-chip">
+              {shortModel(i.model)}
+              <button
+                type="button"
+                aria-label={t("dc.catalog.compareRemove", {
+                  model: shortModel(i.model),
+                })}
+                onClick={() => toggleCompare(i.id)}
+              >
+                <X className="size-3.5" />
+              </button>
+            </span>
+          ))}
+          {picked.length < 3 && (
+            <button
+              type="button"
+              className="dc-tray-more"
+              onClick={() => searchRef.current?.focus()}
+            >
+              {t("dc.catalog.compareMore")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="dc-btn dc-btn-primary"
+            disabled={picked.length < 2}
+            title={
+              picked.length < 2 ? t("dc.catalog.compareNeedTwo") : undefined
+            }
+            onClick={() =>
+              navigate(
+                `/dc/catalog/compare?ids=${picked.map((i) => i.id).join(",")}`,
+              )
+            }
+          >
+            {t("dc.catalog.compareGo")}
+          </button>
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </div>
   );
 }
 
-function CompareDialog({
+// --- Sidebar: sections and filters --------------------------------------------------------
+
+function Sidebar({
+  section,
+  all,
+  inSection,
+  f,
+  setF,
+  fmt,
+  t,
+}: {
+  section: string;
+  all: CatalogItem[];
+  inSection: CatalogItem[];
+  f: Filters;
+  setF: SetFilters;
+  fmt: Fmt;
+  t: TFunction;
+}) {
+  const cooling = section === "cooling";
+  const execs = counts(inSection, execution);
+  const brands = counts(inSection, (i) => i.manufacturer);
+  const kwBounds = bounds(inSection, (i) => capacity(i)?.w ?? null);
+  const wBounds = bounds(inSection, (i) => i.width_mm);
+  const toggle = (list: string[], v: string) =>
+    list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+  const execName = (e: string) =>
+    tDyn(
+      t,
+      cooling || section === "structures" ? `dc.subtype.${e}` : `dc.kind.${e}`,
+    );
+
+  return (
+    <div className="dc-cat-sidebar">
+      <nav aria-label={t("dc.catalog.sections")} className="dc-cat-sections">
+        {SECTIONS.map((s) => {
+          const n = all.filter((i) => s.kinds.includes(i.kind)).length;
+          return s.designer ? (
+            <span key={s.key} className="dc-cat-section" data-muted>
+              {tDyn(t, `dc.section.${s.key}`)}
+              <small>{t("dc.catalog.designer")}</small>
+            </span>
+          ) : (
+            <Link
+              key={s.key}
+              to={`/dc/catalog/${s.key}${f.view === "table" ? "?view=table" : ""}`}
+              className="dc-cat-section"
+              aria-current={s.key === section ? "page" : undefined}
+            >
+              {tDyn(t, `dc.section.${s.key}`)}
+              <small className="dc-num">{n}</small>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {cooling && (
+        <FilterGroup title={t("dc.catalog.purpose")}>
+          <div
+            className="dc-seg dc-seg-fill"
+            role="radiogroup"
+            aria-label={t("dc.catalog.purpose")}
+          >
+            {(["all", "precision", "comfort"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={f.purpose === p}
+                onClick={() => setF((c) => ({ ...c, purpose: p }))}
+              >
+                {p === "all"
+                  ? t("dc.catalog.purposeAll")
+                  : p === "precision"
+                    ? t("dc.catalog.purposePrecision")
+                    : t("dc.catalog.purposeComfort")}
+              </button>
+            ))}
+          </div>
+        </FilterGroup>
+      )}
+
+      {execs.length > 1 && (
+        <FilterGroup title={t("dc.catalog.execution")}>
+          {execs.map(([e, n]) => (
+            <CheckRow
+              key={e}
+              id={`exec-${e}`}
+              label={execName(e)}
+              count={n}
+              checked={!f.execOff.includes(e)}
+              onChange={() =>
+                setF((c) => ({ ...c, execOff: toggle(c.execOff, e) }))
+              }
+            />
+          ))}
+        </FilterGroup>
+      )}
+
+      {brands.length > 1 && (
+        <FilterGroup title={t("dc.catalog.manufacturer")}>
+          {brands.map(([b, n]) => (
+            <CheckRow
+              key={b || "-"}
+              id={`brand-${b || "none"}`}
+              label={b || t("dc.catalog.noBrand")}
+              count={n}
+              checked={!f.brandOff.includes(b)}
+              onChange={() =>
+                setF((c) => ({ ...c, brandOff: toggle(c.brandOff, b) }))
+              }
+            />
+          ))}
+        </FilterGroup>
+      )}
+
+      {cooling && kwBounds && (
+        <RangeFilter
+          id="kw"
+          title={t("dc.catalog.cold")}
+          bounds={[
+            Math.floor(kwBounds[0] / 1000) * 1000,
+            Math.ceil(kwBounds[1] / 1000) * 1000,
+          ]}
+          step={500}
+          value={f.kw}
+          onChange={(kw) => setF((c) => ({ ...c, kw }))}
+          text={(v) => fmt.kw(v)}
+          range={(a, b) =>
+            t("dc.unit.kw", {
+              v: `${fmt.n(a / 1000, 1)}–${fmt.n(b / 1000, 1)}`,
+            })
+          }
+          t={t}
+        />
+      )}
+      {wBounds && wBounds[0] !== wBounds[1] && (
+        <RangeFilter
+          id="width"
+          title={t("dc.catalog.width")}
+          bounds={[
+            Math.floor(wBounds[0] / 100) * 100,
+            Math.ceil(wBounds[1] / 100) * 100,
+          ]}
+          step={10}
+          value={f.width}
+          onChange={(width) => setF((c) => ({ ...c, width }))}
+          text={(v) => fmt.mm(v)}
+          range={(a, b) => fmt.range(a, b)}
+          t={t}
+        />
+      )}
+
+      {cooling && (
+        <div className="dc-cat-switches">
+          <SwitchRow
+            id="only247"
+            label={t("dc.catalog.only247")}
+            checked={f.only247}
+            onChange={(v) => setF((c) => ({ ...c, only247: v }))}
+          />
+          <SwitchRow
+            id="sensible"
+            label={t("dc.catalog.sensiblePublished")}
+            checked={f.sensibleOnly}
+            onChange={(v) => setF((c) => ({ ...c, sensibleOnly: v }))}
+          />
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="dc-link-btn"
+        disabled={!filtering(f)}
+        onClick={() => setF(resetFilters)}
+      >
+        {t("dc.catalog.reset")}
+      </button>
+    </div>
+  );
+}
+
+function FilterGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset className="dc-cat-group">
+      <legend className="dc-section-title">{title}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+function CheckRow({
+  id,
+  label,
+  count,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  count: number;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div className="dc-cat-check">
+      <Checkbox id={id} checked={checked} onCheckedChange={onChange} />
+      <label htmlFor={id}>{label}</label>
+      <small className="dc-num">{count}</small>
+    </div>
+  );
+}
+
+function SwitchRow({
+  id,
+  label,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="dc-cat-switch">
+      <label htmlFor={id}>{label}</label>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * A two-handle range slider over `bounds`; an end at its bound is open
+ * (`null`), so the filter does not drop items whose value is unknown until
+ * it is narrowed. The URL is written when a handle is let go.
+ */
+function RangeFilter({
+  id,
+  title,
+  bounds: [lo, hi],
+  step,
+  value,
+  onChange,
+  text,
+  range,
+  t,
+}: {
+  id: string;
+  title: string;
+  bounds: [number, number];
+  step: number;
+  value: [number | null, number | null];
+  onChange: (v: [number | null, number | null]) => void;
+  text: (v: number) => string;
+  range: (a: number, b: number) => string;
+  t: TFunction;
+}) {
+  const [live, setLive] = useState<[number, number]>([
+    value[0] ?? lo,
+    value[1] ?? hi,
+  ]);
+  useEffect(() => setLive([value[0] ?? lo, value[1] ?? hi]), [value, lo, hi]);
+  const [a, b] = live;
+  const shown =
+    a <= lo && b >= hi
+      ? t("dc.catalog.rangeAll")
+      : a <= lo
+        ? t("dc.catalog.upTo", { v: text(b) })
+        : b >= hi
+          ? t("dc.catalog.from", { v: text(a) })
+          : range(a, b);
+  return (
+    <fieldset className="dc-cat-group">
+      <legend className="dc-section-title dc-cat-range-head">
+        <span>{title}</span>
+        <span className="dc-num" data-testid={`range-${id}`}>
+          {shown}
+        </span>
+      </legend>
+      <Slider.Root
+        className="dc-slider"
+        min={lo}
+        max={hi}
+        step={step}
+        minStepsBetweenThumbs={1}
+        value={live}
+        onValueChange={(v) => setLive([v[0], v[1]])}
+        onValueCommit={(v) =>
+          onChange([v[0] <= lo ? null : v[0], v[1] >= hi ? null : v[1]])
+        }
+      >
+        <Slider.Track className="dc-slider-track">
+          <Slider.Range className="dc-slider-range" />
+        </Slider.Track>
+        <Slider.Thumb
+          className="dc-slider-thumb"
+          aria-label={`${title}: min`}
+        />
+        <Slider.Thumb
+          className="dc-slider-thumb"
+          aria-label={`${title}: max`}
+        />
+      </Slider.Root>
+    </fieldset>
+  );
+}
+
+function SortButton({
+  f,
+  setF,
+  t,
+}: {
+  f: Filters;
+  setF: SetFilters;
+  t: TFunction;
+}) {
+  const order = t("dc.catalog.sortOrder", {
+    key: tDyn(t, `dc.catalog.sortBy.${f.sort}`),
+    dir: f.dir === "asc" ? t("dc.catalog.dirAsc") : t("dc.catalog.dirDesc"),
+  });
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="dc-btn dc-cat-sort"
+          data-testid="catalog-sort"
+        >
+          <span className="dc-muted">{t("dc.catalog.sortLabel")}</span> {order}
+          <ChevronDown className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuRadioGroup
+          value={f.sort}
+          onValueChange={(v) => setF((c) => ({ ...c, sort: v as SortKey }))}
+        >
+          {SORT_KEYS.map((k) => (
+            <DropdownMenuRadioItem key={k} value={k}>
+              {tDyn(t, `dc.catalog.sortBy.${k}`)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup
+          value={f.dir}
+          onValueChange={(v) =>
+            setF((c) => ({ ...c, dir: v as "asc" | "desc" }))
+          }
+        >
+          <DropdownMenuRadioItem value="desc">
+            {t("dc.catalog.dirDesc")}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="asc">
+            {t("dc.catalog.dirAsc")}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// --- Cards and the table ---------------------------------------------------------------------
+
+function Card({
+  item,
+  used,
+  picked,
+  onPick,
+  fmt,
+  t,
+}: {
+  item: CatalogItem;
+  used: number;
+  picked: boolean;
+  onPick: () => void;
+  fmt: Fmt;
+  t: TFunction;
+}) {
+  const name = shortModel(item.model);
+  const maker =
+    item.kind === "cooling" && !item.props.model_known
+      ? t("dc.catalog.modelUnassigned")
+      : item.manufacturer || t("dc.catalog.noBrand");
+  const c = capacity(item);
+  const air = airflow(item);
+  return (
+    <article className="dc-cat-card" data-testid="catalog-card">
+      <div className="dc-cat-img">
+        <Thumb item={item} />
+        {used > 0 && (
+          <span className="dc-cat-used">
+            {t("dc.catalog.inRoom", { count: used })}
+          </span>
+        )}
+        <button
+          type="button"
+          className="dc-cat-pick"
+          aria-pressed={picked}
+          aria-label={
+            picked
+              ? t("dc.catalog.compareRemove", { model: name })
+              : t("dc.catalog.compareAdd", { model: name })
+          }
+          title={
+            picked
+              ? t("dc.catalog.compareRemove", { model: name })
+              : t("dc.catalog.compareAdd", { model: name })
+          }
+          onClick={onPick}
+        >
+          <Columns2 className="size-4" />
+        </button>
+      </div>
+      <div className="dc-cat-body">
+        <h3>
+          {/* One link for the whole card (its ::after covers it). */}
+          <Link
+            to={`/dc/catalog/item/${item.id}`}
+            className="dc-cat-link"
+            title={item.model}
+            aria-label={t("dc.catalog.open", { model: item.model })}
+          >
+            {name}
+          </Link>
+        </h3>
+        <p className="dc-muted">
+          {maker} · {executionLabel(item, t)}
+        </p>
+        {item.kind === "cooling" && (
+          <dl className="dc-cat-spec">
+            <div>
+              <dt>
+                {c === null
+                  ? t("dc.catalog.coldUnknown")
+                  : c.sensible
+                    ? t("dc.catalog.coldSensible")
+                    : t("dc.catalog.coldTotal")}
+              </dt>
+              <dd className="dc-num">{c ? fmt.kw(c.w) : "—"}</dd>
+            </div>
+            <div>
+              <dt>{t("dc.catalog.air")}</dt>
+              <dd className="dc-num">{air === null ? "—" : fmt.m3h(air)}</dd>
+            </div>
+          </dl>
+        )}
+        {item.kind === "rack" && (
+          <p className="dc-num">
+            {t("dc.catalog.units", { n: item.props.units })}
+          </p>
+        )}
+        {item.kind === "shelf" && (
+          <p className="dc-num">
+            {t("dc.catalog.cells", {
+              n: item.props.cells_per_board * item.props.boards_mm.length,
+            })}
+          </p>
+        )}
+        <div className="dc-cat-dims">
+          <span>{t("dc.catalog.dimsIn", { unit: fmt.unitWord })}</span>
+          <span className="dc-num" data-testid="card-dims">
+            {dimsNumbers(item, fmt)}
+          </span>
+        </div>
+        <Tags item={item} />
+      </div>
+    </article>
+  );
+}
+
+const COLUMNS: { key: SortKey; label: string; num?: boolean }[] = [
+  { key: "name", label: "dc.catalog.colName" },
+  { key: "brand", label: "dc.catalog.colBrand" },
+  { key: "exec", label: "dc.catalog.colExec" },
+  { key: "cold", label: "dc.catalog.colCold", num: true },
+  { key: "air", label: "dc.catalog.colAir", num: true },
+  { key: "size", label: "dc.catalog.colDims", num: true },
+  { key: "mass", label: "dc.catalog.colMass", num: true },
+  { key: "h247", label: "dc.catalog.col247" },
+  { key: "used", label: "dc.catalog.colUsed", num: true },
+];
+
+function CatalogTable({
   items,
-  onClose,
+  f,
+  setF,
+  used,
+  fmt,
+  t,
 }: {
   items: CatalogItem[];
-  onClose: () => void;
+  f: Filters;
+  setF: SetFilters;
+  used: Map<number, number>;
+  fmt: Fmt;
+  t: TFunction;
 }) {
-  const { t } = useTranslation();
-  const fmt = useFmt();
-  const rows = items.map((i) => specRows(i, fmt, t));
-  const keys = [...new Set(rows.flatMap((r) => r.map((x) => x[0])))];
+  // The same column again flips the order; a new one starts A–Z for text,
+  // largest first for numbers.
+  const sortBy = (k: SortKey) =>
+    setF((cur) => ({
+      ...cur,
+      sort: k,
+      dir:
+        cur.sort === k
+          ? cur.dir === "asc"
+            ? "desc"
+            : "asc"
+          : ["name", "brand", "exec"].includes(k)
+            ? "asc"
+            : "desc",
+    }));
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
-        <DialogHeader>
-          <DialogTitle>{t("dc.catalog.compareTitle")}</DialogTitle>
-        </DialogHeader>
-        <Preview items={items} />
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th />
-              {items.map((i) => (
-                <th key={i.id} className="text-left">
-                  {i.manufacturer} {i.model}
+    <div className="dc-cat-tablewrap">
+      <table className="dc-cat-table" data-testid="catalog-table">
+        <thead>
+          <tr>
+            {COLUMNS.map((c) => {
+              const text = tDyn(t, c.label, { unit: fmt.unitWord });
+              const active = f.sort === c.key;
+              return (
+                <th
+                  key={c.key}
+                  scope="col"
+                  data-num={c.num || undefined}
+                  aria-sort={
+                    active
+                      ? f.dir === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => sortBy(c.key)}
+                    title={t("dc.catalog.sortByColumn", { col: text })}
+                  >
+                    {text}
+                    {active &&
+                      (f.dir === "asc" ? (
+                        <ArrowUp className="size-3.5" aria-hidden />
+                      ) : (
+                        <ArrowDown className="size-3.5" aria-hidden />
+                      ))}
+                  </button>
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr key={k} className="border-t">
-                <td className="py-1 pr-3 text-muted-foreground">{k}</td>
-                {rows.map((r, n) => (
-                  <td key={n} className="pr-3">
-                    {r.find((x) => x[0] === k)?.[1] ?? "—"}
-                  </td>
-                ))}
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((i) => {
+            const c = capacity(i);
+            const air = airflow(i);
+            const m = mass(i);
+            return (
+              <tr key={i.id} data-testid="catalog-row">
+                <td>
+                  <Link to={`/dc/catalog/item/${i.id}`} title={i.model}>
+                    {shortModel(i.model)}
+                  </Link>
+                </td>
+                <td>
+                  {i.kind === "cooling" && !i.props.model_known
+                    ? t("dc.catalog.modelUnassigned")
+                    : i.manufacturer || "—"}
+                </td>
+                <td>{executionLabel(i, t)}</td>
+                <td data-num>
+                  {c === null ? (
+                    "—"
+                  ) : (
+                    <>
+                      {fmt.n(c.w / 1000, 1)}
+                      {!c.sensible && (
+                        <small className="dc-total-mark">
+                          {" "}
+                          {t("dc.catalog.totalMark")}
+                        </small>
+                      )}
+                    </>
+                  )}
+                </td>
+                <td data-num>{air === null ? "—" : fmt.n(air)}</td>
+                <td data-num>{dimsNumbers(i, fmt)}</td>
+                <td data-num>{m === null ? "—" : fmt.n(m, 1)}</td>
+                <td>
+                  {i.kind === "cooling" && i.props.designed_24_7 !== null
+                    ? i.props.designed_24_7
+                      ? t("common.yes")
+                      : t("common.no")
+                    : "—"}
+                </td>
+                <td data-num>{used.get(i.id) ?? 0}</td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </DialogContent>
-    </Dialog>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
