@@ -58,11 +58,7 @@ export function SelectionPanel(props: Props) {
     return (
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">{t("dc.selection.none")}</p>
-        <ClearanceList
-          list={short}
-          fmt={fmt}
-          onClearance={props.onClearance}
-        />
+        <ClearanceList list={short} fmt={fmt} onClearance={props.onClearance} />
       </div>
     );
   }
@@ -169,9 +165,7 @@ function ObjectSummary({
       {/* The name and model are the inspector's heading. */}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
         <dt className="text-muted-foreground">{t("dc.dims.wdh")}</dt>
-        <dd>
-          {fmt.dims(w, d, h)}
-        </dd>
+        <dd>{fmt.dims(w, d, h)}</dd>
         <dt className="text-muted-foreground">{t("dc.dims.position")}</dt>
         <dd>
           x {fmt.mm(obj.x0_mm)} · z {fmt.mm(obj.z0_mm)}

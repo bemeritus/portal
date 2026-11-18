@@ -1260,7 +1260,11 @@ export class DcEngine {
       this.labels.set(
         "clear:gap",
         this.text.mm(focus.gap.mm),
-        a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 80, 0)),
+        a
+          .clone()
+          .add(b)
+          .multiplyScalar(0.5)
+          .add(new THREE.Vector3(0, 80, 0)),
         { kind: "measure", priority: 10, always: true },
       );
     }
