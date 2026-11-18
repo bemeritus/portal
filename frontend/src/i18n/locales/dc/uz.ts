@@ -613,6 +613,8 @@ export const dcUz = {
   },
   inspector: {
     label: "Inspektor",
+    tabs: "Inspektor bo'limlari",
+    moreTabs: "Boshqa bo'limlar",
     open: "Inspektor",
     unitsUsed: "yunit band",
     unitsFree: "yunit bo'sh",

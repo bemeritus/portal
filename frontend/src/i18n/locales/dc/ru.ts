@@ -612,6 +612,8 @@ export const dcRu = {
   },
   inspector: {
     label: "Инспектор",
+    tabs: "Разделы инспектора",
+    moreTabs: "Ещё разделы",
     open: "Инспектор",
     unitsUsed: "юнитов занято",
     unitsFree: "юнитов свободно",

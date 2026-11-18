@@ -609,30 +609,90 @@
   background: color-mix(in srgb, var(--dc-accent) 18%, transparent);
   color: var(--dc-accent);
 }
-.dc-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
+/* The inspector's tabs: one segmented control on one row. `InspectorTabs`
+   sets --dc-tab-pad (shrinking it before anything moves into «⋯»); the font
+   size is the theme's and never changes. */
+.dc-tabs-bar {
   padding: 10px 12px 8px;
   border-bottom: 1px solid var(--dc-line);
 }
-.dc-tabs button {
-  padding: 4px 8px;
-  border-radius: calc(var(--dc-radius) - 4px);
+.dc-tabs-row {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  overflow: hidden;
+  border-radius: var(--dc-radius);
+  background: color-mix(in srgb, var(--dc-text) 7%, transparent);
+  border: 1px solid var(--dc-line);
+}
+.dc-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  gap: inherit;
+  min-width: 0;
+}
+.dc-tab {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 4px var(--dc-tab-pad, 12px);
+  border-radius: calc(var(--dc-radius) - 3px);
   color: var(--dc-muted);
   font-weight: 500;
   white-space: nowrap;
 }
-.dc-tabs button[aria-selected="true"] {
+.dc-tab[aria-selected="true"] {
   color: var(--dc-text);
-  background: color-mix(in srgb, var(--dc-text) 9%, transparent);
+  background: var(--dc-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
 }
-[data-dc-theme="drawing"] .dc-tabs button[aria-selected="true"] {
-  background: var(--dc-text);
-  color: var(--dc-bg);
+[data-dc-theme="studio"] .dc-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--dc-text) 14%, transparent);
+}
+.dc-tab-more {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+}
+.dc-tab-more[aria-expanded="true"] {
+  color: var(--dc-text);
+}
+/* What `InspectorTabs` measures: the labels with no padding. */
+.dc-tabs-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  visibility: hidden;
+  pointer-events: none;
+  --dc-tab-pad: 0px;
+}
+.dc-tabs-measure .dc-tab-more {
+  padding: 4px 8px;
+}
+[data-dc-theme="drawing"] .dc-tabs-row {
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  border-color: var(--dc-rule);
   border-radius: 0;
 }
-.dc-tabs .badge {
+[data-dc-theme="drawing"] .dc-tab {
+  border-radius: 0;
+  color: var(--dc-text);
+}
+[data-dc-theme="drawing"] .dc-tabs > .dc-tab + .dc-tab,
+[data-dc-theme="drawing"] .dc-tab-more {
+  border-left: 1px solid var(--dc-rule);
+}
+[data-dc-theme="drawing"] .dc-tab[aria-selected="true"] {
+  background: var(--dc-text);
+  color: var(--dc-bg);
+  box-shadow: none;
+}
+.dc-badge {
   margin-left: 4px;
   padding: 0 5px;
   border-radius: 99px;

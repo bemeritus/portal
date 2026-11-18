@@ -611,6 +611,8 @@ export const dcEn = {
   },
   inspector: {
     label: "Inspector",
+    tabs: "Inspector sections",
+    moreTabs: "More sections",
     open: "Inspector",
     unitsUsed: "units used",
     unitsFree: "units free",

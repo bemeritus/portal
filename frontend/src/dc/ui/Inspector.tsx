@@ -24,6 +24,7 @@ import type {
   ViewPayload,
 } from "../types";
 import { CapacityPanel, type CapacityRequest } from "./CapacityPanel";
+import { InspectorTabs, TABPANEL_ID, tabId } from "./InspectorTabs";
 import { assumedByObject } from "../model/objects";
 import { MeasurementsPanel } from "./MeasurementsPanel";
 import { measureLabel } from "./measureLabel";
@@ -35,7 +36,7 @@ import { ViewsPanel } from "./ViewsPanel";
 
 export type InspectorTab =
   "object" | "capacity" | "measure" | "views" | "ruler";
-const TABS: InspectorTab[] = [
+const TABS: readonly InspectorTab[] = [
   "object",
   "capacity",
   "measure",
@@ -127,23 +128,23 @@ export function Inspector(p: Props) {
           <X className="size-4" />
         </button>
       </div>
-      <div className="dc-tabs" role="tablist">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={p.tab === tab}
-            onClick={() => p.onTab(tab)}
-          >
-            {t(`dc.tab.${tab}`)}
-            {tab === "measure" && assumed > 0 && (
-              <span className="badge">{assumed}</span>
-            )}
-          </button>
-        ))}
-      </div>
-      <div className="dc-inspector-body">
+      <InspectorTabs
+        tabs={TABS}
+        active={p.tab}
+        onTab={p.onTab}
+        label={(tab) => t(`dc.tab.${tab}`)}
+        badge={(tab) =>
+          tab === "measure" && assumed > 0 ? (
+            <span className="dc-badge">{assumed}</span>
+          ) : null
+        }
+      />
+      <div
+        className="dc-inspector-body"
+        id={TABPANEL_ID}
+        role="tabpanel"
+        aria-labelledby={tabId(p.tab)}
+      >
         {p.tab === "object" && (
           <>
             {stats && obj && (
