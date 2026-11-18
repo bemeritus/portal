@@ -28,6 +28,7 @@ import { tDyn } from "../../i18n";
 import { dcApi } from "../api";
 import { ItemPreview, thumbnail } from "../engine/preview";
 import type { Fmt } from "../format";
+import { dimsText } from "../model/catalog";
 import { useDcSettings, useFmt } from "../settings";
 import { TOKENS } from "../theme/tokens";
 import type { CatalogItem, Kind } from "../types";
@@ -101,7 +102,7 @@ export function Badges({ item }: { item: CatalogItem }) {
 }
 
 function keyNumbers(item: CatalogItem, fmt: Fmt, t: TFunction): string[] {
-  const dims = `${fmt.n(item.width_mm)} × ${fmt.n(item.depth_mm)} × ${fmt.mm(item.height_mm)}`;
+  const dims = dimsText(item, fmt);
   switch (item.kind) {
     case "cooling": {
       const s = sensible(item);
@@ -428,7 +429,7 @@ function specRows(
   const rows: [string, string, string][] = [
     [
       t("dc.dims.wdh"),
-      `${fmt.n(item.width_mm)} × ${fmt.n(item.depth_mm)} × ${fmt.mm(item.height_mm)}`,
+      dimsText(item, fmt),
       src("dims"),
     ],
   ];

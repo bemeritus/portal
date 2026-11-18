@@ -170,7 +170,7 @@ function ObjectSummary({
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
         <dt className="text-muted-foreground">{t("dc.dims.wdh")}</dt>
         <dd>
-          {fmt.n(w)} × {fmt.n(d)} × {fmt.mm(h)}
+          {fmt.dims(w, d, h)}
         </dd>
         <dt className="text-muted-foreground">{t("dc.dims.position")}</dt>
         <dd>
