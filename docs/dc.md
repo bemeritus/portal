@@ -18,7 +18,9 @@ This loads `backend/seeds/dc/room.json` (the room as measured) and
 `dc-handoff/data/`. Like `just seed`, it is data, not schema: it never runs on
 startup, and running it again is safe — catalog items are matched by
 (kind, manufacturer, model) and the room by name, and anything that exists is
-left as it is, so edits made in the app are never overwritten.
+left as it is, so edits made in the app are never overwritten. (Catalog
+items seeded before they had a body finish get it from migration `0023`,
+which runs on startup like every migration.)
 
 Then grant access (below) and open the server room entry in the sidebar
 (`/dc`).
@@ -127,6 +129,20 @@ from the plan. Switching the theme while the room is open moves nothing.
   from others). Copy link gives the link to exactly this screen:
   `/dc/<room>?mode=…&owner=…&cam=…#obj-<id>` (also `#device-<id>`,
   `#cell-<shelf>-<n>`, `?view=plan`).
+- **Catalog** (`/dc/catalog/<section>`): a sidebar of sections and filters
+  (purpose, type and manufacturer with counts, cooling and width ranges in
+  your unit, 24/7, published sensible capacity) — every filter, the sort,
+  the view and the items picked for comparison are in the URL, so a
+  filtered list can be shared. Cards (a 3D picture drawn in the browser
+  from the item's own template and finish, cached per session and theme)
+  or a table sortable by every column. Pick up to three items with the
+  icon on a card's picture; the tray's *Compare* opens
+  `/dc/catalog/compare?ids=…`, the rows that differ highlighted. An item
+  has its own page, `/dc/catalog/item/<id>`: the 3D view (3D / front /
+  side / top; dimensions, airflow and a 42U rack for scale as toggles;
+  drag, wheel, F), the key figures, the specification with the source of
+  every value and its rating conditions, and where it is used. Unknown
+  values read "no data" with the reason, never 0.
 - **QR stickers**: Export → QR stickers, A4 (or ⌘K with a rack or shelf
   selected): racks, devices, shelves and occupied cells, three per row. Each
   code is a deep link. Print → *Save as PDF* gives the PDF.
@@ -221,6 +237,7 @@ stale write's 409 also carries `revision`, a refused import also carries its
 | `POST /rooms/{id}/import/devices?dry_run=true` | CSV import | edit |
 | `GET /rooms/{id}/export/plan.dxf` · `/export/inventory.csv` | exports | use |
 | `GET /catalog?kind=` | catalog | use |
+| `GET /catalog/usage` | every object that uses a catalog item, with its room | use |
 
 Operations: `object_create|update|delete`, `device_create|update|delete`,
 `cell_set|delete`, `annotation_create|delete`. Room and catalog operations
@@ -238,7 +255,9 @@ come with phase 2.
   (r3–r4); the inspector's tabs on one row in every theme × language; blocked
   shelf cells in the realistic mode; where a room opens in the drawing theme;
   the palette's find-free-space parameters; the docked rail's separators;
-  the clearance warning. `E2E_USER` / `E2E_PASSWORD`: an account with
+  the clearance warning; the catalog (sizes in three units, the item page,
+  the table's sorting, a picture on every card, filters, comparison).
+  `E2E_USER` / `E2E_PASSWORD`: an account with
   `dc_room:edit` (defaults to the local test account `dcedit`). The tests
   change that account's language and theme and put them back afterwards, so
   they run one at a time; the saved-view test adds a view and deletes it
@@ -450,6 +469,35 @@ Adjusted to the house style or the data:
    The optional per-warning acknowledgement was **not built** (see the
    report): the note still asks to mark an intended shortfall, and there is
    no control for that yet.
+
+### FEEDBACK-4 (catalog polish, before phase 2a)
+
+1. **Sizes in one unit** — width and depth were raw millimetres next to a
+   height in the user's unit; all three (and the inspector's W × D × H) now
+   go through the unit formatter. Test: `model/catalog.test.ts` (mm / cm /
+   m × RU / UZ / EN).
+2. **Pictures that read** — the templates (also used by the room) are
+   rebuilt from shared parts: bevelled bodies, perforated faces with a
+   lighter frame and the fans visible behind them (pitch chosen from the
+   face's size on screen, mipmapped), displays, plinths with feet, seams;
+   per subtype the details FEEDBACK-4 lists. The body's colour and surface
+   come from the item (`props.finish`). Previews: a 30° / 17° front
+   three-quarter view framed with the same margin for every item (ceiling
+   cassettes from below), ACES, a PMREM environment, key and rim lights, a
+   soft contact shadow, a backdrop from the theme. The room's lower quality
+   tiers drop the small detail. Tests: `engine/studio.test.ts` (direction,
+   framing), `engine/renderers/shelf.test.ts`, `e2e/catalog.e2e.ts` (every
+   card has a non-blank picture). 21 cards draw in about 0.8 s here on
+   software WebGL (SwiftShader); not measured on the reference laptop.
+3. **The section reworked** — list, table, comparison and item page as
+   in `design/CatalogList.png` and `CatalogItem.png`, in all three themes
+   and RU / UZ / EN; themed controls only; the sidebar becomes a sheet and
+   the item page stacks on narrow screens. Tests: `model/catalog.test.ts`
+   (filters in the URL, sorting, comparison, airflow faces against the
+   templates), `e2e/catalog.e2e.ts`.
+
+Not in the data, so not shown: datasheet page numbers (sources link to the
+datasheet without a page).
 
 Before phase 1 is accepted: re-measure the items in `room.json` →
 `remeasure` (listed in the app under the measurements tab). Calculations in phases 3–5
