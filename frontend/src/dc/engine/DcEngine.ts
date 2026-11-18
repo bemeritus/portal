@@ -49,6 +49,7 @@ import {
   problems,
   snap,
   solid,
+  type ClearanceCheck,
   type Dir,
   type Rect,
   type Solid,
@@ -157,6 +158,9 @@ export class DcEngine {
   private readonly snapMarker: HTMLDivElement;
   private showAssumptions = false;
   private highlightOwner: string | null = null;
+  /** A clearance warning clicked: its gap is drawn like a ruler result. */
+  private clearanceFocus: { objectId: number; side: "front" | "rear" } | null =
+    null;
   private composer: PostFx | null = null;
   private composerLoading = false;
   /**
@@ -423,6 +427,15 @@ export class DcEngine {
 
   select(ref: SelRef, fly = false) {
     this.selection = ref;
+    // The clearance shown belongs to its rack: selecting anything else ends it.
+    const selObj = !ref
+      ? null
+      : ref.type === "object"
+        ? ref.id
+        : ref.type === "device"
+          ? ref.rackId
+          : ref.shelfId;
+    if (this.clearanceFocus?.objectId !== selObj) this.clearanceFocus = null;
     for (const e of this.entries.values()) {
       const rackOfDevice = ref?.type === "device" && ref.rackId === e.obj.id;
       e.outline.visible =
@@ -441,6 +454,21 @@ export class DcEngine {
     this.markBlockedCells();
     if (fly && ref) this.flyTo(ref);
     this.dirty = true;
+  }
+
+  /**
+   * Draw a rack's front or rear clearance gap with its dimension, as the
+   * ruler does (FEEDBACK-3 §3), until something else is selected.
+   */
+  showClearance(objectId: number, side: "front" | "rear") {
+    this.clearanceFocus = { objectId, side };
+    this.refreshOverlays();
+  }
+
+  /** The clearance gap drawn by `showClearance`, mm (tests). */
+  shownClearance(): { objectId: number; side: string; mm: number } | null {
+    const c = this.focusedClearance();
+    return c ? { objectId: c.objectId, side: c.side, mm: c.gap.mm } : null;
   }
 
   flyTo(ref: Pick) {
@@ -1122,6 +1150,7 @@ export class DcEngine {
     this.labels.clear("note");
     this.labels.clear("ruler");
     this.labels.clear("meas");
+    this.labels.clear("clear");
     const m = this.model;
     if (!m) return;
     const solids = [...this.entries.values()].map((e) => e.solid);
@@ -1220,6 +1249,22 @@ export class DcEngine {
     if (sel && (schema || this.tool === "edit"))
       this.gapDims(sel.solid, solids);
 
+    // A clicked clearance warning: its gap as a dimension, in every mode.
+    const focus = this.focusedClearance();
+    if (focus) {
+      const [a, b] = [focus.gap.from, focus.gap.to].map(
+        ([x, z]) => new THREE.Vector3(x, 12, z),
+      );
+      this.dim("clear:line", a, b, "", 0);
+      this.labels.remove("clear:line");
+      this.labels.set(
+        "clear:gap",
+        this.text.mm(focus.gap.mm),
+        a.clone().add(b).multiplyScalar(0.5).add(new THREE.Vector3(0, 80, 0)),
+        { kind: "measure", priority: 10, always: true },
+      );
+    }
+
     // Заполнение: free contiguous units on the front of each recorded rack.
     if (this.mode === "fill") {
       for (const e of this.entries.values()) {
@@ -1292,6 +1337,17 @@ export class DcEngine {
           is(this.hover, e.obj.id, n) || is(this.selection, e.obj.id, n);
       }
     this.dirty = true;
+  }
+
+  private focusedClearance(): ClearanceCheck | null {
+    const f = this.clearanceFocus;
+    const m = this.model;
+    if (!f || !m) return null;
+    const solids = [...this.entries.values()].map((e) => e.solid);
+    const c = clearances(solids, m.room.floor_plan, m.room.settings).find(
+      (x) => x.objectId === f.objectId && x.side === f.side,
+    );
+    return c && c.gap.mm > 0 ? c : null;
   }
 
   private selectedEntry(): Entry | null {
@@ -1386,9 +1442,13 @@ export class DcEngine {
       )
       .map((o) => o.rect);
     const y = s.y0 > 0 ? s.y0 : 12;
+    // The clicked clearance is drawn on its own; not twice.
+    const focus = this.focusedClearance();
+    const shown = focus ? JSON.stringify([focus.gap.from, focus.gap.to]) : "";
     for (const dir of ["left", "right", "up", "down"] as Dir[]) {
       const g = gap(s.rect, dir, others, poly);
       if (g.mm <= 0) continue;
+      if (JSON.stringify([g.from, g.to]) === shown) continue;
       this.dim(
         `gap:sel:${dir}`,
         new THREE.Vector3(g.from[0], y, g.from[1]),

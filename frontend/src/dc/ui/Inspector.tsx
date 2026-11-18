@@ -58,6 +58,7 @@ interface Props {
   prefill: Prefill | null;
   onPrefillUsed: () => void;
   onSelect: (ref: SelRef, fly?: boolean) => void;
+  onClearance: (c: Clearance) => void;
   run: (ops: Op[], label: string) => Promise<boolean>;
   problemsOf: (id: number) => Problem[];
   capacity: CapacityRequest | null;
@@ -235,6 +236,7 @@ export function Inspector(p: Props) {
                 prefill={p.prefill}
                 onPrefillUsed={p.onPrefillUsed}
                 onSelect={p.onSelect}
+                onClearance={p.onClearance}
                 run={p.run}
                 problemsOf={p.problemsOf}
               />

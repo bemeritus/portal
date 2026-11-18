@@ -122,14 +122,16 @@ export const dcUz = {
     door: "Ochilishiga xalaqit beradi: «{{door}}»",
   },
   clearance: {
-    title: "Xizmat zonasi",
-    front: "{{name}}: oldida {{gap}}, kerak {{need}}",
-    rear: "{{name}}: orqasida {{gap}}, kerak {{need}}",
+    title: "Xizmat ko'rsatish uchun joy kam",
+    front:
+      "{{name}}: oldida {{what}} {{gap}}. Old eshikni ochish va serverni tortib chiqarish uchun {{need}} kerak.",
+    rear:
+      "{{name}}: orqada {{what}} {{gap}}. Xizmat ko'rsatish uchun {{need}} kerak — orqa eshik to'liq ochilmasligi, salazkadagi server tortib chiqarilmasligi mumkin.",
     frontShort: "Oldi bo'sh: {{gap}} (kerak {{need}})",
     rearShort: "Orqasi bo'sh: {{gap}} (kerak {{need}})",
-    until: "«{{what}}» gacha",
-    untilWall: "devorgacha",
-    note: "Bu ogohlantirish, xato emas: eshiklar ochilishi va uskunalar chiqarilishi uchun joy kerak.",
+    wall: "devorgacha",
+    object: "«{{name}}» gacha",
+    note: "Bu o'lchovlar bo'yicha ogohlantirish, modeldagi xato emas. O'lchamlarni o'zgartirmang — agar shunday rejalangan bo'lsa, belgilab qo'ying.",
   },
   edit: {
     title: "O'zgartirish",
@@ -636,7 +638,7 @@ export const dcUz = {
   plan: {
     overhead: "pol ustida (konditsionerlar, lotok)",
     tapeDiffers: "ruletka modeldan 5 mm dan ko'p farq qiladi",
-    clearance: "xizmat oralig'i buzilgan",
+    clearance: "xizmat ko'rsatish uchun joy kam (< {{need}})",
     sheet: "Xona rejasi",
     units: "O'lchamlar {{unit}} da",
   },

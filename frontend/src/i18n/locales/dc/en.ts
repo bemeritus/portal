@@ -122,14 +122,16 @@ export const dcEn = {
     door: "In the way of {{door}}",
   },
   clearance: {
-    title: "Service clearance",
-    front: "{{name}}: {{gap}} in front, {{need}} needed",
-    rear: "{{name}}: {{gap}} behind, {{need}} needed",
+    title: "Too little room for servicing",
+    front:
+      "{{name}}: {{gap}} in front, to {{what}}. {{need}} is needed to open the front door and pull a server out.",
+    rear:
+      "{{name}}: {{gap}} behind, to {{what}}. Servicing needs {{need}} — the rear door may not open fully, and a server on rails may not slide out.",
     frontShort: "Free in front: {{gap}} (needed {{need}})",
     rearShort: "Free behind: {{gap}} (needed {{need}})",
-    until: "to {{what}}",
-    untilWall: "to the wall",
-    note: "A warning, not an error: doors and equipment need room to open and slide out.",
+    wall: "the wall",
+    object: "“{{name}}”",
+    note: "This is a warning from the measurements, not an error in the model. Do not change the dimensions — mark it if it is intended.",
   },
   edit: {
     title: "Edit",
@@ -634,7 +636,7 @@ export const dcEn = {
   plan: {
     overhead: "above the floor (AC units, tray)",
     tapeDiffers: "tape differs from the model by > 5 mm",
-    clearance: "service clearance violated",
+    clearance: "too little room for servicing (< {{need}})",
     sheet: "Room plan",
     units: "Dimensions in {{unit}}",
   },

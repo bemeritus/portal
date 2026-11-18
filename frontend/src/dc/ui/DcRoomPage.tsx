@@ -79,6 +79,7 @@ import { useDcSettings, useFmt } from "../settings";
 import { TOKENS } from "../theme/tokens";
 import type {
   CatalogItem,
+  Clearance,
   DcObject,
   Measurement,
   Op,
@@ -418,6 +419,15 @@ export function DcRoomPage() {
     setInspector({ open: true, tab: "object" });
     if (ref && fly) setTimeout(() => engine.current?.flyTo(ref), 0);
   }, []);
+
+  /** A clearance warning clicked: the rack selected, its gap drawn. */
+  const showClearance = useCallback(
+    (c: Clearance) => {
+      select({ type: "object", id: c.object_id }, false);
+      engine.current?.showClearance(c.object_id, c.side);
+    },
+    [select],
+  );
 
   /** The link to exactly this screen. */
   const shareLink = useCallback(() => {
@@ -792,6 +802,19 @@ export function DcRoomPage() {
     ? (owners.find((o) => o.name === owner)?.count ?? 0)
     : 0;
   const assumedCount = assumedByObject(data).size;
+  // The plan legend's requirement: what the short racks need (or, with
+  // none short, what every rack needs).
+  const clearanceNeed = [
+    ...new Set(
+      (data.analysis.clearances.some((c) => c.gap_mm < c.required_mm)
+        ? data.analysis.clearances.filter((c) => c.gap_mm < c.required_mm)
+        : data.analysis.clearances
+      ).map((c) => c.required_mm),
+    ),
+  ]
+    .sort((a, b) => a - b)
+    .map(fmt.mm)
+    .join(" / ");
 
   const rail = (
     <div
@@ -858,6 +881,7 @@ export function DcRoomPage() {
       prefill={prefill}
       onPrefillUsed={() => setPrefill(null)}
       onSelect={select}
+      onClearance={showClearance}
       run={run}
       problemsOf={(id) => engine.current?.problemsOf(id) ?? []}
       capacity={capacity}
@@ -988,7 +1012,7 @@ export function DcRoomPage() {
                   className="mr-1 inline-block h-1.5 w-3 align-middle"
                   style={{ background: "var(--dc-warn)", opacity: 0.4 }}
                 />{" "}
-                {t("dc.plan.clearance")}
+                {t("dc.plan.clearance", { need: clearanceNeed })}
               </div>
             </div>
             <div className="dc-titleblock dc-panel">

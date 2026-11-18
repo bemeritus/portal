@@ -41,6 +41,8 @@ interface Props {
   prefill: Prefill | null;
   onPrefillUsed: () => void;
   onSelect: (ref: SelRef, fly?: boolean) => void;
+  /** A clearance warning clicked: select the rack, draw the gap. */
+  onClearance: (c: Clearance) => void;
   run: (ops: Op[], label: string) => Promise<boolean>;
   problemsOf: (id: number) => Problem[];
 }
@@ -59,7 +61,7 @@ export function SelectionPanel(props: Props) {
         <ClearanceList
           list={short}
           fmt={fmt}
-          onSelect={(id) => props.onSelect({ type: "object", id })}
+          onClearance={props.onClearance}
         />
       </div>
     );
@@ -93,19 +95,39 @@ export function SelectionPanel(props: Props) {
   );
 }
 
+/**
+ * What a clearance shortfall means for the people working there
+ * (FEEDBACK-3 §3): how much room there is, to what, how much servicing
+ * needs, and what will not work. The numbers stay the measured ones.
+ */
+export function clearanceText(c: Clearance, fmt: Fmt, t: TFunction): string {
+  return t(c.side === "front" ? "dc.clearance.front" : "dc.clearance.rear", {
+    name: c.object,
+    gap: fmt.mm(c.gap_mm),
+    need: fmt.mm(c.required_mm),
+    what: c.obstacle
+      ? t("dc.clearance.object", { name: c.obstacle })
+      : t("dc.clearance.wall"),
+  });
+}
+
+/** Shortfalls, each a button that selects the rack and draws its gap. */
 export function ClearanceList({
   list,
   fmt,
-  onSelect,
+  onClearance,
 }: {
   list: Clearance[];
   fmt: Fmt;
-  onSelect: (id: number) => void;
+  onClearance: (c: Clearance) => void;
 }) {
   const { t } = useTranslation();
   if (!list.length) return null;
   return (
-    <div className="rounded-md border border-destructive/40 p-2">
+    <div
+      className="rounded-md border border-destructive/40 p-2"
+      data-testid="clearance-warning"
+    >
       <div className="mb-1 font-medium">{t("dc.clearance.title")}</div>
       <ul className="space-y-1">
         {list.map((c) => (
@@ -113,19 +135,9 @@ export function ClearanceList({
             <button
               type="button"
               className="text-left hover:underline"
-              onClick={() => onSelect(c.object_id)}
+              onClick={() => onClearance(c)}
             >
-              {t(
-                c.side === "front" ? "dc.clearance.front" : "dc.clearance.rear",
-                {
-                  name: c.object,
-                  gap: fmt.mm(c.gap_mm),
-                  need: fmt.mm(c.required_mm),
-                },
-              )}
-              {c.obstacle
-                ? ` (${t("dc.clearance.until", { what: c.obstacle })})`
-                : ` (${t("dc.clearance.untilWall")})`}
+              {clearanceText(c, fmt, t)}
             </button>
           </li>
         ))}
@@ -143,12 +155,14 @@ function ObjectSummary({
   data,
   problemsOf,
   onSelect,
+  onClearance,
 }: Props & { obj: DcObject; item: CatalogItem }) {
   const { t } = useTranslation();
   const fmt = useFmt();
   const [w, d, h] = objectDims(item, obj.instance);
   const assumed = assumedByObject(data).get(obj.name) ?? [];
   const clear = data.analysis.clearances.filter((c) => c.object_id === obj.id);
+  const fine = clear.filter((c) => c.gap_mm >= c.required_mm);
   const problems = problemsOf(obj.id);
   return (
     <div className="space-y-2">
@@ -173,17 +187,15 @@ function ObjectSummary({
           ))}
         </ul>
       )}
-      {clear.length > 0 && (
+      <ClearanceList
+        list={clear.filter((c) => !fine.includes(c))}
+        fmt={fmt}
+        onClearance={onClearance}
+      />
+      {fine.length > 0 && (
         <ul className="space-y-0.5">
-          {clear.map((c) => (
-            <li
-              key={c.side}
-              className={
-                c.gap_mm < c.required_mm
-                  ? "text-destructive"
-                  : "text-muted-foreground"
-              }
-            >
+          {fine.map((c) => (
+            <li key={c.side} className="text-muted-foreground">
               {t(
                 c.side === "front"
                   ? "dc.clearance.frontShort"
