@@ -280,3 +280,99 @@ pub fn normalize_status(status: &str) -> String {
         _ => "draft".to_string(),
     }
 }
+
+// --- Server-room work log ---------------------------------------------------
+//
+// Mirrors `backend/migrations/0023_worklog.sql`. A structured journal of work
+// done in the server room: who, when, where, what, why, result, and media.
+
+/// One attached photo or clip, as the viewer sees it. `url` is the server path
+/// the browser fetches (`/uploads/<file>`), behind the session like every other
+/// upload.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct WorkLogMedia {
+    pub id: Uuid,
+    /// `"image"` or `"video"`.
+    pub kind: String,
+    pub url: String,
+    pub original_name: String,
+}
+
+/// A registered user who carried out the work (the account, not the author of
+/// the entry).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct WorkLogPerformer {
+    pub id: Uuid,
+    pub username: String,
+}
+
+/// One row of the work-log list.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct WorkLogSummary {
+    pub id: Uuid,
+    pub title: Option<String>,
+    pub performed_at: DateTime<Utc>,
+    pub location: String,
+    pub work: String,
+    pub author_username: Option<String>,
+    pub created_at: DateTime<Utc>,
+    /// Every performer's display name — linked usernames and external names
+    /// together — so the card can name them without a request each.
+    pub performers: Vec<String>,
+    pub media_count: i64,
+}
+
+/// A full work-log entry: its fields plus the people and media attached.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorkLogDetail {
+    pub id: Uuid,
+    pub title: Option<String>,
+    pub performed_at: DateTime<Utc>,
+    pub location: String,
+    pub work: String,
+    pub reason: Option<String>,
+    pub result: Option<String>,
+    pub author_username: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    /// Performers who have an account here.
+    pub performers: Vec<WorkLogPerformer>,
+    /// Performers kept as plain names (outside technicians).
+    pub external_performers: Vec<String>,
+    pub media: Vec<WorkLogMedia>,
+}
+
+/// One uploaded file the editor is attaching, as it comes back from the media
+/// upload endpoint. `file_path` is a bare filename validated server-side before
+/// it is stored.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorkLogMediaInput {
+    pub file_path: String,
+    pub kind: String,
+    pub original_name: String,
+}
+
+/// The create/update body for a work-log entry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorkLogBody {
+    pub title: Option<String>,
+    pub performed_at: DateTime<Utc>,
+    pub location: String,
+    pub work: String,
+    pub reason: Option<String>,
+    pub result: Option<String>,
+    /// Accounts that did the work.
+    pub performer_user_ids: Vec<Uuid>,
+    /// Outside technicians, by name.
+    pub external_performers: Vec<String>,
+    pub media: Vec<WorkLogMediaInput>,
+}
+
+/// Only the two media kinds the schema allows; anything else is rejected.
+pub fn normalize_media_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "image" => Some("image"),
+        "video" => Some("video"),
+        _ => None,
+    }
+}

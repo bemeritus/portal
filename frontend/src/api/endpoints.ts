@@ -19,6 +19,7 @@ import type {
   DocumentSummary,
   DocumentWithBlocks,
   Lang,
+  MediaUploadResponse,
   PortCheckResult,
   RevisionDetail,
   RevisionSummary,
@@ -27,6 +28,10 @@ import type {
   UploadResponse,
   User,
   Uuid,
+  WorkLogBody,
+  WorkLogDetail,
+  WorkLogPerformer,
+  WorkLogSummary,
 } from "./types";
 
 const BASE = "/api";
@@ -163,4 +168,26 @@ export const tools = {
   /** Asks the server to try one TCP connect to host:port. */
   portCheck: (host: string, port: number) =>
     api.post<PortCheckResult>(`${BASE}/tools/port-check`, { host, port }),
+};
+
+export const media = {
+  /** Upload one photo or clip for a work-log entry; returns its kind and URL. */
+  upload: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.upload<MediaUploadResponse>(`${BASE}/media`, form);
+  },
+};
+
+export const worklog = {
+  list: (filters: { q?: string }, signal?: AbortSignal) =>
+    api.get<WorkLogSummary[]>(`${BASE}/worklog${query({ q: filters.q })}`, signal),
+  get: (id: Uuid, signal?: AbortSignal) =>
+    api.get<WorkLogDetail>(`${BASE}/worklog/${id}`, signal),
+  /** The active accounts the editor offers as performers. */
+  performers: (signal?: AbortSignal) =>
+    api.get<WorkLogPerformer[]>(`${BASE}/worklog/performers`, signal),
+  create: (body: WorkLogBody) => api.post<{ id: Uuid }>(`${BASE}/worklog`, body),
+  update: (id: Uuid, body: WorkLogBody) => api.put<void>(`${BASE}/worklog/${id}`, body),
+  remove: (id: Uuid) => api.del<void>(`${BASE}/worklog/${id}`),
 };

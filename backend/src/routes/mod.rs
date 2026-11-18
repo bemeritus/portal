@@ -22,6 +22,7 @@ pub mod templates;
 pub mod tools;
 pub mod uploads;
 pub mod users;
+pub mod worklog;
 
 #[derive(Serialize)]
 struct Health {
@@ -51,6 +52,10 @@ pub fn api(state: &AppState) -> Router<AppState> {
     // is rejected by the size check (with its own clear message) rather than by
     // the body limit (with a bare 413).
     let upload_limit = state.config.max_upload_bytes + 4096;
+    // The work log's media endpoint takes video, so its body cap is the video
+    // limit — a thousandfold larger. Kept on its own nest so an image upload is
+    // never allowed to send a gigabyte before the size check even runs.
+    let media_limit = state.config.max_video_bytes + 4096;
 
     Router::new()
         .route("/health", get(health))
@@ -61,9 +66,14 @@ pub fn api(state: &AppState) -> Router<AppState> {
         .nest("/analytics", analytics::routes())
         .nest("/tools", tools::routes())
         .nest("/dc", dc::routes())
+        .nest("/worklog", worklog::routes())
         .nest(
             "/upload",
             uploads::routes().layer(DefaultBodyLimit::max(upload_limit)),
+        )
+        .nest(
+            "/media",
+            uploads::media_routes().layer(DefaultBodyLimit::max(media_limit)),
         )
         .fallback(not_found)
 }

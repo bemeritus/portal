@@ -184,6 +184,82 @@ export interface UploadResponse {
   markdown: string;
 }
 
+// --- Server-room work log (mirrors `models.rs` work-log structs) ------------
+
+export type MediaKind = "image" | "video";
+
+/** A photo or clip returned by the `/api/media` upload endpoint. */
+export interface MediaUploadResponse {
+  kind: MediaKind;
+  url: string;
+  /** The bare filename to send back when attaching this file to an entry. */
+  file_path: string;
+  original_name: string;
+}
+
+/** An attachment as the viewer sees it, with a ready-to-use `/uploads/…` URL. */
+export interface WorkLogMedia {
+  id: Uuid;
+  kind: MediaKind;
+  url: string;
+  original_name: string;
+}
+
+/** A registered user who did the work. */
+export interface WorkLogPerformer {
+  id: Uuid;
+  username: string;
+}
+
+export interface WorkLogSummary {
+  id: Uuid;
+  title: string | null;
+  performed_at: Timestamp;
+  location: string;
+  work: string;
+  author_username: string | null;
+  created_at: Timestamp;
+  /** Every performer's name — linked accounts and external people together. */
+  performers: string[];
+  media_count: number;
+}
+
+export interface WorkLogDetail {
+  id: Uuid;
+  title: string | null;
+  performed_at: Timestamp;
+  location: string;
+  work: string;
+  reason: string | null;
+  result: string | null;
+  author_username: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  performers: WorkLogPerformer[];
+  external_performers: string[];
+  media: WorkLogMedia[];
+}
+
+/** One attachment in a create/update body. */
+export interface WorkLogMediaInput {
+  file_path: string;
+  kind: MediaKind;
+  original_name: string;
+}
+
+export interface WorkLogBody {
+  title: string | null;
+  /** RFC 3339; the editor sends a value it built from the datetime input. */
+  performed_at: Timestamp;
+  location: string;
+  work: string;
+  reason: string | null;
+  result: string | null;
+  performer_user_ids: Uuid[];
+  external_performers: string[];
+  media: WorkLogMediaInput[];
+}
+
 // --- Request bodies ---------------------------------------------------------
 
 export interface DocumentBody {

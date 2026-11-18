@@ -13,6 +13,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
   BookOpen,
+  ClipboardList,
   FileText,
   FolderOpen,
   Network,
@@ -87,6 +88,12 @@ export function AppSidebar({ onSearch }: AppSidebarProps) {
       label: t("nav.categories"),
       icon: FolderOpen,
       active: path.startsWith("/templates/categories"),
+    },
+    {
+      to: "/worklog",
+      label: t("nav.serverLog"),
+      icon: ClipboardList,
+      active: path.startsWith("/worklog"),
     },
   ];
 

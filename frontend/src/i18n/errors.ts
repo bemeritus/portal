@@ -62,6 +62,36 @@ export const EXACT: Record<string, { ru: string; uz: string }> = {
     uz: "Hujjatni bu kategoriyaga ko'chira olmaysiz",
   },
 
+  // worklog.rs
+  "Work-log entry not found": {
+    ru: "Запись журнала не найдена",
+    uz: "Jurnal yozuvi topilmadi",
+  },
+  "Location is required": { ru: "Укажите место", uz: "Joyni kiriting" },
+  "A description of the work is required": {
+    ru: "Опишите выполненную работу",
+    uz: "Bajarilgan ishni tavsiflang",
+  },
+  "Name at least one person who did the work": {
+    ru: "Укажите хотя бы одного исполнителя",
+    uz: "Kamida bitta bajaruvchini ko'rsating",
+  },
+  "Unknown media kind": { ru: "Неизвестный тип файла", uz: "Noma'lum fayl turi" },
+  "Invalid media reference": {
+    ru: "Некорректная ссылка на файл",
+    uz: "Fayl havolasi noto'g'ri",
+  },
+  "One of the chosen users no longer exists. Reload the page and try again.": {
+    ru: "Одного из выбранных пользователей больше не существует. Обновите страницу и попробуйте снова.",
+    uz: "Tanlangan foydalanuvchilardan biri endi mavjud emas. Sahifani yangilab, qayta urinib ko'ring.",
+  },
+
+  // uploads.rs (media)
+  "Only images (PNG, JPEG, GIF, WebP) or videos (MP4, WebM) are allowed": {
+    ru: "Разрешены только изображения (PNG, JPEG, GIF, WebP) или видео (MP4, WebM)",
+    uz: "Faqat rasm (PNG, JPEG, GIF, WebP) yoki video (MP4, WebM) ruxsat etiladi",
+  },
+
   // users.rs
   "Username is required": { ru: "Требуется имя пользователя", uz: "Foydalanuvchi nomi kerak" },
   "That username is already taken": {

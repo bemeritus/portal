@@ -27,6 +27,9 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { PortCheckerPage } from "./pages/PortCheckerPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { WorkLogEditorPage } from "./pages/WorkLogEditorPage";
+import { WorkLogEntryPage } from "./pages/WorkLogEntryPage";
+import { WorkLogListPage } from "./pages/WorkLogListPage";
 
 // The server room pages carry three.js; they load on first visit, so the rest
 // of the app does not download a 3D engine it never uses.
@@ -82,6 +85,16 @@ export function App() {
 
           {/* Small network utilities, open to any signed-in user. */}
           <Route path="tools/port-check" element={<PortCheckerPage />} />
+
+          {/* The server-room work log — structured journal entries, open to
+              any signed-in user like the documents are. "new" before ":id" so
+              it is not read as an id. */}
+          <Route path="worklog">
+            <Route index element={<WorkLogListPage />} />
+            <Route path="new" element={<WorkLogEditorPage />} />
+            <Route path=":id" element={<WorkLogEntryPage />} />
+            <Route path=":id/edit" element={<WorkLogEditorPage />} />
+          </Route>
 
           {/* The category + Q&A world. Categories are managed by any user
               (adding and renaming); only deleting stays admin-only, enforced

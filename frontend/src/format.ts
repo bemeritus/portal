@@ -11,6 +11,20 @@ export function formatDate(iso: string): string {
   });
 }
 
+/** A date with the time of day, local to the reader — for a work-log entry,
+ * where "when the work happened" is a moment, not just a day. */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /**
  * A timestamp for the audit log, in **UTC**, with the zone written out.
  *

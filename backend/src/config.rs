@@ -10,6 +10,9 @@ pub struct Config {
     pub admin_password: String,
     pub uploads_dir: String,
     pub max_upload_bytes: usize,
+    /// The ceiling for a work-log video. Far larger than an image, since a
+    /// short clip of a rack or a cable run runs to hundreds of megabytes.
+    pub max_video_bytes: usize,
     pub bind_addr: String,
     /// The `frontend/dist` output to serve. Absent in development, where Vite
     /// serves the app itself and proxies `/api` here.
@@ -51,6 +54,10 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(5 * 1024 * 1024),
+            max_video_bytes: std::env::var("MAX_VIDEO_BYTES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1024 * 1024 * 1024),
             bind_addr: std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".into()),
             static_dir: std::env::var("STATIC_DIR")
                 .unwrap_or_else(|_| DEFAULT_STATIC_DIR.to_string()),
