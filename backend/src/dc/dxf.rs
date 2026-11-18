@@ -29,8 +29,8 @@ pub fn cp1251(s: &str) -> Vec<u8> {
         match c {
             0..=0x7f => out.push(c as u8),
             0x410..=0x44f => out.push((c - 0x410 + 0xc0) as u8),
-            0x401 => out.push(0xa8),  // Ё
-            0x451 => out.push(0xb8),  // ё
+            0x401 => out.push(0xa8),  // Cyrillic capital Io
+            0x451 => out.push(0xb8),  // Cyrillic small io
             0x2116 => out.push(0xb9), // №
             0x2013 => out.push(0x96), // –
             0x2014 => out.push(0x97), // —
@@ -38,8 +38,8 @@ pub fn cp1251(s: &str) -> Vec<u8> {
             0xab => out.push(0xab),   // «
             0xbb => out.push(0xbb),   // »
             0x2026 => out.push(0x85), // …
-            0x406 => out.push(0xb2),  // І
-            0x456 => out.push(0xb3),  // і
+            0x406 => out.push(0xb2),  // Cyrillic capital dotted I
+            0x456 => out.push(0xb3),  // Cyrillic small dotted i
             // Uzbek Latin's okina and apostrophe, and their look-alikes.
             0x2bb | 0x2bc | 0x2018 | 0x2019 => out.push(b'\''),
             0xd7 | 0x2715 => out.push(b'x'),

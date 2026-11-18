@@ -217,7 +217,7 @@
   }
 }
 
-/* Floating panels (Студия, Светлая) or docked ones (Чертёж). */
+/* Floating panels (studio, light) or docked ones (drawing). */
 .dc-panel {
   background: var(--dc-panel);
   backdrop-filter: blur(var(--dc-blur));

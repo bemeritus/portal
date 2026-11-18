@@ -2,7 +2,7 @@
  * The rack elevation editor (SPEC §11.1): front and rear, one row per unit.
  * Click a free unit to add a device there; drag a device to move it within
  * the rack or onto another rack's chip; drag its top edge to change its
- * height; or edit the whole face as text (`10-11 DELL R740 | 450 Вт | клиент X`).
+ * height; or edit the whole face as text (`10-11 DELL R740 | 450 W | client X`).
  * Every edit is checked against the units as you go (the server and the
  * database check again).
  */

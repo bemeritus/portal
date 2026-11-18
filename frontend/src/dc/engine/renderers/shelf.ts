@@ -81,7 +81,7 @@ export const shelfRenderer: ObjectRenderer = {
         g.add(pl);
       }
       if (blocked.has(n)) {
-        // Схема, Заполнение, Мощность: a red fill on the board. Реалистичный
+        // Schema, fill and power modes: a red fill on the board. Realistic
         // shows the cell as it is; an outline and hatch in the warning
         // colour appear only while it is hovered or selected (FEEDBACK-2 §2).
         if (ctx.mode === "realistic")
@@ -139,7 +139,7 @@ export function hatch(
 }
 
 /**
- * A blocked cell in Реалистичный: the outline of its space and a hatch over
+ * A blocked cell in realistic: the outline of its space and a hatch over
  * its front opening, in the theme's warning colour, hidden until the engine
  * shows it for the hovered or selected cell (`userData.blockedCell`).
  */

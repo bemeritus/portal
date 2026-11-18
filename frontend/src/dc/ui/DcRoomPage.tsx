@@ -352,9 +352,9 @@ export function DcRoomPage() {
   useEffect(() => engine.current?.setRulerMode(rulerMode), [rulerMode, loaded]);
   useEffect(() => engine.current?.setHighlight(owner), [owner, loaded, data]);
 
-  // Where the room opens: in Чертёж on the plan, unless the link says what
-  // to show (FEEDBACK-2 §3). Once, as soon as the theme is known; a theme
-  // switched later moves nothing.
+  // Where the room opens: in the drawing theme on the plan, unless the link
+  // says what to show (FEEDBACK-2 §3). Once, as soon as the theme is known;
+  // a theme switched later moves nothing.
   const landed = useRef(false);
   const toPlan = useRef(false);
   useEffect(() => {
@@ -1261,7 +1261,7 @@ export function DcRoomPage() {
   );
 }
 
-/** `face ⟂ face · 59,5 см (z)`. */
+/** `face ⟂ face · 59.5 cm (z)`, in the user's language and unit. */
 export function rulerText(
   r: Measure,
   fmt: Fmt,

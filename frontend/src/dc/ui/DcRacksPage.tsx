@@ -1,6 +1,6 @@
 /**
- * `/dc/:roomId/racks` — every rack's elevation side by side, the «Стойки»
- * tab of the module. The rack in the hash (`#obj-12`) is scrolled to.
+ * `/dc/:roomId/racks` — every rack's elevation side by side, the racks tab
+ * of the module. The rack in the hash (`#obj-12`) is scrolled to.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";

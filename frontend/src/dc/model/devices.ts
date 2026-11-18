@@ -5,13 +5,14 @@
  *
  * Grammar, one device per line:
  *
- *     10-11 DELL R740 | 450 Вт | клиент X | тип=server
+ *     10-11 DELL R740 | 450 W | client X | type=server
  *
  * `10-11` (or `10`) are the units, bottom first or not; then the name; then
- * `|`-separated extras: a power (`450 Вт`, `450 W`, `1,2 кВт`, `2 kW`), a kind
- * (`тип=…` / `type=…` / `tur=…`), a note (`note=…` / `примечание=…` /
- * `izoh=…`); the first other extra is the owner (whose equipment), any
- * further ones join the note.
+ * `|`-separated extras: a power in W or kW (`450 W`, `2 kW`, either decimal
+ * separator, Russian unit words too), a kind (`type=…`, or the Russian or
+ * Uzbek word for "type"), a note (`note=…`, or its Russian or Uzbek word);
+ * the first other extra is the owner (whose equipment), any further ones
+ * join the note. The tests list every accepted form.
  */
 
 import type { Device, DeviceFields, DeviceKind, Face } from "../types";

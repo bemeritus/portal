@@ -1,9 +1,9 @@
 /**
  * The inspector (mockups `design/Main.png`, `Light.png`, `Drawing.png`): a
- * floating card in Студия and Светлая, a docked column in Чертёж. The
- * selected object's name and KPIs, its dimensions — tape against model — and
- * «Открыть стойку» / «Найти место»; then the tabs that were the side panel:
- * capacity, measurements, views and the ruler.
+ * floating card in the studio and light themes, a docked column in drawing.
+ * The selected object's name and KPIs, its dimensions — tape against model —
+ * and the open-rack / find-space buttons; then the tabs that were the side
+ * panel: capacity, measurements, views and the ruler.
  */
 
 import { Link } from "react-router-dom";

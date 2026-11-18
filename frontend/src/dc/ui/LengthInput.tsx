@@ -1,5 +1,5 @@
 /**
- * A length field in the user's unit (мм / см / м): shows `fmt.input(mm)`,
+ * A length field in the user's unit (mm / cm / m): shows `fmt.input(mm)`,
  * keeps what is being typed, and reports whole millimetres — the API never
  * sees anything else.
  */

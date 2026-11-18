@@ -1,7 +1,8 @@
 /**
- * FEEDBACK-2 §2: cells under a cooling unit are red in Схема and Заполнение;
- * in Реалистичный they look as they are, with a warning-coloured outline and
- * hatch that the engine shows only for the hovered or selected cell.
+ * FEEDBACK-2 §2: cells under a cooling unit are red in the schema and fill
+ * modes; in realistic they look as they are, with a warning-coloured
+ * outline and hatch that the engine shows only for the hovered or selected
+ * cell.
  */
 
 import * as THREE from "three";
@@ -54,7 +55,7 @@ const marks = (g: THREE.Group) =>
   g.children.filter((c) => c.userData.blockedCell !== undefined);
 
 describe("blocked shelf cells", () => {
-  it("are filled red in Схема, Заполнение and Мощность", () => {
+  it("are filled red in schema, fill and power", () => {
     for (const mode of ["schema", "fill", "power"] as Mode[]) {
       const g = build(mode);
       expect(fills(g)).toHaveLength(2);
@@ -62,7 +63,7 @@ describe("blocked shelf cells", () => {
     }
   });
 
-  it("have no fill in Реалистичный, only a hidden warning mark", () => {
+  it("have no fill in realistic, only a hidden warning mark", () => {
     const g = build("realistic");
     expect(fills(g)).toHaveLength(0);
     const m = marks(g);

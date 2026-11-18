@@ -2,7 +2,7 @@
  * Saved views (§11.4) and notes pinned in 3D. A view keeps the camera, the
  * mode, the owner highlight and the selection; it is shared with everyone
  * who can see the room, or personal (the server shows it to its author
- * only). «Скопировать ссылку» gives the link to exactly this screen.
+ * only). "Copy link" gives the link to exactly this screen.
  */
 
 import { useState } from "react";

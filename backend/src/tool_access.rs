@@ -1,4 +1,4 @@
-//! «Внутренние инструменты» — who may use which internal tool.
+//! Internal tools — who may use which internal tool.
 //!
 //! A second permission family, independent of documents (which any signed-in
 //! user may manage). The rule, re-read from the database on every request so a

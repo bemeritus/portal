@@ -171,7 +171,7 @@ pub struct DeratingPoint {
 #[serde(deny_unknown_fields)]
 pub struct CoolingProps {
     pub subtype: CoolingSubtype,
-    /// False for a placeholder such as «Сплит, модель не указана»: the body
+    /// False for a placeholder such as a split unit of unknown model: the body
     /// was measured but nobody knows the model, so capacities are `None`.
     pub model_known: bool,
     pub inverter: Option<bool>,
@@ -568,7 +568,8 @@ impl Instance {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RuleSet {
-    /// Правила устройства электроустановок.
+    /// PUE (Pravila ustroystva elektroustanovok), the Russian electrical
+    /// installation rules.
     Pue,
     Iec60364,
 }

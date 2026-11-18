@@ -96,7 +96,7 @@ export interface EngineText {
     title: string;
     mark: boolean;
   };
-  /** A ruler result: `face ⟂ face · 59,5 см`. */
+  /** A ruler result: `face ⟂ face · 59.5 cm`, in the user's language. */
   ruler: (r: Result) => string;
   snap: (k: SnapKind) => string;
 }
@@ -115,7 +115,7 @@ interface Entry {
   doorTarget: number;
   outline: THREE.LineSegments;
   assumedOutline: THREE.LineSegments | null;
-  /** Thin outline of the object's box in Схема (dashed when overhead). */
+  /** Thin outline of the object's box in schema (dashed when overhead). */
   edges: THREE.LineSegments;
 }
 
@@ -337,7 +337,7 @@ export class DcEngine {
     this.grid = mm;
   }
 
-  /** «Показать допущения»: outline and badge objects with assumed values. */
+  /** "Show assumptions": outline and badge objects with assumed values. */
   setShowAssumptions(on: boolean) {
     this.showAssumptions = on;
     for (const e of this.entries.values()) {
@@ -391,7 +391,7 @@ export class DcEngine {
     return null;
   }
 
-  /** Blocked cells' marks and whether each is shown (Реалистичный; tests). */
+  /** Blocked cells' marks and whether each is shown (realistic mode; tests). */
   blockedMarks(): {
     shelfId: number;
     cellNo: number;
@@ -789,7 +789,7 @@ export class DcEngine {
   }
 
   private applyTheme() {
-    // Реалистичный sits on a neutral backdrop, so white units and walls read.
+    // Realistic sits on a neutral backdrop, so white units and walls read.
     const bg = new THREE.Color(this.theme.background);
     if (this.mode === "realistic")
       bg.lerp(new THREE.Color(this.theme.dark ? "#3a3d42" : "#9aa0a6"), 0.45);
@@ -818,7 +818,7 @@ export class DcEngine {
     floor.receiveShadow = true;
     floor.material.side = THREE.DoubleSide;
     this.roomGroup.add(floor);
-    // Walls: low in Схема so the room reads from above. In Реалистичный they
+    // Walls: low in schema so the room reads from above. In realistic they
     // are full height and single-sided, facing into the room, so the wall
     // between the camera and the room is culled — a cutaway, from any side.
     const realistic = this.mode === "realistic";
@@ -844,7 +844,7 @@ export class DcEngine {
         // Face the room's centre.
         wall.lookAt(cx, h / 2, cz);
       } else {
-        // Чертёж draws walls hatched, as on a drawing (mockup Drawing.png).
+        // The drawing theme hatches walls (mockup Drawing.png).
         wall = new THREE.Mesh(
           new THREE.BoxGeometry(len, h, 60),
           this.theme.tokens.name === "drawing"
@@ -975,9 +975,9 @@ export class DcEngine {
       assumedOutline.visible = this.showAssumptions;
       g.add(assumedOutline);
     }
-    // Схема: a thin outline of every object, dashed for what hangs overhead
-    // — on the plan only (a drawing convention); in 3D the height shows it.
-    // (as on the drawing). Not in Реалистичный.
+    // Schema mode: a thin outline of every object, dashed for what hangs
+    // overhead — on the plan only (a drawing convention); in 3D the height
+    // shows it. Not in the realistic mode.
     const overhead = obj.y0_mm > 0 && item.kind !== "structure";
     const edgesGeo = new THREE.EdgesGeometry(
       new THREE.BoxGeometry(w, h, Math.max(d, 1)),
@@ -1035,7 +1035,7 @@ export class DcEngine {
     this.setModel(m);
   }
 
-  /** The material each mesh's role calls for, with Заполнение/Мощность tints. */
+  /** The material each mesh's role calls for, with fill / power mode tints. */
   private applyMaterials(e: Entry) {
     const m = this.model!;
     let tint: THREE.Material | null = null;
@@ -1105,7 +1105,7 @@ export class DcEngine {
     g.updateMatrixWorld(true);
     const p = g.localToWorld(e.built.labelAt.clone());
     let text = e.obj.name;
-    // Fill and power are about contents; Схема stays calm with names only.
+    // Fill and power are about contents; schema stays calm with names only.
     if (
       e.item.kind === "rack" &&
       (this.mode === "fill" || this.mode === "power")
@@ -1241,7 +1241,7 @@ export class DcEngine {
       }
     }
 
-    // Схема: every measurement as a dimension, with the value as read (and a
+    // Schema: every measurement as a dimension, with the value as read (and a
     // dot where the model disagrees); the selected object's clear distances
     // to its neighbours, live while it moves.
     if (schema) this.measurementDims();
@@ -1265,7 +1265,7 @@ export class DcEngine {
       );
     }
 
-    // Заполнение: free contiguous units on the front of each recorded rack.
+    // Fill mode: free contiguous units on the front of each recorded rack.
     if (this.mode === "fill") {
       for (const e of this.entries.values()) {
         if (e.item.kind !== "rack" || !e.obj.contents_known) continue;
@@ -1325,7 +1325,7 @@ export class DcEngine {
     this.dirty = true;
   }
 
-  /** Реалистичный: a blocked cell's mark shows while hovered or selected. */
+  /** Realistic mode: a blocked cell's mark shows while hovered or selected. */
   private markBlockedCells() {
     const is = (r: SelRef, shelf: number, n: number) =>
       r?.type === "cell" && r.shelfId === shelf && r.cellNo === n;

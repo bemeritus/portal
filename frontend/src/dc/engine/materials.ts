@@ -6,11 +6,11 @@
  * engine assigns the material for the current mode from this library. A mode
  * switch is therefore a walk over the scene, not a rebuild.
  *
- * - Схема: flat, unlit-looking neutral colours, high contrast.
- * - Реалистичный: PBR (powder-coated steel, glass with transmission-like
+ * - schema: flat, unlit-looking neutral colours, high contrast.
+ * - realistic: PBR (powder-coated steel, glass with transmission-like
  *   opacity, perforated mesh by alpha texture), lit by a procedural room
  *   environment bundled with three.js — no HDR file is downloaded.
- * - Заполнение / Мощность: Схема, with racks tinted by the engine.
+ * - fill / power: as schema, with racks tinted by the engine.
  *
  * Textures are drawn on canvases once and cached; `dispose()` frees them all.
  */
@@ -484,7 +484,7 @@ export class MaterialLibrary {
           roughness: p.roughness,
         });
       }
-      // Схема: flat fills from the theme's tokens; Lambert keeps a hint of
+      // Schema: flat fills from the theme's tokens; Lambert keeps a hint of
       // shape under the flat light rig.
       const tk = this.theme.tokens;
       const fill =
@@ -544,7 +544,7 @@ export class MaterialLibrary {
     );
   }
 
-  /** Fluorescent tubes (Реалистичный only; lighting, not equipment). */
+  /** Fluorescent tubes (realistic mode only; lighting, not equipment). */
   tube(): THREE.Material {
     return this.memo(
       "tube",
@@ -563,7 +563,7 @@ export class MaterialLibrary {
     );
   }
 
-  /** A rack tint for Заполнение / Мощность: 0 = green … 1 = red. */
+  /** A rack tint for the fill / power modes: 0 = green … 1 = red. */
   tint(f: number): THREE.Material {
     const k = Math.round(Math.min(1, Math.max(0, f)) * 20) / 20;
     return this.memo(`tint|${k}`, () => {
@@ -652,7 +652,7 @@ export class MaterialLibrary {
     });
   }
 
-  /** Free contiguous units in Заполнение. */
+  /** Free contiguous units in the fill mode. */
   freeRange(): THREE.Material {
     return this.memo(
       "free",

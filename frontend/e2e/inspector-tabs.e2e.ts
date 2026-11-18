@@ -38,7 +38,7 @@ async function oneRow(insp: Locator, label: string) {
 async function checkRow(page: Page, label: string) {
   const insp = page.locator(".dc-inspector");
   const box = (await insp.boundingBox())!;
-  // The default width (360 floating, 340 docked in Чертёж).
+  // The default width (360 floating, 340 docked in the drawing theme).
   expect(box.width, label).toBeLessThanOrEqual(361);
   await oneRow(insp, label);
 

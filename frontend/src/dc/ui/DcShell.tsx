@@ -1,8 +1,9 @@
 /**
  * The server room module's own chrome (SPEC §10.1, mockups in
  * `dc-handoff/design/`): a full-screen page with its top bar — brand and room,
- * 3D / План / Стойки / Каталог, search (⌘K), мм / см / м, the three themes —
- * themed by tokens on the root element. Every `/dc` route renders inside it.
+ * the sections (3D, plan, racks, catalog), search (⌘K), the length unit
+ * (mm / cm / m) and the three themes — themed by tokens on the root
+ * element. Every `/dc` route renders inside it.
  *
  * The command palette lives here; a room page registers what it can offer
  * (objects, actions) through `useShell().setRoomPalette`.

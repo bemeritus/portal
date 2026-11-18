@@ -1,5 +1,5 @@
 /**
- * «Внутренние инструменты» on the user admin page: one row per registered
+ * The internal tools section of the user admin page: one row per registered
  * tool, a checkbox per level it offers. Every click saves the user's whole set
  * (`PUT /api/users/{id}/tools`), and the server writes one audit entry per
  * grant added or removed.

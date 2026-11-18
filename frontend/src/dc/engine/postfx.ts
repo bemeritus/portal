@@ -1,5 +1,5 @@
 /**
- * Реалистичный's ambient occlusion (GTAO). A module of its own so the
+ * The realistic mode's ambient occlusion (GTAO). A module of its own so the
  * post-processing code is downloaded only when that mode is first opened on
  * a machine that can afford it.
  */

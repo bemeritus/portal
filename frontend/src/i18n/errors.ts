@@ -120,7 +120,7 @@ export const EXACT: Record<string, { ru: string; uz: string }> = {
     uz: "So'rovda 'file' maydoni yo'q",
   },
 
-  // tool_access.rs, users.rs («Внутренние инструменты»)
+  // tool_access.rs, users.rs (internal tools)
   "You do not have access to this tool": {
     ru: "У вас нет доступа к этому инструменту",
     uz: "Bu vositaga ruxsatingiz yo'q",

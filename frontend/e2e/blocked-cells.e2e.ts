@@ -1,7 +1,7 @@
 /**
  * FEEDBACK-2 §2: shelf cells under a cooling unit stay blocked, but in
- * Реалистичный they are shown as they are — the warning outline and hatch
- * appear only for the hovered or selected cell — while Схема keeps the red
+ * the realistic mode they are shown as they are — the warning outline and hatch
+ * appear only for the hovered or selected cell — while schema keeps the red
  * fill. The inspector says why the cell is blocked.
  */
 import { expect, test } from "@playwright/test";
@@ -10,7 +10,7 @@ import { engine, keepAccountAsFound, pointAt, roomId, setLanguage, setSettings, 
 
 keepAccountAsFound();
 
-test("blocked cells: quiet in Реалистичный, marked on hover and selection", async ({ page }) => {
+test("blocked cells: quiet in realistic, marked on hover and selection", async ({ page }) => {
   await signIn(page);
   await setLanguage(page, "ru");
   await setSettings(page, { dc_theme: "studio" });
@@ -60,7 +60,7 @@ test("blocked cells: quiet in Реалистичный, marked on hover and sele
     .poll(() => engine(page, (e) => e.blockedMarks().filter((m) => m.shown).length))
     .toBe(0);
 
-  // Схема: the red fill instead, no marks.
+  // Schema mode: the red fill instead, no marks.
   await page.goto(`/dc/${id}?view=3d`);
   await waitForRoom(page);
   expect(await engine(page, (e) => e.blockedMarks().length)).toBe(0);

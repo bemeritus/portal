@@ -56,7 +56,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route element={<RequireAuth />}>
-        {/* The server room module, behind «Внутренние инструменты» → dc_room.
+        {/* The server room module, behind the internal tools family → dc_room.
             Its own full-screen chrome (SPEC §10.1), outside the host layout. */}
         <Route
           path="dc"

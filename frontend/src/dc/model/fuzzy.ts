@@ -1,7 +1,7 @@
 /**
  * Fuzzy matching for the command palette, pure: every query character must
  * appear in order; consecutive runs, word starts and an early first match
- * score higher. Case- and ё/е-insensitive.
+ * score higher. Case-insensitive, and the Cyrillic "yo" matches "ye".
  */
 
 const norm = (s: string) => s.toLowerCase().replace(/ё/g, "е");

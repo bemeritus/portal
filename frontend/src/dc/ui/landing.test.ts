@@ -5,7 +5,7 @@ import { planByDefault } from "./landing";
 const q = (s: string) => new URLSearchParams(s);
 
 describe("planByDefault", () => {
-  it("opens Чертёж on the plan when the link says nothing", () => {
+  it("opens the drawing theme on the plan when the link says nothing", () => {
     expect(planByDefault("drawing", q(""), "")).toBe(true);
     // Mode, highlight and tool are not a view.
     expect(planByDefault("drawing", q("mode=fill&owner=X&tool=ruler"), "")).toBe(

@@ -20,10 +20,10 @@ export interface DcTokens {
   blur: number;
   /** Panels float over a full-bleed viewport, or are docked beside it. */
   floating: boolean;
-  /** The viewport sits in a card with a margin (Светлая). */
+  /** The viewport sits in a card with a margin (light). */
   framed: boolean;
   line: string;
-  /** Strong rules (Чертёж: 1 px black). */
+  /** Strong rules (drawing: 1 px black). */
   rule: string;
   text: string;
   muted: string;
@@ -31,7 +31,7 @@ export interface DcTokens {
   accentText: string;
   warn: string;
   good: string;
-  /** Assumed / photo values (shown with «Показать допущения»). */
+  /** Assumed / photo values (shown with the "show assumptions" toggle). */
   assumed: string;
   /** Dimension lines and their text. */
   dim: string;
@@ -39,15 +39,15 @@ export interface DcTokens {
   shadow: string;
   fontUi: string;
   fontHeading: string;
-  /** Headings and labels in uppercase (Чертёж). */
+  /** Headings and labels in uppercase (drawing). */
   headingUpper: boolean;
   fontMono: string;
   // --- 3D scene ---
   floor: string;
   wall: string;
-  /** Object fill in Схема. */
+  /** Object fill in the schema mode. */
   objectFill: string;
-  /** Object edges in Схема. */
+  /** Object edges in the schema mode. */
   objectEdge: string;
   /** Schema colours of a few roles. */
   rackFill: string;

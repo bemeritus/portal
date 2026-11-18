@@ -1,7 +1,8 @@
 /**
  * `/dc/:roomId/labels[?object=12]` — QR stickers on an A4 sheet (§11.4):
  * one per rack, device, shelf and occupied cell (or for one rack / shelf).
- * Printing it — «Печать» or Ctrl+P — gives the PDF through the browser.
+ * Printing it — the page's print button or Ctrl+P — gives the PDF through
+ * the browser.
  */
 
 import { useMemo } from "react";

@@ -214,7 +214,7 @@ async fn reset_password(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// --- «Внутренние инструменты» ----------------------------------------------
+// --- Internal tools ---------------------------------------------------------
 
 /// Every tool and the levels it can be granted at, for the admin page.
 async fn tool_registry(AdminUser(_): AdminUser) -> Json<Vec<ToolInfo>> {

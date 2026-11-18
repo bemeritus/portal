@@ -1,7 +1,8 @@
 /**
  * Numbers and units per locale (SPEC §6) and per the user's length unit
- * (§3.2): `62,5 см` in Russian with cm, `5.545 m` in English with m. The unit
- * words come from the catalog (`dc.unit.*`), so they are translated too.
+ * (§3.2): `62,5` and the cm word in Russian, `5.545 m` in English. The
+ * unit words come from the catalog (`dc.unit.*`), so they are translated
+ * too.
  */
 
 import type { TFunction } from "i18next";
@@ -37,7 +38,7 @@ export interface Fmt {
   range: (lo: number, hi: number) => string;
   /** W × D × H with one unit word. */
   dims: (w: number, d: number, h: number) => string;
-  /** The unit's word, for labels ("x, см"). */
+  /** The unit's word, for labels ("x, cm" in the user's language). */
   unitWord: string;
   /** For input fields: format and parse in the user's unit. */
   input: (v: number) => string;

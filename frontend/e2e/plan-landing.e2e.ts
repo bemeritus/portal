@@ -1,5 +1,5 @@
 /**
- * FEEDBACK-2 §3: in Чертёж a room opens on its plan (orthographic, from
+ * FEEDBACK-2 §3: in the drawing theme a room opens on its plan (orthographic, from
  * above) unless the link says what to show; the other themes open on 3D;
  * switching the theme while the room is open never moves the camera.
  */
@@ -25,25 +25,25 @@ async function open(page: Page, theme: Theme, path: string) {
   await page.waitForTimeout(300);
 }
 
-test("Чертёж opens on the plan; links and other themes keep their view", async ({ page }) => {
+test("drawing opens on the plan; links and other themes keep their view", async ({ page }) => {
   await signIn(page);
   await setLanguage(page, "ru");
   const id = await roomId(page);
 
-  // Чертёж, nothing in the link: the plan.
+  // Drawing theme, nothing in the link: the plan.
   await open(page, "drawing", `/dc/${id}`);
   await expect(page).toHaveURL(/[?&]view=plan/);
   await expect(page.locator('.dc-top nav [aria-current="page"]')).toHaveText("План");
   expect(isPlan(await view(page))).toBe(true);
 
-  // Студия and Светлая: 3D, as before.
+  // Studio and light: 3D, as before.
   for (const theme of ["studio", "light"] as const) {
     await open(page, theme, `/dc/${id}`);
     await expect(page).not.toHaveURL(/view=plan/);
     expect(isPlan(await view(page)), theme).toBe(false);
   }
 
-  // An explicit link wins in Чертёж: the 3D tab, a camera, a selection.
+  // An explicit link wins in drawing: the 3D tab, a camera, a selection.
   await open(page, "drawing", `/dc/${id}?view=3d`);
   await expect(page).not.toHaveURL(/view=plan/);
   expect(isPlan(await view(page))).toBe(false);
@@ -71,7 +71,7 @@ test("switching the theme while the room is open does not move the camera", asyn
   const id = await roomId(page);
   const themes = page.locator('.dc-top [role="radiogroup"]').last().getByRole("radio");
 
-  // On the plan in Чертёж → Студия, Светлая, back: same camera, same page.
+  // On the plan in drawing → studio, light, back: same camera, same page.
   await open(page, "drawing", `/dc/${id}`);
   await expect(page).toHaveURL(/view=plan/);
   const onPlan = await view(page);
@@ -82,7 +82,7 @@ test("switching the theme while the room is open does not move the camera", asyn
     await expect(page).toHaveURL(/view=plan/);
   }
 
-  // In 3D in Студия → Чертёж: still 3D, same camera.
+  // In 3D in studio → drawing: still 3D, same camera.
   await open(page, "studio", `/dc/${id}`);
   const in3d = await view(page);
   await themes.nth(1).click();

@@ -13,7 +13,7 @@ export type LabelKind =
 export interface LabelOptions {
   priority?: number;
   kind?: LabelKind;
-  /** Shown even when names are hidden (Реалистичный shows names on demand). */
+  /** Shown even when names are hidden (realistic shows names on demand). */
   always?: boolean;
   title?: string;
   /** Extra CSS class (e.g. the warning dot of a disagreeing dimension). */
@@ -39,11 +39,11 @@ const v = new THREE.Vector3();
 export class Labels {
   readonly root: HTMLDivElement;
   private labels = new Map<string, Label>();
-  /** Names shown for everything (Схема), or only for `focus`. */
+  /** Names shown for everything (schema mode), or only for `focus`. */
   showNames = true;
   focus = new Set<string>();
 
-  /** Hide or show every label at once (the rail's «Подписи» toggle). */
+  /** Hide or show every label at once (the rail's labels toggle). */
   setVisible(on: boolean) {
     this.root.hidden = !on;
   }

@@ -212,7 +212,7 @@ export interface PortCheckResult {
   elapsed_ms: number;
 }
 
-// --- «Внутренние инструменты» (mirrors `tool_access.rs`) -------------------
+// --- Internal tools (mirrors `tool_access.rs`) -----------------------------
 
 export type ToolKey = "port_checker" | "mail_tester" | "online_pinger" | "dns_checker" | "dc_room";
 export type ToolLevel = "use" | "edit";
