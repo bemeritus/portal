@@ -60,6 +60,37 @@ pub enum DoorType {
     None,
 }
 
+/// What a body is finished in (FEEDBACK-4 §2): the 3D templates take the
+/// colour and the surface from the catalog item, not from its subtype.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Finish {
+    /// `#rrggbb`.
+    pub color: String,
+    pub kind: FinishKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FinishKind {
+    /// Powder-coated steel (racks, precision units).
+    Powder,
+    /// Galvanised sheet steel (ducted units).
+    Galvanised,
+    /// White plastic (wall and cassette splits).
+    WhitePlastic,
+}
+
+impl Finish {
+    pub fn validate(&self) -> Result<(), String> {
+        let hex = self.color.strip_prefix('#').unwrap_or("");
+        if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("a finish colour is #rrggbb".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CableEntry {
@@ -80,6 +111,8 @@ pub struct RackProps {
     pub door_rear: Option<DoorType>,
     pub max_static_load_kg: Option<i32>,
     pub cable_entry: Option<CableEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish: Option<Finish>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,6 +126,8 @@ pub struct ShelfProps {
     /// Boards with number plates, counted from the top. Cells are numbered
     /// from the top board down; cells on unplated boards have no plate.
     pub plated_boards: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish: Option<Finish>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -200,6 +235,8 @@ pub struct CoolingProps {
     #[serde(default)]
     pub derating: Vec<DeratingPoint>,
     pub source_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish: Option<Finish>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -285,7 +322,20 @@ impl CatalogProps {
     }
 
     /// Value checks serde cannot express.
+    /// The body's finish, for the kinds that record one.
+    pub fn finish(&self) -> Option<&Finish> {
+        match self {
+            CatalogProps::Rack(r) => r.finish.as_ref(),
+            CatalogProps::Shelf(s) => s.finish.as_ref(),
+            CatalogProps::Cooling(c) => c.finish.as_ref(),
+            CatalogProps::CableTray(_) | CatalogProps::Structure(_) => None,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(f) = self.finish() {
+            f.validate()?;
+        }
         match self {
             CatalogProps::Rack(r) => {
                 if !(1..=60).contains(&r.units) {
@@ -347,6 +397,16 @@ pub struct PropSource {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+}
+
+/// One object that uses a catalog item, with its room.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CatalogUse {
+    pub catalog_id: i64,
+    pub room_id: i64,
+    pub room_name: String,
+    pub object_id: i64,
+    pub object_name: String,
 }
 
 /// A catalog item as the API sends it.
@@ -1046,6 +1106,28 @@ mod tests {
     }
 
     #[test]
+    fn a_finish_colour_is_rrggbb() {
+        let f = |color: &str| {
+            Finish {
+                color: color.into(),
+                kind: FinishKind::Powder,
+            }
+            .validate()
+        };
+        assert!(f("#16171a").is_ok());
+        assert!(f("#C3C7CB").is_ok());
+        for bad in ["16171a", "#1617", "#16171g", "black", "", "#16171a0"] {
+            assert!(f(bad).is_err(), "{bad}");
+        }
+        // And it is checked with the item's other properties.
+        let json = serde_json::json!({"units": 42, "u1_height_mm": 100, "door_front": null,
+            "door_rear": null, "max_static_load_kg": null, "cable_entry": null,
+            "finish": {"color": "red", "kind": "powder"}});
+        let props = CatalogProps::from_parts("rack", json).unwrap();
+        assert!(props.validate().is_err());
+    }
+
+    #[test]
     fn shelf_sections_must_cover_the_board() {
         let s = |sections: Vec<i32>| {
             CatalogProps::Shelf(ShelfProps {
@@ -1053,6 +1135,7 @@ mod tests {
                 cells_per_board: 14,
                 sections,
                 plated_boards: 2,
+                finish: None,
             })
             .validate()
         };

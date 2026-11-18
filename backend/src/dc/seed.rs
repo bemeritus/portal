@@ -21,9 +21,9 @@ use sqlx::PgPool;
 
 use super::geometry::units_for_height;
 use super::model::{
-    CableTrayProps, CatalogProps, CoolingProps, CoolingSubtype, DcObject, Discharge, EspPa,
-    MeasSrc, Measurement, PropSource, PropSrc, RackProps, RoomMeasurements, RoomSettings,
-    ShelfProps, Snapshot, StructureProps, StructureSubtype, TrayType, parse_enum,
+    CableTrayProps, CatalogProps, CoolingProps, CoolingSubtype, DcObject, Discharge, EspPa, Finish,
+    FinishKind, MeasSrc, Measurement, PropSource, PropSrc, RackProps, RoomMeasurements,
+    RoomSettings, ShelfProps, Snapshot, StructureProps, StructureSubtype, TrayType, parse_enum,
 };
 
 const ROOM_JSON: &str = include_str!("../../seeds/dc/room.json");
@@ -138,6 +138,14 @@ fn source(src: PropSrc, url: Option<&str>, note: Option<&str>) -> PropSource {
     }
 }
 
+/// Black powder-coated steel: the racks and the shelf on the photos.
+fn black_powder() -> Finish {
+    Finish {
+        color: "#16171a".into(),
+        kind: FinishKind::Powder,
+    }
+}
+
 /// The plan of `room.json` (schema `eskiz-dc-room/2`, which follows the hand
 /// drawing `data/drawing-hand.png`). Every tape value of the drawing becomes a
 /// measurement with the line it is drawn along and the model's own length of
@@ -195,6 +203,14 @@ pub fn plan() -> Result<Plan, String> {
         source(PropSrc::Derived, None, rt["note"].as_str()),
     );
     rack_src.insert(
+        "finish".into(),
+        source(
+            PropSrc::Photo,
+            None,
+            Some("black powder coat (photos 03, 08)"),
+        ),
+    );
+    rack_src.insert(
         "u1_height_mm".into(),
         source(
             PropSrc::Assumed,
@@ -214,6 +230,7 @@ pub fn plan() -> Result<Plan, String> {
             door_rear: None,
             max_static_load_kg: None,
             cable_entry: None,
+            finish: Some(black_powder()),
         }),
         props_src: rack_src,
     });
@@ -406,6 +423,10 @@ pub fn plan() -> Result<Plan, String> {
         "plated_boards".into(),
         source(PropSrc::Photo, None, s["cell_numbering"].as_str()),
     );
+    shelf_src.insert(
+        "finish".into(),
+        source(PropSrc::Photo, None, Some("black metal (photo 02)")),
+    );
     let shelf_item = catalog.len();
     catalog.push(NewItem {
         manufacturer: String::new(),
@@ -418,6 +439,7 @@ pub fn plan() -> Result<Plan, String> {
             // "top board 1-14, middle board 15-28 (plates on the boards),
             // bottom board has no plates"
             plated_boards: 2,
+            finish: Some(black_powder()),
         }),
         props_src: shelf_src,
     });
@@ -491,6 +513,14 @@ pub fn plan() -> Result<Plan, String> {
         "subtype".into(),
         source(PropSrc::Photo, None, acc["type"]["note"].as_str()),
     );
+    ac_src.insert(
+        "finish".into(),
+        source(
+            PropSrc::Photo,
+            None,
+            Some("galvanised casing (photos 02, 06)"),
+        ),
+    );
     let ac_item = catalog.len();
     catalog.push(NewItem {
         manufacturer: String::new(),
@@ -518,6 +548,10 @@ pub fn plan() -> Result<Plan, String> {
             openings: vec![],
             derating: vec![],
             source_url: None,
+            finish: Some(Finish {
+                color: "#c3c7cb".into(),
+                kind: FinishKind::Galvanised,
+            }),
         })),
         props_src: ac_src,
     });
@@ -875,6 +909,23 @@ fn cooling_item(it: &Value) -> Result<NewItem, String> {
             source(PropSrc::Datasheet, url, Some(&detail)),
         );
     }
+    let finish = match &it["finish"] {
+        Value::Null => None,
+        f => {
+            src.insert(
+                "finish".into(),
+                source(
+                    PropSrc::Photo,
+                    url,
+                    Some("the manufacturer's product photos"),
+                ),
+            );
+            Some(
+                serde_json::from_value::<Finish>(f.clone())
+                    .map_err(|e| format!("cooling.json {id}: finish: {e}"))?,
+            )
+        }
+    };
     let esp = &it["esp_pa"];
     let props = CoolingProps {
         subtype,
@@ -912,6 +963,7 @@ fn cooling_item(it: &Value) -> Result<NewItem, String> {
         openings: vec![],
         derating: vec![],
         source_url: url.map(str::to_string),
+        finish,
     };
     let props = CatalogProps::Cooling(Box::new(props));
     props
@@ -1193,6 +1245,43 @@ mod tests {
             assert_eq!(outlets.len(), 1);
             assert_eq!(outlets[0]["source"], "catalog_default");
         }
+    }
+
+    /// Every item is drawn in its own finish (FEEDBACK-4 §2): precision units
+    /// in black powder coat, comfort splits in white plastic, ducted units
+    /// galvanised; the room's racks and shelf black, its units galvanised.
+    #[test]
+    fn every_item_has_its_finish() {
+        let p = plan().unwrap();
+        for item in &p.catalog {
+            let Some(f) = item.props.finish() else {
+                assert!(
+                    matches!(
+                        item.props,
+                        CatalogProps::CableTray(_) | CatalogProps::Structure(_)
+                    ),
+                    "{} has no finish",
+                    item.model
+                );
+                continue;
+            };
+            f.validate().unwrap();
+            assert!(item.props_src.contains_key("finish"), "{}", item.model);
+            let want = match &item.props {
+                CatalogProps::Rack(_) | CatalogProps::Shelf(_) => FinishKind::Powder,
+                CatalogProps::Cooling(c) => match c.subtype {
+                    CoolingSubtype::InRow | CoolingSubtype::PrecisionPerimeter => {
+                        FinishKind::Powder
+                    }
+                    CoolingSubtype::Ducted => FinishKind::Galvanised,
+                    _ => FinishKind::WhitePlastic,
+                },
+                _ => unreachable!(),
+            };
+            assert_eq!(f.kind, want, "{}", item.model);
+        }
+        let pdx = p.catalog.iter().find(|i| i.model.contains("PDX")).unwrap();
+        assert_eq!(pdx.props.finish().unwrap().color, "#16171a");
     }
 
     /// Every tape value of `data/drawing-hand.png`, in mm, is a measurement

@@ -27,7 +27,8 @@ use crate::dc::csv::{self as dccsv, Change, ExportRow, RackRef};
 use crate::dc::diff::{SnapshotDiff, diff};
 use crate::dc::dxf::{self, Placed};
 use crate::dc::model::{
-    CatalogItem, CatalogProps, Face, Kind, RoomSummary, RoomView, Snapshot, enum_str, parse_enum,
+    CatalogItem, CatalogProps, CatalogUse, Face, Kind, RoomSummary, RoomView, Snapshot, enum_str,
+    parse_enum,
 };
 use crate::dc::ops::{self, Analysis, Applied, ChangeSet, Failure, ObjectFields, Op};
 use crate::dc::store;
@@ -47,6 +48,7 @@ pub fn routes() -> Router<AppState> {
         .route("/csrf", get(csrf_token))
         .route("/settings", get(settings).put(set_settings))
         .route("/catalog", get(catalog))
+        .route("/catalog/usage", get(catalog_usage))
         .route("/rooms", get(rooms))
         .route("/rooms/{id}", get(room))
         .route("/rooms/{id}/revision", get(head))
@@ -241,6 +243,16 @@ async fn catalog(
     }
     let mut conn = acquire(&state).await?;
     Ok(Json(store::catalog(&mut conn, kind.as_deref()).await?))
+}
+
+/// Where each catalog item is used: room and object, for the catalog's
+/// "in the server room" marks and the item page (FEEDBACK-4 §3).
+async fn catalog_usage(
+    State(state): State<AppState>,
+    _: Viewer,
+) -> ApiResult<Json<Vec<CatalogUse>>> {
+    let mut conn = acquire(&state).await?;
+    Ok(Json(store::catalog_usage(&mut conn).await?))
 }
 
 async fn acquire(state: &AppState) -> ApiResult<sqlx::pool::PoolConnection<sqlx::Postgres>> {

@@ -26,6 +26,22 @@ export type StructureSubtype =
   | "other";
 export type TrayType = "tray" | "ladder" | "basket";
 
+/** A body's finish (FEEDBACK-4 §2): the 3D templates take colour and surface from it. */
+export interface Finish {
+  /** `#rrggbb`. */
+  color: string;
+  kind: "powder" | "galvanised" | "white_plastic";
+}
+
+/** One object that uses a catalog item (`GET /api/dc/catalog/usage`). */
+export interface CatalogUse {
+  catalog_id: number;
+  room_id: number;
+  room_name: string;
+  object_id: number;
+  object_name: string;
+}
+
 export interface RackProps {
   units: number;
   u1_height_mm: number;
@@ -33,6 +49,7 @@ export interface RackProps {
   door_rear: DoorType | null;
   max_static_load_kg: number | null;
   cable_entry: CableEntry | null;
+  finish?: Finish;
 }
 
 export interface ShelfProps {
@@ -42,6 +59,7 @@ export interface ShelfProps {
   sections: number[];
   /** Boards with number plates, counted from the top. */
   plated_boards: number;
+  finish?: Finish;
 }
 
 export interface CoolingProps {
@@ -66,6 +84,7 @@ export interface CoolingProps {
   openings: { role: "supply" | "return"; face: string }[];
   derating: { outdoor_c: number; capacity_w: number }[];
   source_url: string | null;
+  finish?: Finish;
 }
 
 export interface CableTrayProps {

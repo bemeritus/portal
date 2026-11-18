@@ -11,6 +11,7 @@ import type {
   Applied,
   CapacityAnswer,
   CatalogItem,
+  CatalogUse,
   Face,
   ImportResult,
   Op,
@@ -83,6 +84,8 @@ export const dcApi = {
     ),
   catalog: (kind?: string, signal?: AbortSignal) =>
     request<CatalogItem[]>(`${BASE}/catalog${q({ kind })}`, { signal }),
+  catalogUsage: (signal?: AbortSignal) =>
+    request<CatalogUse[]>(`${BASE}/catalog/usage`, { signal }),
 
   changes: (id: number, base_revision: number, ops: Op[], summary?: string) =>
     write<Applied>(`${BASE}/rooms/${id}/changes`, {

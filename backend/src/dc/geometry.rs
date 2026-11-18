@@ -829,6 +829,7 @@ mod tests {
             cells_per_board: 14,
             sections: vec![5, 9],
             plated_boards: 2,
+            finish: None,
         }
     }
 
