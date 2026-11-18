@@ -372,6 +372,16 @@
   border: 0;
   border-top: 1px solid var(--dc-line);
 }
+/* Docked, every button already ends in a rule: the group break is that
+   rule made heavier, and the <hr> draws nothing of its own (FEEDBACK-3 §1). */
+.dc-rail[data-docked="true"] hr {
+  margin: 0;
+  border: 0;
+  height: 0;
+}
+.dc-rail[data-docked="true"] button:has(+ hr) {
+  border-bottom: 2px solid var(--dc-line);
+}
 .dc-modebar {
   position: absolute;
   left: 50%;
