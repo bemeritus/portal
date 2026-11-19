@@ -1,15 +1,16 @@
 /**
- * FEEDBACK-3 §3: a service-clearance shortfall says what it means — how much
- * room there is and to what, what servicing needs and what will not work —
- * and clicking it selects the rack and draws the gap with its dimension, in
- * every mode.
+ * FEEDBACK-3 §3, FEEDBACK-5 §1, FEEDBACK-6 §1: a service-clearance shortfall,
+ * decided by the tape where the tape read the very gap. Rack 1 is 595 mm
+ * behind by the model but 610 by the tape: it passes, and its zone is amber
+ * because model and tape disagree about it. Rack 2 is 585 by the model and
+ * 555 by the tape: it warns.
  *
- * FEEDBACK-5 §1: where the tape read the very gap, the tape decides. Rack 1
- * is 595 mm behind by the model but 610 by the tape: it passes, and its zone
- * is amber because model and tape disagree about it. Rack 2 is 585 by the
- * model and 555 by the tape: it warns, in red.
+ * The warning is a pin in the scene («сзади 55,5 см») and a compact card in
+ * the room's summary; either selects the rack, frames the gap and shows the
+ * full explanation — how much room there is and to what, what servicing
+ * needs and what will not work.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { engine, keepAccountAsFound, roomId, setLanguage, setSettings, signIn, waitForRoom } from "./helpers";
 
@@ -21,10 +22,9 @@ interface WithClearance {
   shownClearance(): Shown;
   clearanceZones(): Zone[];
 }
-const shown = (page: import("@playwright/test").Page) =>
-  engine(page, (e) => (e as unknown as WithClearance).shownClearance());
+const shown = (page: Page) => engine(page, (e) => (e as unknown as WithClearance).shownClearance());
 
-test("clearance warning: by the tape, wording, click to the gap, plan zones", async ({ page }) => {
+test("clearance warning: by the tape, card and pin, the explanation, plan zones", async ({ page }) => {
   await signIn(page);
   await setLanguage(page, "ru");
   await setSettings(page, { dc_theme: "studio", dc_unit: "mm" });
@@ -40,27 +40,27 @@ test("clearance warning: by the tape, wording, click to the gap, plan zones", as
   expect(rear("Стойка 1")).toMatchObject({ basis: "measured", measured_mm: 610, model_mm: 595 });
   expect(rear("Стойка 2")).toMatchObject({ basis: "measured", measured_mm: 555, model_mm: 585 });
 
-  await page.goto(`/dc/${id}?view=3d`);
+  await page.goto(`/dc/${id}?view=3d&mode=schema`);
   await waitForRoom(page);
 
-  // Nothing selected: the room's shortfalls — rack 2 only, by the tape.
-  const warning = page.locator(".dc-inspector").getByTestId("clearance-warning");
-  await expect(warning).toContainText("Мало места для обслуживания");
-  await expect(warning.getByRole("button")).toHaveCount(1);
-  const r2 = warning.getByRole("button", { name: /^Стойка 2:/ });
-  await expect(r2).toHaveText(
-    "Стойка 2: сзади 555 мм по рулетке до стены. Для обслуживания нужно 600 мм — задняя дверь может не открыться полностью, сервер на салазках может не выдвинуться.",
+  // Nothing selected: the summary's card — rack 2 only, by the tape.
+  const cards = page.getByTestId("summary-warnings").getByRole("button");
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toHaveText(
+    "Мало места для обслуживанияСтойка 2: сзади 555 мм по рулетке, нужно 600. Показать",
   );
-  await expect(warning).not.toContainText("Стойка 1");
-  await expect(warning).toContainText(
-    "Это предупреждение по замерам, а не ошибка в модели. Размеры не меняйте — отметьте, если так задумано.",
-  );
+  // No wall of text in the panel.
+  await expect(page.locator(".dc-inspector").getByTestId("clearance-warning")).toHaveCount(0);
 
-  // Click: the rack is selected and its gap drawn, as the ruler draws.
-  await r2.click();
+  // The card: the rack selected, its gap drawn, the full explanation.
+  await cards.click();
   await expect(page).toHaveURL(/#obj-\d+$/);
   await expect(page.locator(".dc-inspector h2")).toContainText("Стойка 2");
   await expect.poll(() => shown(page)).toMatchObject({ side: "rear", mm: 555 });
+  const full = page.locator(".dc-inspector").getByTestId("clearance-warning");
+  await expect(full.getByRole("button")).toHaveText(
+    "Стойка 2: сзади 555 мм по рулетке до стены. Для обслуживания нужно 600 мм — задняя дверь может не открыться полностью, сервер на салазках может не выдвинуться.",
+  );
 
   // In every mode, not only schema.
   await page.getByRole("radio", { name: "Реалистичный" }).click();
@@ -69,15 +69,16 @@ test("clearance warning: by the tape, wording, click to the gap, plan zones", as
   // Rack 1 passes by the tape, and says why the model would not.
   await page.evaluate((n) => (window.location.hash = `#obj-${n}`), idOf("Стойка 1"));
   await expect.poll(() => shown(page)).toBeNull();
+  await page.locator(".dc-inspector summary").click();
   const fine = page.locator(".dc-inspector").getByTestId("clearance-rear");
   await expect(fine).toContainText("Свободно сзади: 610 мм по рулетке (нужно 600 мм)");
   await expect(fine).toContainText("Модель и рулетка расходятся: 595 и 610 мм. Проверка по рулетке.");
   await expect(page.locator(".dc-inspector").getByTestId("clearance-warning")).toHaveCount(0);
 
-  // The plan: rack 2's rear zone red, rack 1's amber, labelled with side,
-  // value, requirement and basis.
+  // The plan: rack 2's rear zone red with a pin, rack 1's amber; the pins
+  // say side and value, their tooltip the rest.
   await setSettings(page, { dc_unit: "cm" });
-  await page.goto(`/dc/${id}?view=plan`);
+  await page.goto(`/dc/${id}?view=plan&mode=schema`);
   await waitForRoom(page);
   const zones = () => engine(page, (e) => (e as unknown as WithClearance).clearanceZones());
   await expect
@@ -90,19 +91,26 @@ test("clearance warning: by the tape, wording, click to the gap, plan zones", as
     );
   expect((await zones()).filter((z) => z.state === "short")).toHaveLength(1);
   const labels = page.locator(".dc-labels");
-  await expect(labels.locator(".dc-label-warn")).toHaveText(["Сзади 55,5 см по рулетке — нужно 60"]);
-  await expect(labels.locator(".dc-label-caution")).toHaveText([
+  const pin = labels.locator(".dc-label-pin");
+  await expect(pin).toHaveText(["сзади 55,5 см"]);
+  await expect(pin).toHaveAttribute("title", "Сзади 55,5 см по рулетке — нужно 60");
+  const amber = labels.locator('.dc-label-caution[data-key^="pin:"]');
+  await expect(amber).toHaveText(["сзади 61 см"]);
+  await expect(amber).toHaveAttribute(
+    "title",
     "Сзади 61 см по рулетке — нужно 60\nМодель и рулетка расходятся: 59,5 и 61 см. Проверка по рулетке.",
-  ]);
+  );
+  // A pin opens the explanation.
+  await pin.click();
+  await expect(page.locator(".dc-inspector h2")).toContainText("Стойка 2");
+  await expect(page.locator(".dc-inspector").getByTestId("clearance-warning")).toBeVisible();
 
   // English says the same.
   await setLanguage(page, "en");
   await setSettings(page, { dc_unit: "mm" });
-  await page.goto(`/dc/${id}?view=3d`);
+  await page.goto(`/dc/${id}?view=3d&mode=schema`);
   await waitForRoom(page);
-  await expect(page.locator(".dc-inspector").getByTestId("clearance-warning")).toContainText(
-    "Стойка 2: 555 mm behind by tape, to the wall. Servicing needs 600 mm",
-  );
+  await expect(page.getByTestId("summary-warnings")).toContainText("Стойка 2: 555 mm behind by tape, 600 needed.");
 });
 
 test("plan legend: in the title block's corner, plain words, folds per user", async ({ page }) => {
@@ -110,16 +118,27 @@ test("plan legend: in the title block's corner, plain words, folds per user", as
   await setLanguage(page, "ru");
   await setSettings(page, { dc_theme: "drawing", dc_unit: "cm", dc_legend_collapsed: false });
   const id = await roomId(page);
-  await page.goto(`/dc/${id}?view=plan`);
+  await page.goto(`/dc/${id}?view=plan&mode=schema`);
   await waitForRoom(page);
 
+  // Only what is drawn: no tape dimension by default, so no dot entry.
   const legend = page.locator(".dc-legend-sheet");
+  await expect(legend.locator("li")).toHaveText([
+    "Пунктир — висит над полом: кондиционеры, кабельный лоток",
+    "Красная зона — мало места для обслуживания: меньше 60 см",
+    "Жёлтая зона — модель и рулетка расходятся, проверка по рулетке",
+  ]);
+  // Every tape number on: the dot that marks a disagreement appears.
+  await page.getByTestId("layers").click();
+  await page.getByRole("menuitemcheckbox", { name: "Все замеры рулеткой" }).click();
+  await page.keyboard.press("Escape");
   await expect(legend.locator("li")).toHaveText([
     "Пунктир — висит над полом: кондиционеры, кабельный лоток",
     "Точка у размера — замер рулеткой и модель расходятся больше чем на 0,5 см. Наведите на размер, чтобы увидеть оба значения",
     "Красная зона — мало места для обслуживания: меньше 60 см",
     "Жёлтая зона — модель и рулетка расходятся, проверка по рулетке",
   ]);
+  await page.evaluate(() => localStorage.removeItem("dc.layers"));
 
   // Above the title block, clear of the view cube and the mode bar.
   const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
@@ -135,9 +154,12 @@ test("plan legend: in the title block's corner, plain words, folds per user", as
   expect(apart(l, cube)).toBe(true);
   expect(apart(l, bar)).toBe(true);
 
-  // Realistic draws none of these marks: no legend at all.
+  // Realistic draws the zones (a layer in every mode), not the dashes.
   await page.getByRole("radio", { name: "Реалистичный" }).click();
-  await expect(legend).toHaveCount(0);
+  await expect(legend.locator("li")).toHaveText([
+    "Красная зона — мало места для обслуживания: меньше 60 см",
+    "Жёлтая зона — модель и рулетка расходятся, проверка по рулетке",
+  ]);
   await page.getByRole("radio", { name: "Схема" }).click();
 
   // Folded to its button; the state is the user's, so it survives a reload.

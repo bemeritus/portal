@@ -15,7 +15,7 @@ import type {
   DoorType,
   RackProps,
 } from "../../types";
-import { TYPICAL_DEPTH } from "../../model/devices";
+import { freeRuns, TYPICAL_DEPTH } from "../../model/devices";
 import { U_MM } from "../../model/geometry";
 import { perfPitch, rbox, seam } from "./parts";
 import {
@@ -170,8 +170,10 @@ export const rackRenderer: ObjectRenderer = {
     }
     g.add(box(ctx, cap, w + 6, 15, d + 6, 0, h - 15, 0, pick));
     g.add(box(ctx, cap, w, 50, d, 0, 0, 0, pick));
-    // The top cable entry: a brushed slot towards the rear.
-    g.add(box(ctx, "opening", w * 0.5, 2, 90, 0, h, d / 2 - 160));
+    // The top cable entry: a brushed slot towards the rear. Realistic only:
+    // flat, from above, it read as a stray white plate (FEEDBACK-6 §3).
+    if (ctx.mode === "realistic")
+      g.add(box(ctx, "opening", w * 0.5, 2, 90, 0, h, d / 2 - 160));
     if (ctx.detail > 0)
       for (const sx of [-1, 1])
         for (const sz of [-1, 1]) {
@@ -239,6 +241,24 @@ export const rackRenderer: ObjectRenderer = {
     const inner = d - 2 * RAIL_SETBACK;
     for (const dv of ctx.devices)
       addDevice(ctx, g, dv, fw, y1, zf, zr, inner, leds);
+    // A recorded rack's free units carry blanking panels, as in the room —
+    // an empty rack shows its rails and the panels (FEEDBACK-6 §3).
+    if (obj.contents_known && ctx.mode === "realistic")
+      for (const r of freeRuns(ctx.devices, units, "front")) {
+        const ph = (r.to - r.from + 1) * U_MM - 2;
+        const panel = box(
+          ctx,
+          "blankPanel",
+          fw,
+          ph,
+          3,
+          0,
+          y1 + (r.from - 1) * U_MM + 1,
+          zf - 2,
+        );
+        panel.userData.blank = true;
+        g.add(panel);
+      }
 
     const rack = item.kind === "rack" ? p : null;
     const front = obj.instance.door_front ?? rack?.door_front ?? null;
@@ -276,14 +296,17 @@ function addDevice(
   const front = ctx.lib.deviceFront(dv.kind, dv.u_height, dv.name);
   const side = ctx.lib.role("deviceSide");
   const rearMounted = dv.face === "rear";
-  // BoxGeometry faces: +x, −x, +y, −y, +z, −z. The panel faces out of its face.
+  // BoxGeometry faces: +x, −x, +y, −y, +z, −z. The panel faces out of its
+  // face; a deep device (a server, storage, a UPS) shows a panel at its back
+  // too, so a rack seen from behind shows its contents (FEEDBACK-6 §3).
+  const back = depth >= inner * 0.6 ? front : side;
   const mats = [
     side,
     side,
     side,
     side,
-    rearMounted ? front : side,
-    rearMounted ? side : front,
+    rearMounted ? front : back,
+    rearMounted ? back : front,
   ];
   const m = new THREE.Mesh(new THREE.BoxGeometry(fw, bh, depth), mats);
   const zc = rearMounted ? zr - depth / 2 : zf + depth / 2;

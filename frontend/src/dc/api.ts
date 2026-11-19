@@ -134,4 +134,6 @@ export const dcApi = {
   exportDxf: (id: number) => `${BASE}/rooms/${id}/export/plan.dxf`,
   /** The inventory has no lengths, so the user's unit does not apply. */
   exportCsv: (id: number) => `${BASE}/rooms/${id}/export/inventory.csv`,
+  /** The import template: the user's headers, the room's racks, examples. */
+  importTemplate: (id: number) => `${BASE}/rooms/${id}/import/template.csv`,
 };

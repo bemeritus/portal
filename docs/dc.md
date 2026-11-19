@@ -59,32 +59,56 @@ drawing / light**; the unit and the theme are saved per user
 (`user_settings`; with no theme chosen it follows the portal's dark mode).
 The arrow at the top left goes back to the portal.
 
-In the drawing theme a room opens on its **plan**; in the other themes on 3D. A link
-that says what to show wins — the 3D tab (`?view=3d`), a camera (`?cam=`), a
-selection (`#device-7`, as on a QR sticker) — and so does a saved view opened
-from the plan. Switching the theme while the room is open moves nothing.
+**The room list** (`/dc`) shows each room as a card: a plan drawn from the
+room (racks with a warning in red), its size, racks, devices, the share of
+units used and the known power ("for 81 of 96" devices), the last change in
+words, and the ways in — 3D, plan, racks, history. Beside it: the catalog
+and the recent changes across rooms. A new room comes with the room builder.
+
+In the drawing theme a room opens on its **plan**; in the other themes on 3D,
+in the **realistic** mode — after that in the mode you used last (saved per
+user, `user_settings.dc_mode`). A link that says what to show wins — the 3D
+tab (`?view=3d`), a mode (`?mode=`), a camera (`?cam=`), a selection
+(`#device-7`, as on a QR sticker) — and so does a saved view opened from the
+plan. Switching the theme while the room is open moves nothing.
+`?rev=N` shows the room as it was at revision N, read only.
 
 - **Units**: every length on screen, in the PNG export and in length fields
   is in your unit (mm whole, cm to one decimal, m to three; ranges as
   `5.54–5.55 m`, with the decimal separator of your language). The API and
   DXF stay in millimetres.
-- **Modes** (bottom bar): `schema` (outlines and every tape measurement as a
-  dimension; overhead objects dashed on the plan only), `realistic` (after
+- **Modes** (bottom bar, keys 1–4): `schema` (outlines; overhead objects
+  dashed on the plan only), `realistic` (after
   the photos: white walls and ceiling, terracotta tiles, tube lights; shelf
   cells under an air conditioner look as they are, with a thin outline and
   hatch in the warning colour only while hovered or selected; `schema` and
   `fill` paint them red),
   `fill` (used units, free runs), `power` (power per rack against the
-  room's budget; unknown power hatched, never zero). Views: overview, top,
-  aisle (photo 03's camera, from the door corner), racks.
+  room's budget; unknown power hatched, never zero). Views (keys 5–8):
+  overview, top, aisle (photo 03's camera, from the door corner), racks.
+  The bar is grouped: modes · views · undo / redo · Export ▾ (PNG, DXF, CSV,
+  QR stickers) · «⋯» (import CSV, reset the layout, history, saved views,
+  orthographic, walk); every icon has a tooltip with its shortcut.
+- **The plan** is a plan: orthographic, straight down, no orbit — pan and
+  zoom. Turning it (right drag, the view cube, a view) goes to 3D. Chain
+  dimensions stand outside the outline: the rack row along the bottom, the
+  last rack's line across the room on the right; inside only the labels and
+  the short gaps.
+- **Layers** (the rail's layers button): the room's dimensions (on), gaps
+  between objects, every tape measurement, service zones (on; only
+  violated ones are drawn), object labels (on), assumptions. Remembered in
+  this browser. Selecting an object adds its own dimensions and its gaps
+  to its neighbours.
 - **Dimensions**: the value is the tape reading (or both readings). Where the
   model differs from the tape by more than 5 mm the dimension has a dot; its
-  tooltip gives tape, model and the difference. Labels never overlap: at a
-  distance the less important ones step aside; zoom in to see them all.
-- **Show assumptions** (eye at the bottom of the tool rail, off by
-  default) outlines and badges what rests on assumptions.
-- **Clearance**: a violated service clearance is a thin red zone on the floor
-  with one label; zones that are fine show while editing. The inspector says
+  tooltip gives tape, model and the difference. Labels never overlap each
+  other or a dimension line: the less important one steps aside and comes
+  back while its object is hovered or selected.
+- **Clearance**: decided by the tape where the tape read that very gap,
+  otherwise by the model. A violated service clearance is a thin red zone
+  on the floor with a pin («сзади 55,5 см»); where model and tape disagree
+  about it, an amber one; zones that are fine show while editing. A pin or
+  the summary's card selects the rack and frames the gap. The inspector says
   what a shortfall means: how much room there is and to what (a wall or an
   object), what servicing needs, and what will not work (the rear door may
   not open fully, a server on rails may not slide out). The numbers are the
@@ -102,16 +126,27 @@ from the plan. Switching the theme while the room is open moves nothing.
   The result names its snaps (`face ⟂ face · 59.5 cm`, in your language); both ends are
   listed with coordinates you can type. Objects are measured by their
   envelope, so an open frame still has faces.
-- **Inspector** (right): the selection's KPIs, its dimensions — tape, and the
-  model where they differ — open rack, find space; then the tabs
+- **Inspector** (right): with nothing selected, the room's summary —
+  revision and time, size, devices, units used, known power, a row per
+  rack with its fill and a warning mark, the warnings as cards (an empty
+  room offers the import). A rack: its size and units, four figures (used,
+  power, longest free run, devices without power; "no data" when unknown)
+  beside a mini elevation, its own dimensions (the model only where it
+  differs), open rack, find space; a device, its card. Then the tabs
   object, capacity (the finder), measurements, views, ruler — one row in every
   theme and language: the labels' padding shrinks first, then the last tabs
   move into «⋯»; ←/→, Home/End go through all of them. A shelf cell under
   an air conditioner says why it cannot be used.
-- **Racks**: the elevation editor in the inspector or on the racks page: click a free
-  unit to add a device, drag a device or its top edge, or edit as text
-  (`10-11 DELL R740 | 450 W | Client X`). A rack whose contents were never
-  recorded says so.
+- **Racks page**: every rack on one screen — four fit 1440 px; each card has
+  its fill and power bars, its warning, the elevation with U numbers,
+  devices coloured by kind (servers, storage, network, power, other) and
+  free runs of 2U or more outlined with their size. Front / rear, the owner
+  highlight (click an owner), find space, import, add a device; the
+  selected device's card on the right (power and source, serial, depth,
+  last change; show in 3D, edit). Click a free unit to add a device, drag a
+  device or its top edge, or edit as text in the inspector
+  (`10-11 DELL R740 | 450 W | Client X`). With no contents recorded, one
+  message and the CSV template.
 - **⌘K**: racks, devices (name, serial, owner) and cells; actions — find free
   space (its values come only from the query: a unit count and a power in
   kW or W, typed in Russian, Uzbek or English, in any order; the row shows
@@ -147,8 +182,12 @@ from the plan. Switching the theme while the room is open moves nothing.
   selected): racks, devices, shelves and occupied cells, three per row. Each
   code is a deep link. Print → *Save as PDF* gives the PDF.
 - **Undo/redo**: `Ctrl+Z` / `Ctrl+Shift+Z` undo your own changes in this
-  session. **History** lists every revision with a diff; restore
-  restores one as a new revision.
+  session. **History** lists every revision as a sentence ("2 servers moved
+  from «Стойка 1» to «Стойка 3»", "CSV import: 92 devices", "Room created
+  from the measurements"), filtered to all, mine or imports; a revision's
+  detail has plans before and after with what it touched, its changes with
+  old → new, opens the room in 3D at that revision, and restores it as a
+  new revision.
 - The view polls the room's revision every 15 s; if someone else saved first,
   your change is re-applied on top when it still fits, otherwise you are told
   and your input is kept.
@@ -187,8 +226,9 @@ room designer (phase 2). Until then:
 
 ## How to import devices
 
-1. Fill in `dc-handoff/data/inventory-template.csv` (or export the current
-   inventory: Export → Inventory, CSV). Format: `;`-separated, UTF-8 with
+1. Download the template (racks page, or the import dialog): headers in
+   your language, this room's racks, three example rows — or export the
+   current inventory (Export → Inventory, CSV). Format: `;`-separated, UTF-8 with
    BOM, one header row; headers may be in Russian, Uzbek or English, columns
    in any order. Required: `rack`, `u_bottom`, `u_height`, `kind`, `name`.
    `kind`: server, storage, switch, router, patch, ups, pdu, kvm, blank,
@@ -199,7 +239,7 @@ room designer (phase 2). Until then:
 2. Import → choose the file. The dry run lists what would be created,
    changed (field by field) or left unchanged, and every problem by line:
    unknown racks, units that do not fit, overlaps with existing devices or
-   with other rows, bad values.
+   with other rows, bad values (with the values a coded column takes).
 3. Applying the import makes one revision — all rows or none. A row whose
    rack, face and bottom unit match an existing device updates it; any other
    row adds a device; nothing is deleted. Racks that receive devices are
@@ -232,9 +272,10 @@ stale write's 409 also carries `revision`, a refused import also carries its
 | `GET /csrf` | the session's CSRF token | use |
 | `GET /rooms` · `GET /rooms/{id}` · `GET /rooms/{id}/revision` | rooms; one room with catalog items, objects, devices, cells, annotations and the server's analysis (placement problems, clearances, blocked cells); the revision for polling | use |
 | `POST /rooms/{id}/changes` | `{base_revision, summary?, ops[]}` — atomic, one revision, one audit entry per op | edit |
-| `GET /rooms/{id}/revisions` · `/revisions/{n}` · `POST /revisions/{n}/restore` | history, a revision with its diff, restore as a new revision (`{base_revision}`) | use / edit |
+| `GET /rooms/{id}/revisions` · `/revisions/{n}` · `POST /revisions/{n}/restore` | history (each revision with its author id and a `digest`: what it added, moved, re-owned, whether it created the room, imported or restored), a revision with its diff, restore as a new revision (`{base_revision}`) | use / edit |
 | `GET /rooms/{id}/capacity?u=&power_w=&face=` · `GET /rooms/{id}/search?q=` | capacity finder, search | use |
 | `POST /rooms/{id}/import/devices?dry_run=true` | CSV import | edit |
+| `GET /rooms/{id}/import/template.csv` | the import template: the user's headers, the room's racks, examples | use |
 | `GET /rooms/{id}/export/plan.dxf` · `/export/inventory.csv` | exports | use |
 | `GET /catalog?kind=` | catalog | use |
 | `GET /catalog/usage` | every object that uses a catalog item, with its room | use |
@@ -250,18 +291,21 @@ come with phase 2.
   locale key parity, every server error sentence translated).
 - `just test-db` — the database-level rules (`backend/tests/dc_constraints.sql`)
   against a throwaway database; CI runs the same against a Postgres service.
-- `just e2e` — Playwright (Chromium) against the running dev servers and the
-  seeded room: the ruler's 595 mm (r1 back face → back wall) and 200 mm
+- `just e2e` — Playwright (Chromium) on a stack of its own
+  (`scripts/e2e-stack.sh`): a scratch database created, migrated and seeded
+  for the run and dropped after it, with its own API and Vite (ports
+  `E2E_API_PORT` 3101, `E2E_WEB_PORT` 5181) and its own test account. The
+  dev database is never touched, so a branch's migrations cannot reach it
+  before merge. `just e2e-serve` keeps the same stack up until Ctrl-C, for
+  screenshots or a look by hand. The checks: the ruler's 595 mm (r1 back face → back wall) and 200 mm
   (r3–r4); the inspector's tabs on one row in every theme × language; blocked
   shelf cells in the realistic mode; where a room opens in the drawing theme;
   the palette's find-free-space parameters; the docked rail's separators;
   the clearance warning; the catalog (sizes in three units, the item page,
   the table's sorting, a picture on every card, filters, comparison).
-  `E2E_USER` / `E2E_PASSWORD`: an account with
-  `dc_room:edit` (defaults to the local test account `dcedit`). The tests
-  change that account's language and theme and put them back afterwards, so
-  they run one at a time; the saved-view test adds a view and deletes it
-  (two revisions). Set `PLAYWRIGHT_BROWSERS_PATH` where Playwright's browsers
+  `E2E_USER` / `E2E_PASSWORD` name the account the stack creates
+  (`dcedit` by default). The tests change that account's language and theme
+  and put them back afterwards, so they run one at a time. Set `PLAYWRIGHT_BROWSERS_PATH` where Playwright's browsers
   are not downloaded — on Nix, `nix build nixpkgs#playwright-driver.browsers`
   of the same version as `@playwright/test`, and run with `LD_LIBRARY_PATH`
   unset (the dev shell's glibc is older than the browsers').
@@ -495,6 +539,37 @@ Adjusted to the house style or the data:
    the item page stacks on narrow screens. Tests: `model/catalog.test.ts`
    (filters in the URL, sorting, comparison, airflow faces against the
    templates), `e2e/catalog.e2e.ts`.
+
+### FEEDBACK-6 (design pass closing phase 1)
+
+1. **The room is calm by default** — realistic (drawing: the plan), then
+   the user's last mode; layers; only the room's overall dimensions and the
+   labels in 3D; chains outside the plan; labels never on each other or on
+   a dimension line; warnings as pins; the room summary; the grouped bar;
+   a 64 px view cube with clickable edges and corners. Tests:
+   `e2e/phase1-design.e2e.ts`, `e2e/clearance.e2e.ts`.
+2. **The selected rack** — its figures, mini elevation, own dimensions and
+   buttons; «Открыть стойку» selects it on the racks page.
+3. **Realistic looks like the renders** — plain square terracotta tiles,
+   the tube lights as area lights, soft shadows, ACES exposure; blanking
+   panels in a recorded rack's free units; the cable-entry slot that read
+   as a white plate on the rack tops is drawn in realistic only.
+4. **Racks page** — as in `design/Racks.png`; the empty state.
+5. **Room list** — as in `design/Rooms.png`.
+6. **History** — as in `design/History.png`; the sentences come from the
+   server's `digest` (`backend/src/dc/digest.rs`) and are written
+   impersonally, so they need no grammatical gender. Tests:
+   `model/history.test.ts`, `dc::digest` unit tests.
+7. **Small things** — the breadcrumb chip only with a selection; the
+   revision moved into the summary; the legend clear of the cube.
+8. **Import** — the template with the room's racks
+   (`/import/template.csv`), allowed values named in errors; 91 devices
+   import in about 0.05 s here, one revision (`e2e/phase1-design.e2e.ts`).
+
+The browser checks run on a scratch database of their own (`just e2e`);
+before/after screenshots of every screen in three themes are in
+`docs/dc/screenshots/feedback-6/`, with the example inventory
+(`frontend/e2e/inventory.ts`, example data, not the room's).
 
 Not in the data, so not shown: datasheet page numbers (sources link to the
 datasheet without a page).

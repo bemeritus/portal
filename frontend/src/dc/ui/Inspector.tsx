@@ -1,19 +1,22 @@
 /**
- * The inspector (mockups `design/Main.png`, `Light.png`, `Drawing.png`): a
- * floating card in the studio and light themes, a docked column in drawing.
- * The selected object's name and KPIs, its dimensions — tape against model —
- * and the open-rack / find-space buttons; then the tabs that were the side
- * panel: capacity, measurements, views and the ruler.
+ * The inspector (mockups `design/Main.png`, `Light.png`, `Drawing.png`,
+ * `RoomOverview.png`): a floating card in the studio and light themes, a
+ * docked column in drawing. With nothing selected, the room's summary
+ * (FEEDBACK-6 §1); with a rack, its figures, mini elevation, own
+ * dimensions and the open-rack / find-space buttons (§2); with a device,
+ * its card too. Then the tabs: capacity, measurements, views and the ruler.
  */
 
-import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
+import { dcApi } from "../api";
+import { whenText } from "../format";
+import { objectDims } from "../model/geometry";
+
 import type { SelRef } from "../engine/DcEngine";
-import { rackStats } from "../model/devices";
 import type { Problem } from "../model/geometry";
-import { disagrees, isRange } from "../model/measure";
 import { useFmt } from "../settings";
 import type {
   CapacityCandidate,
@@ -23,12 +26,12 @@ import type {
   RoomData,
   ViewPayload,
 } from "../types";
-import { localText } from "../types";
 import { CapacityPanel, type CapacityRequest } from "./CapacityPanel";
 import { InspectorTabs, TABPANEL_ID, tabId } from "./InspectorTabs";
 import { assumedByObject } from "../model/objects";
 import { MeasurementsPanel } from "./MeasurementsPanel";
-import { measureLabel } from "./measureLabel";
+import { DevicePanel } from "./DevicePanel";
+import { OwnDims, RackSummary, RoomSummary } from "./RoomSummary";
 import type { RulerProps } from "./RulerPanel";
 import { RulerPanel } from "./RulerPanel";
 import type { Prefill } from "./RackPanel";
@@ -65,6 +68,9 @@ interface Props {
   capacity: CapacityRequest | null;
   onCapacityPick: (c: CapacityCandidate, req: CapacityRequest) => void;
   onFindSpace: () => void;
+  onImport: () => void;
+  /** Read-only: the room at an older revision. */
+  past: boolean;
   saveView: (name: string, shared: boolean) => Promise<boolean>;
   openView: (v: ViewPayload) => void;
   copyLink: () => void;
@@ -87,27 +93,49 @@ export function Inspector(p: Props) {
   const item = obj ? catalog.get(obj.catalog_id) : undefined;
   const assumed = assumedByObject(data).size;
 
-  const title = p.tab === "object" && obj ? obj.name : t(`dc.tab.${p.tab}`);
-  const subtitle =
-    p.tab === "object" && item
-      ? `${t(`dc.kind.${item.kind}`)} · ${item.model}`
-      : p.tab === "object"
-        ? data.room.name
-        : null;
+  const revisions = useQuery({
+    queryKey: ["dc", "revisions", data.room.id],
+    queryFn: ({ signal }) => dcApi.revisions(data.room.id, signal),
+  });
+  const racks = data.objects.filter(
+    (o) => catalog.get(o.catalog_id)?.kind === "rack",
+  );
+  const device =
+    selection?.type === "device"
+      ? data.devices.find((d) => d.id === selection.id)
+      : undefined;
 
-  const stats =
-    item?.kind === "rack" && obj
-      ? rackStats(
-          data.devices.filter((d) => d.rack_id === obj.id),
-          item.props.units,
-          obj.contents_known,
-        )
-      : null;
-  const dims = obj
-    ? data.room.measurements.entries.filter(
-        (m) => m.objects.includes(obj.name) && m.line,
+  // The heading: what is shown, with a line above it saying what it is.
+  const room = p.tab === "object" && !obj;
+  const title =
+    p.tab === "object" ? (obj?.name ?? data.room.name) : t(`dc.tab.${p.tab}`);
+  let eyebrow: string | null = null;
+  if (room)
+    eyebrow = t("dc.summary.roomLine", {
+      n: data.room.revision,
+      when: whenText(data.room.updated_at, i18n.language, t),
+    });
+  else if (p.tab === "object" && obj && item?.kind === "rack") {
+    const [w, d, h] = objectDims(item, obj.instance);
+    eyebrow = t("dc.summary.rackLine", {
+      dims: `${fmt.len(w)} × ${fmt.len(d)} × ${fmt.len(h)}`,
+      units: item.props.units,
+    });
+  } else if (p.tab === "object" && item)
+    eyebrow = `${t(`dc.kind.${item.kind}`)} · ${item.model}`;
+  const size = room
+    ? fmt.dims(
+        ...(() => {
+          const xs = data.room.floor_plan.map((q) => q[0]),
+            zs = data.room.floor_plan.map((q) => q[1]);
+          return [
+            Math.max(...xs) - Math.min(...xs),
+            Math.max(...zs) - Math.min(...zs),
+            data.room.height_mm,
+          ] as [number, number, number];
+        })(),
       )
-    : [];
+    : null;
 
   return (
     <aside
@@ -116,10 +144,11 @@ export function Inspector(p: Props) {
       aria-label={t("dc.inspector.label")}
     >
       <div className="dc-insp-head">
-        <h2 className="dc-heading">
-          {title}
-          {subtitle && <small>{subtitle}</small>}
-        </h2>
+        <div>
+          {eyebrow && <small className="dc-eyebrow">{eyebrow}</small>}
+          <h2 className="dc-heading">{title}</h2>
+          {size && <small className="dc-eyebrow dc-num">{size}</small>}
+        </div>
         <button
           type="button"
           className="dc-icon-btn"
@@ -149,102 +178,63 @@ export function Inspector(p: Props) {
       >
         {p.tab === "object" && (
           <>
-            {stats && obj && (
-              <>
-                <div className="dc-kpis">
-                  <div className="dc-kpi">
-                    <b className="dc-num">
-                      {stats.known ? `${stats.used}/${stats.units}` : "—"}
-                    </b>
-                    <span>{t("dc.inspector.unitsUsed")}</span>
-                  </div>
-                  <div className="dc-kpi">
-                    <b className="dc-num">
-                      {stats.known ? stats.units - stats.used : "—"}
-                    </b>
-                    <span>{t("dc.inspector.unitsFree")}</span>
-                  </div>
-                  <div className="dc-kpi">
-                    <b className="dc-num">
-                      {stats.known ? fmt.kw(stats.powerW) : "—"}
-                    </b>
-                    <span>
-                      {stats.unknownPower > 0
-                        ? t("dc.inspector.powerPartial", {
-                            n: stats.unknownPower,
-                          })
-                        : t("dc.inspector.power")}
-                    </span>
-                  </div>
-                  <div className="dc-kpi">
-                    <b className="dc-num">{stats.known ? stats.count : "—"}</b>
-                    <span>{t("dc.inspector.devices")}</span>
-                  </div>
-                </div>
-                <div className="dc-actions">
-                  <Link
-                    className="dc-btn dc-btn-primary grid place-items-center"
-                    to={`/dc/${data.room.id}/racks#obj-${obj.id}`}
-                  >
-                    {t("dc.inspector.openRack")}
-                  </Link>
-                  <button
-                    type="button"
-                    className="dc-btn"
-                    onClick={p.onFindSpace}
-                  >
-                    {t("dc.inspector.findSpace")}
-                  </button>
-                </div>
-              </>
-            )}
-            {dims.length > 0 && (
-              <>
-                <div className="dc-section-title">{t("dc.inspector.dims")}</div>
-                <div className="dc-rows">
-                  {dims.map((m) => (
-                    <div
-                      key={m.key}
-                      title={m.note && localText(m.note, i18n.language)}
-                    >
-                      <span>{measureLabel(m.key, t)}</span>
-                      <span className="dc-num">
-                        {isRange(m)
-                          ? fmt.range(m.min!, m.max!)
-                          : fmt.mm(m.value)}
-                      </span>
-                      {disagrees(m) && m.model != null && (
-                        <span
-                          className="dc-model"
-                          title={t("dc.measure.modelValue", {
-                            v: fmt.mm(m.model),
-                          })}
-                        >
-                          <span className="dc-dot" aria-hidden="true" />
-                          {fmt.mm(m.model)}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="mt-3">
-              <SelectionPanel
+            {!obj && (
+              <RoomSummary
                 data={data}
-                catalog={catalog}
-                selection={selection}
-                canEdit={p.canEdit}
-                editTool={p.editTool}
-                warnings={p.warnings}
-                prefill={p.prefill}
-                onPrefillUsed={p.onPrefillUsed}
-                onSelect={p.onSelect}
+                canEdit={p.canEdit && !p.past}
+                onRack={(id) => p.onSelect({ type: "object", id })}
                 onClearance={p.onClearance}
-                run={p.run}
-                problemsOf={p.problemsOf}
+                onImport={p.onImport}
               />
-            </div>
+            )}
+            {obj && item?.kind === "rack" && (
+              <RackSummary
+                obj={obj}
+                item={item}
+                data={data}
+                onFindSpace={p.onFindSpace}
+              />
+            )}
+            {obj && item && item.kind !== "rack" && (
+              <OwnDims obj={obj} data={data} />
+            )}
+            {device && (
+              <div className="dc-insp-device">
+                <DevicePanel
+                  key={device.id}
+                  device={device}
+                  data={data}
+                  racks={racks}
+                  catalog={catalog}
+                  revisions={revisions.data}
+                  canEdit={p.canEdit && !p.past}
+                  onOwner={() => {}}
+                  onDone={() =>
+                    p.onSelect({ type: "object", id: device.rack_id }, false)
+                  }
+                  run={p.run}
+                  in3d
+                />
+              </div>
+            )}
+            {obj && (
+              <div className="mt-3">
+                <SelectionPanel
+                  data={data}
+                  catalog={catalog}
+                  selection={selection}
+                  canEdit={p.canEdit && !p.past}
+                  editTool={p.editTool}
+                  warnings={p.warnings}
+                  prefill={p.prefill}
+                  onPrefillUsed={p.onPrefillUsed}
+                  onSelect={p.onSelect}
+                  onClearance={p.onClearance}
+                  run={p.run}
+                  problemsOf={p.problemsOf}
+                />
+              </div>
+            )}
           </>
         )}
         {p.tab === "capacity" && (

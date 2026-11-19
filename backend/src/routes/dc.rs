@@ -25,6 +25,7 @@ use crate::db::AppState;
 use crate::dc::capacity::{self, Mounted, RackState, Request as CapacityRequest};
 use crate::dc::csv::{self as dccsv, Change, ExportRow, RackRef};
 use crate::dc::diff::{SnapshotDiff, diff};
+use crate::dc::digest::{self, Digest};
 use crate::dc::dxf::{self, Placed};
 use crate::dc::model::{
     CatalogItem, CatalogProps, CatalogUse, Face, Kind, RoomSummary, RoomView, Snapshot, enum_str,
@@ -59,6 +60,7 @@ pub fn routes() -> Router<AppState> {
         .route("/rooms/{id}/capacity", get(capacity_finder))
         .route("/rooms/{id}/search", get(search))
         .route("/rooms/{id}/import/devices", post(import_devices))
+        .route("/rooms/{id}/import/template.csv", get(import_template))
         .route("/rooms/{id}/export/plan.dxf", get(export_dxf))
         .route("/rooms/{id}/export/inventory.csv", get(export_csv))
         .route_layer(middleware::from_fn(csrf_guard))
@@ -150,6 +152,17 @@ struct Settings {
     dc_unit: LengthUnit,
     /// The plan legend is folded to its button.
     dc_legend_collapsed: bool,
+    /// The room view's last mode; `None` = the theme's default.
+    dc_mode: Option<DcMode>,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DcMode {
+    Schema,
+    Realistic,
+    Fill,
+    Power,
 }
 
 #[derive(Deserialize)]
@@ -162,6 +175,9 @@ struct SettingsBody {
     dc_unit: Option<LengthUnit>,
     #[serde(default)]
     dc_legend_collapsed: Option<bool>,
+    /// Absent = unchanged; `null` = back to the theme's default.
+    #[serde(default, deserialize_with = "some_or_null")]
+    dc_mode: Option<Option<DcMode>>,
 }
 
 /// Tell "field absent" from "field null" (`Option<Option<_>>`).
@@ -174,23 +190,25 @@ where
 }
 
 async fn load_settings(pool: &sqlx::PgPool, user: uuid::Uuid) -> ApiResult<Settings> {
-    let row: Option<(Option<String>, String, bool)> = sqlx::query_as(
-        "SELECT dc_theme, dc_unit, dc_legend_collapsed FROM user_settings WHERE user_id = $1",
+    let row: Option<(Option<String>, String, bool, Option<String>)> = sqlx::query_as(
+        "SELECT dc_theme, dc_unit, dc_legend_collapsed, dc_mode FROM user_settings WHERE user_id = $1",
     )
     .bind(user)
     .fetch_optional(pool)
     .await
     .map_err(|e| internal("reading the user's DC settings", e))?;
     Ok(match row {
-        Some((theme, unit, legend)) => Settings {
+        Some((theme, unit, legend, mode)) => Settings {
             dc_theme: theme.as_deref().and_then(parse_enum),
             dc_unit: parse_enum(&unit).unwrap_or(LengthUnit::Cm),
             dc_legend_collapsed: legend,
+            dc_mode: mode.as_deref().and_then(parse_enum),
         },
         None => Settings {
             dc_theme: None,
             dc_unit: LengthUnit::Cm,
             dc_legend_collapsed: false,
+            dc_mode: None,
         },
     })
 }
@@ -217,16 +235,22 @@ async fn set_settings(
     let legend = body
         .dc_legend_collapsed
         .unwrap_or(current.dc_legend_collapsed);
+    let mode = match body.dc_mode {
+        Some(m) => m,
+        None => current.dc_mode,
+    };
     sqlx::query(
-        "INSERT INTO user_settings (user_id, dc_theme, dc_unit, dc_legend_collapsed)
-         VALUES ($1, $2, $3, $4)
+        "INSERT INTO user_settings (user_id, dc_theme, dc_unit, dc_legend_collapsed, dc_mode)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (user_id) DO UPDATE SET dc_theme = EXCLUDED.dc_theme,
-             dc_unit = EXCLUDED.dc_unit, dc_legend_collapsed = EXCLUDED.dc_legend_collapsed",
+             dc_unit = EXCLUDED.dc_unit, dc_legend_collapsed = EXCLUDED.dc_legend_collapsed,
+             dc_mode = EXCLUDED.dc_mode",
     )
     .bind(user.id)
     .bind(theme.map(|t| enum_str(&t)))
     .bind(enum_str(&unit))
     .bind(legend)
+    .bind(mode.map(|m| enum_str(&m)))
     .execute(&state.pool)
     .await
     .map_err(|e| internal("saving the user's DC settings", e))?;
@@ -234,6 +258,7 @@ async fn set_settings(
         dc_theme: theme,
         dc_unit: unit,
         dc_legend_collapsed: legend,
+        dc_mode: mode,
     }))
 }
 
@@ -376,19 +401,53 @@ async fn changes(
 #[derive(Serialize)]
 struct RevisionSummary {
     revision: i32,
+    /// `None` for the revision the seed wrote (and a deleted account).
+    author_id: Option<uuid::Uuid>,
     author_name: String,
+    /// As stored; for logs and audit. The UI shows `digest` in words.
     summary: String,
     created_at: chrono::DateTime<chrono::Utc>,
+    /// What the revision did, against the one before it.
+    digest: Digest,
+}
+
+type RevisionRow = (
+    i32,
+    Option<uuid::Uuid>,
+    String,
+    String,
+    chrono::DateTime<chrono::Utc>,
+    serde_json::Value,
+);
+
+fn decode_snapshot(v: serde_json::Value) -> ApiResult<Snapshot> {
+    serde_json::from_value(v).map_err(|e| internal("decoding a room revision", e))
+}
+
+/// A revision's summary, with its digest against `before`.
+fn summarize_revision(
+    r: &RevisionRow,
+    before: Option<&Snapshot>,
+    after: &Snapshot,
+) -> RevisionSummary {
+    RevisionSummary {
+        revision: r.0,
+        author_id: r.1,
+        author_name: r.2.clone(),
+        summary: r.3.clone(),
+        created_at: r.4,
+        digest: digest::digest(r.0, &r.3, before, after),
+    }
 }
 
 async fn revisions(
     State(state): State<AppState>,
-    _: Viewer,
+    RequireTool(user, _): Viewer,
     Path(id): Path<i64>,
 ) -> ApiResult<Json<Vec<RevisionSummary>>> {
-    let rows: Vec<(i32, String, String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
-        "SELECT revision, author_name, summary, created_at FROM dc_room_revisions
-          WHERE room_id = $1 ORDER BY revision DESC",
+    let rows: Vec<RevisionRow> = sqlx::query_as(
+        "SELECT revision, author_id, author_name, summary, created_at, snapshot
+           FROM dc_room_revisions WHERE room_id = $1 ORDER BY revision",
     )
     .bind(id)
     .fetch_all(&state.pool)
@@ -399,16 +458,15 @@ async fn revisions(
         let mut conn = acquire(&state).await?;
         store::room(&mut conn, id).await?;
     }
-    Ok(Json(
-        rows.into_iter()
-            .map(|r| RevisionSummary {
-                revision: r.0,
-                author_name: r.1,
-                summary: r.2,
-                created_at: r.3,
-            })
-            .collect(),
-    ))
+    let mut out = Vec::with_capacity(rows.len());
+    let mut before: Option<Snapshot> = None;
+    for r in &rows {
+        let after = decode_snapshot(r.5.clone())?.for_user(user.id);
+        out.push(summarize_revision(r, before.as_ref(), &after));
+        before = Some(after);
+    }
+    out.reverse();
+    Ok(Json(out))
 }
 
 #[derive(Serialize)]
@@ -424,16 +482,10 @@ async fn load_revision(
     pool: &sqlx::PgPool,
     room_id: i64,
     n: i32,
-) -> ApiResult<Option<(RevisionSummary, Snapshot)>> {
-    let row: Option<(
-        i32,
-        String,
-        String,
-        chrono::DateTime<chrono::Utc>,
-        serde_json::Value,
-    )> = sqlx::query_as(
-        "SELECT revision, author_name, summary, created_at, snapshot FROM dc_room_revisions
-              WHERE room_id = $1 AND revision = $2",
+) -> ApiResult<Option<(RevisionRow, Snapshot)>> {
+    let row: Option<RevisionRow> = sqlx::query_as(
+        "SELECT revision, author_id, author_name, summary, created_at, snapshot
+           FROM dc_room_revisions WHERE room_id = $1 AND revision = $2",
     )
     .bind(room_id)
     .bind(n)
@@ -441,17 +493,8 @@ async fn load_revision(
     .await
     .map_err(|e| internal("loading a room revision", e))?;
     row.map(|r| {
-        let snapshot: Snapshot =
-            serde_json::from_value(r.4).map_err(|e| internal("decoding a room revision", e))?;
-        Ok((
-            RevisionSummary {
-                revision: r.0,
-                author_name: r.1,
-                summary: r.2,
-                created_at: r.3,
-            },
-            snapshot,
-        ))
+        let snapshot = decode_snapshot(r.5.clone())?;
+        Ok((r, snapshot))
     })
     .transpose()
 }
@@ -465,15 +508,15 @@ async fn revision(
     RequireTool(user, _): Viewer,
     Path((id, n)): Path<(i64, i32)>,
 ) -> ApiResult<Json<RevisionDetail>> {
-    let (summary, snapshot) = load_revision(&state.pool, id, n)
+    let (row, snapshot) = load_revision(&state.pool, id, n)
         .await?
         .ok_or_else(revision_not_found)?;
     let snapshot = snapshot.for_user(user.id);
-    let before = match load_revision(&state.pool, id, n - 1).await? {
-        Some((_, s)) => s.for_user(user.id),
-        None => Snapshot::default(),
-    };
-    let diff = diff(&before, &snapshot);
+    let before = load_revision(&state.pool, id, n - 1)
+        .await?
+        .map(|(_, s)| s.for_user(user.id));
+    let summary = summarize_revision(&row, before.as_ref(), &snapshot);
+    let diff = diff(&before.unwrap_or_default(), &snapshot);
     Ok(Json(RevisionDetail {
         summary,
         snapshot,
@@ -925,6 +968,34 @@ async fn export_dxf(
         "application/dxf",
         &format!("room-{id}-plan.dxf"),
         &format!("{}-plan.dxf", view.room.name),
+    ))
+}
+
+/// The import template, with the room's racks and the user's headers.
+async fn import_template(
+    State(state): State<AppState>,
+    RequireTool(user, _): Viewer,
+    Path(id): Path<i64>,
+) -> ApiResult<Response> {
+    let mut conn = acquire(&state).await?;
+    let view = store::view(&mut conn, id).await?;
+    let racks: Vec<&str> = view
+        .contents
+        .objects
+        .iter()
+        .filter(|o| {
+            view.catalog
+                .iter()
+                .any(|c| c.id == o.catalog_id && c.props.kind() == Kind::Rack)
+        })
+        .map(|o| o.name.as_str())
+        .collect();
+    let text = dccsv::template(&view.room.name, &racks, Language::from_db(&user.language));
+    Ok(file(
+        text.into_bytes(),
+        "text/csv; charset=utf-8",
+        "inventory-template.csv",
+        &format!("{}-template.csv", view.room.name),
     ))
 }
 

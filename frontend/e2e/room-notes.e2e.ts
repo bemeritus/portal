@@ -55,8 +55,10 @@ for (const lang of ["ru", "uz", "en"] as const)
     };
     const r1 = room.objects.find((o) => o.name === "Стойка 1")!.id;
 
-    // The plan's tooltip on rack 1's back gap.
-    await page.goto(`/dc/${id}?view=plan`);
+    // The plan's tooltip on rack 1's back gap: a tape dimension, drawn
+    // with the «Все замеры рулеткой» layer on (FEEDBACK-6 §1).
+    await page.addInitScript(() => localStorage.setItem("dc.layers", JSON.stringify({ tape: true })));
+    await page.goto(`/dc/${id}?view=plan&mode=schema`);
     await waitForRoom(page);
     const marked = page.locator(".dc-labels .dc-label-mark");
     await expect.poll(async () => (await marked.evaluateAll((els) => els.map((e) => e.title))).join("\n")).toContain(

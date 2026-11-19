@@ -1,15 +1,19 @@
 /**
  * The view cube: six CSS-3D faces turned with the camera (`matrix3d`), as in
- * the prototype. Clicking a face flies to that view; the bottom is disabled
- * (the floor is in the way). Labels come from the caller, in the user's
- * language, via `data-dc-face` attributes resolved by the page.
+ * the prototype — 64 px, the face names in the theme's font (FEEDBACK-6 §1).
+ * Clicking a face's middle flies to that view; clicking near its edge or
+ * corner looks from that edge or corner (the face's direction plus its
+ * neighbours'). The bottom is disabled (the floor is in the way). Labels come
+ * from the caller, in the user's language.
  */
 
 import type * as THREE from "three";
 
 import type { Preset } from "./camera";
 
-const HALF = 30;
+const HALF = 32;
+/** Beyond this share of the face's half-width, a click means its edge. */
+const EDGE = 0.55;
 const FACES: {
   n: [number, number, number];
   u: [number, number, number];
@@ -28,7 +32,11 @@ export class ViewCube {
   readonly root: HTMLDivElement;
   private readonly cube: HTMLDivElement;
 
-  constructor(host: HTMLElement, go: (p: Preset) => void) {
+  constructor(
+    host: HTMLElement,
+    go: (p: Preset) => void,
+    goDir: (dir: [number, number, number]) => void,
+  ) {
     this.root = document.createElement("div");
     this.root.className = "dc-cube-wrap";
     this.cube = document.createElement("div");
@@ -66,7 +74,21 @@ export class ViewCube {
       b.style.transform = `matrix3d(${m.join(",")})`;
       if (f.preset) {
         const p = f.preset;
-        b.addEventListener("click", () => go(p));
+        b.addEventListener("click", (ev) => {
+          // Where on the face: −1…1 across (r) and up (u); a keyboard
+          // click (no pointer) means the face itself.
+          const pointer = ev.detail > 0;
+          const sx = pointer ? (ev.offsetX / b.offsetWidth) * 2 - 1 : 0;
+          const sy = pointer ? 1 - (ev.offsetY / b.offsetHeight) * 2 : 0;
+          const ex = Math.abs(sx) > EDGE ? Math.sign(sx) : 0,
+            ey = Math.abs(sy) > EDGE ? Math.sign(sy) : 0;
+          if (!ex && !ey) return go(p);
+          goDir([
+            n[0] + ex * r[0] + ey * u[0],
+            n[1] + ex * r[1] + ey * u[1],
+            n[2] + ex * r[2] + ey * u[2],
+          ]);
+        });
       } else b.disabled = true;
       this.cube.appendChild(b);
     }

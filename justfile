@@ -189,10 +189,18 @@ seed:
 # they exist, so this never overwrites edits made since.
 #
 # Load the server room (dc-handoff/data/room.json) and the cooling catalog.
-# Browser end-to-end checks against the running dev servers (`just dev`) and
-# the seeded room; E2E_USER / E2E_PASSWORD: an account with dc_room access.
-e2e:
-    cd frontend && npx playwright test
+# Browser end-to-end checks on a stack of their own: a scratch database
+# (created, migrated, seeded, dropped again), an API and Vite on their own
+# ports (E2E_API_PORT, E2E_WEB_PORT). The dev database is never touched, so a
+# branch's migrations cannot reach it before merge. Needs the cluster running;
+# extra arguments go to `playwright test`, as they are.
+[positional-arguments]
+e2e *args:
+    scripts/e2e-stack.sh run "$@"
+
+# The same stack, kept up until Ctrl-C — for screenshots or a look by hand.
+e2e-serve:
+    scripts/e2e-stack.sh serve
 
 seed-dc:
     cd backend && cargo run -q -- seed-dc

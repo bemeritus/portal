@@ -8,6 +8,7 @@
 pub mod capacity;
 pub mod csv;
 pub mod diff;
+pub mod digest;
 pub mod dxf;
 pub mod geometry;
 pub mod model;

@@ -83,7 +83,8 @@ for (const lang of LANGS)
     await signIn(page);
     await setLanguage(page, lang);
     await setSettings(page, { dc_theme: "studio" });
-    await page.goto(`/dc/${await roomId(page)}?view=3d`);
+    // The tabs, not the rendering: schema keeps SwiftShader quick.
+    await page.goto(`/dc/${await roomId(page)}?view=3d&mode=schema`);
     await waitForRoom(page);
     const themes = page.locator('.dc-top [role="radiogroup"]').last().getByRole("radio");
     for (const [i, theme] of THEMES.entries()) {

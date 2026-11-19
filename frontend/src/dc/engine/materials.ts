@@ -326,37 +326,37 @@ vec2 mmUv() {
 }
 
 /**
- * The floor of the photos: terracotta tiles with an interlocking lighter
- * pattern. One canvas is one 300 mm tile.
+ * The floor of the photos and the renders (FEEDBACK-6 §3): plain square
+ * terracotta tiles, 300 mm, with light grout. One canvas is 2 × 2 tiles, each
+ * a slightly different fired shade, so the floor does not look printed.
  */
+export const TILE_MM = 300;
 function tiles(): HTMLCanvasElement {
-  const n = 256;
+  const n = 512;
   const [c, g] = canvas(n, n);
-  g.fillStyle = "#b47a4b";
-  g.fillRect(0, 0, n, n);
-  g.strokeStyle = "#c79466";
-  g.lineWidth = n * 0.06;
-  g.lineCap = "round";
-  // Interlocking arcs, as on the tiles.
-  for (const [cx, cy, a0] of [
-    [0, 0, 0],
-    [n, 0, Math.PI / 2],
-    [n, n, Math.PI],
-    [0, n, -Math.PI / 2],
-  ]) {
-    g.beginPath();
-    g.arc(cx, cy, n * 0.42, a0, a0 + Math.PI / 2);
-    g.stroke();
+  const r = seeded(7331);
+  const half = n / 2;
+  const shades = ["#b9744a", "#b06c43", "#bd7a4f", "#b4704a"];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = [(i % 2) * half, Math.floor(i / 2) * half];
+    g.fillStyle = shades[i];
+    g.fillRect(x, y, half, half);
+    // A faint mottle of the fired clay.
+    for (let k = 0; k < 140; k++) {
+      const v = 0.04 + r() * 0.05;
+      g.fillStyle =
+        r() > 0.5 ? `rgba(255,235,210,${v})` : `rgba(80,40,20,${v})`;
+      g.beginPath();
+      g.arc(x + r() * half, y + r() * half, 2 + r() * 9, 0, Math.PI * 2);
+      g.fill();
+    }
   }
-  g.strokeStyle = "#a9713f";
-  g.lineWidth = n * 0.025;
-  g.beginPath();
-  g.arc(n / 2, n / 2, n * 0.18, 0, Math.PI * 2);
-  g.stroke();
-  // Grout.
-  g.fillStyle = "#9c6a40";
-  g.fillRect(0, 0, n, 3);
-  g.fillRect(0, 0, 3, n);
+  // Grout: about 3 mm, light.
+  g.fillStyle = "#d9c1a6";
+  for (const p of [0, half]) {
+    g.fillRect(p, 0, 3, n);
+    g.fillRect(0, p, n, 3);
+  }
   return c;
 }
 
@@ -437,6 +437,8 @@ const PBR: Record<
   rackFrame: { color: "#141518", metalness: 0.35, roughness: 0.6 },
   rackCap: { color: "#17181b", metalness: 0.35, roughness: 0.55 },
   rail: { color: "#2a2c30", metalness: 0.6, roughness: 0.45 },
+  /** Blanking panels in a rack's free units: matt black steel. */
+  blankPanel: { color: "#17181b", metalness: 0.35, roughness: 0.6 },
   // The shelf is black metal.
   shelf: { color: "#18181a", metalness: 0.4, roughness: 0.6 },
   board: { color: "#1c1c1f", metalness: 0.35, roughness: 0.65 },
@@ -668,11 +670,11 @@ export class MaterialLibrary {
       if (this.realistic() && role === "floor") {
         const t = this.tex("tiles", tiles);
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        // Floor UVs are in millimetres: one tile is 300 mm.
-        t.repeat.set(1 / 300, 1 / 300);
+        // Floor UVs are in millimetres; the canvas is 2 × 2 tiles.
+        t.repeat.set(1 / (2 * TILE_MM), 1 / (2 * TILE_MM));
         return new THREE.MeshStandardMaterial({
           map: t,
-          roughness: 0.5,
+          roughness: 0.62,
           metalness: 0,
           side: THREE.DoubleSide,
         });

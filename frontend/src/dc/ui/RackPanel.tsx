@@ -17,16 +17,17 @@ import { useFmt } from "../settings";
 import {
   devicesToText,
   facesConflict,
+  freeRuns,
   parseDevices,
   rackStats,
   unitsFree,
 } from "../model/devices";
-import { DEVICE_COLOR } from "../engine/materials";
 import type {
   CatalogItem,
   DcObject,
   Device,
   DeviceFields,
+  DeviceKind,
   Face,
   Op,
   RackProps,
@@ -45,6 +46,27 @@ export interface Prefill {
 }
 
 const ROW = 15;
+
+/**
+ * Kinds drawn alike in an elevation (FEEDBACK-6 §4): the legend's groups —
+ * servers, storage, network, power, other.
+ */
+export const KIND_GROUP: Record<DeviceKind, string> = {
+  server: "server",
+  storage: "storage",
+  switch: "network",
+  router: "network",
+  patch: "network",
+  ups: "power",
+  pdu: "power",
+  kvm: "other",
+  blank: "other",
+  other: "other",
+};
+export const GROUPS = ["server", "storage", "network", "power", "other"];
+
+/** Free runs this long or longer are outlined in an elevation. */
+const FREE_RUN_MIN = 2;
 
 interface Props {
   obj: DcObject;
@@ -341,6 +363,10 @@ function firstFree(
 interface ElevationProps {
   units: number;
   face: Face;
+  /** Devices of another owner are dimmed. */
+  highlight?: string | null;
+  /** Outline free runs of 2U and more, with their size. */
+  showFree?: boolean;
   devices: Device[];
   allDevices: Device[];
   selectedId: number | null;
@@ -352,9 +378,11 @@ interface ElevationProps {
   onMove: (d: Device, u: number, h: number, rackId: number) => void;
 }
 
-function Elevation({
+export function Elevation({
   units,
   face,
+  highlight = null,
+  showFree = false,
   devices,
   allDevices,
   selectedId,
@@ -366,6 +394,7 @@ function Elevation({
   onMove,
 }: ElevationProps) {
   const { t } = useTranslation();
+  const fmt = useFmt();
   const svg = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<null | {
     d: Device;
@@ -395,7 +424,7 @@ function Elevation({
         ref={svg}
         width="100%"
         viewBox={`0 0 ${W} ${H}`}
-        className="rounded border bg-muted/30 select-none"
+        className="dc-elev select-none"
         role="grid"
         aria-label={t("dc.rack.elevation", { face: t(`dc.face.${face}`) })}
         onPointerMove={(e) => {
@@ -458,19 +487,55 @@ function Elevation({
             </g>
           );
         })}
+        {showFree &&
+          freeRuns(allDevices, units, face)
+            .filter((r) => r.to - r.from + 1 >= FREE_RUN_MIN)
+            .map((r) => {
+              const n = r.to - r.from + 1;
+              return (
+                <g key={`free-${r.from}`} className="dc-elev-free">
+                  <rect
+                    x={27}
+                    y={yOf(r.to) + 2}
+                    width={W - 34}
+                    height={n * ROW - 4}
+                    rx={2}
+                    strokeDasharray="4 3"
+                  />
+                  <text
+                    x={W / 2 + 10}
+                    y={yOf(r.to) + (n * ROW) / 2 + 4}
+                    textAnchor="middle"
+                  >
+                    {t("dc.racks.free", { n })}
+                  </text>
+                </g>
+              );
+            })}
         {devices.map((d) => {
           const moving = drag?.d.id === d.id;
           const u = moving ? drag!.u : d.u_bottom;
           const h = moving ? drag!.h : d.u_height;
           return (
-            <g key={d.id} opacity={moving && !ok ? 0.5 : 1}>
+            <g
+              key={d.id}
+              opacity={
+                moving && !ok
+                  ? 0.5
+                  : highlight !== null && d.owner !== highlight
+                    ? 0.28
+                    : 1
+              }
+              className="dc-elev-dev"
+              data-group={KIND_GROUP[d.kind]}
+              data-selected={selectedId === d.id || undefined}
+            >
               <rect
                 x={26}
                 y={yOf(u + h - 1) + 1}
                 width={W - 32}
                 height={h * ROW - 2}
                 rx={2}
-                fill={DEVICE_COLOR[d.kind]}
                 className={cn(
                   canEdit && "cursor-grab",
                   selectedId === d.id && "stroke-primary",
@@ -494,13 +559,13 @@ function Elevation({
               <text
                 x={34}
                 y={yOf(u + h - 1) + Math.min(h * ROW, 30) / 2 + 4}
-                className="pointer-events-none fill-white text-[10px]"
+                className="pointer-events-none text-[10px]"
               >
                 {d.name}
                 {d.face === "both" ? ` (${t("dc.face.both")})` : ""}
                 {d.power_w === null
                   ? ` · ${t("dc.unknownPowerShort")}`
-                  : ` · ${d.power_w} W`}
+                  : ` · ${fmt.w(d.power_w)}`}
               </text>
               {canEdit && (
                 <rect
@@ -508,7 +573,7 @@ function Elevation({
                   y={yOf(u + h - 1)}
                   width={40}
                   height={4}
-                  className="cursor-ns-resize fill-white/60"
+                  className="dc-elev-resize cursor-ns-resize"
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     (e.target as Element).setPointerCapture?.(e.pointerId);

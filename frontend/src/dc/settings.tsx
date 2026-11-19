@@ -20,6 +20,8 @@ export interface DcSettings {
   dc_unit: LengthUnit;
   /** The plan legend is folded to its button. */
   dc_legend_collapsed: boolean;
+  /** The room view's last mode; `null` = the theme's default. */
+  dc_mode: "schema" | "realistic" | "fill" | "power" | null;
 }
 
 interface Ctx {
@@ -32,12 +34,14 @@ interface Ctx {
   setUnit: (u: LengthUnit) => void;
   setTheme: (t: DcThemeName) => void;
   setLegendCollapsed: (on: boolean) => void;
+  setMode: (m: NonNullable<DcSettings["dc_mode"]>) => void;
 }
 
 const DEFAULTS: DcSettings = {
   dc_theme: null,
   dc_unit: "cm",
   dc_legend_collapsed: false,
+  dc_mode: null,
 };
 const SettingsContext = createContext<Ctx | null>(null);
 
@@ -77,6 +81,7 @@ export function DcSettingsProvider({ children }: { children: ReactNode }) {
       setTheme: (dc_theme) => save.mutate({ dc_theme }),
       setLegendCollapsed: (dc_legend_collapsed) =>
         save.mutate({ dc_legend_collapsed }),
+      setMode: (dc_mode) => save.mutate({ dc_mode }),
     }),
     // `save.mutate` is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps

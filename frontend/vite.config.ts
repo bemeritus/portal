@@ -9,6 +9,10 @@ import tailwindcss from "@tailwindcss/vite";
 // the session cookie is same-origin in development exactly as it is in
 // production. Without the proxy the cookie would be cross-site and `SameSite=Lax`
 // would drop it — the app would log in and immediately look logged out.
+// The API in development; the e2e stack (scripts/e2e-stack.sh) points its own
+// Vite at its own API on a scratch database.
+const API = process.env.DEV_API_URL ?? "http://127.0.0.1:3000";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -20,13 +24,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:3000",
+        target: API,
         changeOrigin: false,
       },
       // Uploaded images are behind the same session; proxy them too so an
       // <img src="/uploads/…"> works in development.
       "/uploads": {
-        target: "http://127.0.0.1:3000",
+        target: API,
         changeOrigin: false,
       },
     },

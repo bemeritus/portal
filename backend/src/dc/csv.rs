@@ -198,6 +198,93 @@ pub struct RowError {
     pub value: Option<String>,
 }
 
+/// The import template for a room (FEEDBACK-6 §8): the headers in the
+/// user's language and three example rows in the room's own racks — a UPS,
+/// a server with a measured power and a switch whose power is unknown (left
+/// empty, never 0). Same format as an export.
+pub fn template(room: &str, racks: &[&str], lang: Language) -> String {
+    let rack = |i: usize| {
+        racks
+            .get(i.min(racks.len().saturating_sub(1)))
+            .copied()
+            .unwrap_or("")
+    };
+    let (ups, server, switch, note) = match lang {
+        Language::Ru => (
+            "ИБП 3000",
+            "Сервер DELL R740",
+            "Коммутатор 48 портов",
+            "мощность неизвестна — оставьте пусто, не 0",
+        ),
+        Language::Uz => (
+            "UPS 3000",
+            "Server DELL R740",
+            "Kommutator 48 port",
+            "quvvat noma'lum — 0 emas, bo'sh qoldiring",
+        ),
+        Language::En => (
+            "UPS 3000",
+            "Server DELL R740",
+            "Switch 48 ports",
+            "power unknown — leave it empty, not 0",
+        ),
+    };
+    let devices = [
+        (
+            0,
+            1,
+            2,
+            DeviceKind::Ups,
+            ups,
+            "",
+            Some(900),
+            Some(PowerSrc::Nameplate),
+            "",
+        ),
+        (
+            0,
+            10,
+            2,
+            DeviceKind::Server,
+            server,
+            "ABC123",
+            Some(450),
+            Some(PowerSrc::Measured),
+            "",
+        ),
+        (1, 40, 1, DeviceKind::Switch, switch, "", None, None, note),
+    ];
+    let fields: Vec<DeviceFields> = devices
+        .iter()
+        .map(
+            |&(_, u, h, kind, name, serial, power, src, note)| DeviceFields {
+                rack_id: 0,
+                u_bottom: u,
+                u_height: h,
+                face: Face::Front,
+                depth_mm: None,
+                kind,
+                name: name.into(),
+                owner: String::new(),
+                serial: serial.into(),
+                power_w: power,
+                power_src: src,
+                status: DeviceStatus::Active,
+                note: note.into(),
+            },
+        )
+        .collect();
+    let rows: Vec<ExportRow> = devices
+        .iter()
+        .zip(&fields)
+        .map(|(d, f)| ExportRow {
+            rack: rack(d.0),
+            device: f,
+        })
+        .collect();
+    write(room, &rows, lang)
+}
+
 fn err(
     line: usize,
     code: &'static str,
@@ -550,6 +637,22 @@ mod tests {
                 units: 42,
             })
             .collect()
+    }
+
+    #[test]
+    fn the_template_has_the_rooms_racks_and_an_unknown_power() {
+        let text = template("Серверная", &["Стойка 1", "Стойка 2"], Language::Ru);
+        assert!(text.starts_with('\u{feff}'));
+        let lines: Vec<&str> = text.trim_end().split("\r\n").collect();
+        assert_eq!(lines.len(), 4);
+        assert!(lines[0].contains("стойка;сторона"));
+        assert!(lines[1].starts_with("Серверная;Стойка 1;front;1;2;ups;"));
+        // Unknown power: an empty field, explained in the note.
+        assert!(lines[3].contains(";;;active;мощность неизвестна"));
+        // It imports as it is.
+        let (rows, errors) = parse(&text);
+        assert!(errors.is_empty(), "{errors:?}");
+        assert_eq!(rows.len(), 3);
     }
 
     #[test]

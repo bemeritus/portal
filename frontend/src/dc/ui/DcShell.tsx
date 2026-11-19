@@ -365,7 +365,13 @@ function DcShell({ children }: { children: ReactNode }) {
           children
         ) : (
           <main ref={scroller} className="dc-scroll">
-            <div className={tab === "catalog" ? "dc-page-wide" : "dc-page"}>
+            <div
+              className={
+                tab === "catalog" || tab === "racks"
+                  ? "dc-page-wide"
+                  : "dc-page"
+              }
+            >
               {children}
             </div>
           </main>
