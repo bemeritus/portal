@@ -52,6 +52,14 @@ async fn main() {
     let config = Config::from_env();
     let pool = db::init_pool(&config).await;
 
+    // `portal migrate`: `init_pool` has just applied the migrations with the
+    // same embedded migrator a normal start uses; stop there. `just ci` runs
+    // it on a scratch database.
+    if std::env::args().nth(1).as_deref() == Some("migrate") {
+        println!("migrations applied");
+        return;
+    }
+
     // `portal seed-dc`: load the server room and the cooling catalog, then
     // exit. Data, not schema — so it runs when asked, never on startup.
     if std::env::args().nth(1).as_deref() == Some("seed-dc") {

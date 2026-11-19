@@ -283,7 +283,7 @@ pub fn normalize_status(status: &str) -> String {
 
 // --- Server-room work log ---------------------------------------------------
 //
-// Mirrors `backend/migrations/0023_worklog.sql`. A structured journal of work
+// Mirrors `backend/migrations/0024_worklog.sql`. A structured journal of work
 // done in the server room: who, when, where, what, why, result, and media.
 
 /// One attached photo or clip, as the viewer sees it. `url` is the server path
