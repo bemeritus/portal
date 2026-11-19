@@ -20,7 +20,7 @@ import { Spinner } from "../../components/Loading";
 import { formatUtc } from "../../format";
 import { translateApiError } from "../../i18n/errors";
 import { dcApi } from "../api";
-import type { EntityChange } from "../types";
+import { localText, type EntityChange, type Text } from "../types";
 
 export function DcHistoryPage() {
   const { roomId: param } = useParams();
@@ -167,12 +167,22 @@ export function DcHistoryPage() {
   );
 }
 
-const show = (v: unknown) =>
+/** A note in every language ({en, ru, uz}) shows in the user's. */
+const isLocal = (v: unknown): v is Text =>
+  typeof v === "object" &&
+  v !== null &&
+  ["en", "ru", "uz"].every(
+    (k) => typeof (v as Record<string, unknown>)[k] === "string",
+  );
+
+const show = (v: unknown, lang: string) =>
   v === null || v === undefined || v === ""
     ? "—"
-    : typeof v === "object"
-      ? JSON.stringify(v)
-      : String(v);
+    : isLocal(v)
+      ? localText(v, lang)
+      : typeof v === "object"
+        ? JSON.stringify(v)
+        : String(v);
 
 function name(v: Record<string, unknown>): string {
   const p = v.payload as Record<string, unknown> | undefined;
@@ -191,7 +201,7 @@ function DiffSection({
   title: string;
   changes: EntityChange[];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   if (!changes.length) return null;
   return (
     <section>
@@ -223,9 +233,12 @@ function DiffSection({
                     })}
                     :{" "}
                     <span className="text-destructive line-through">
-                      {show(f.before)}
+                      {show(f.before, i18n.language)}
                     </span>{" "}
-                    → <span className="text-success">{show(f.after)}</span>
+                    →{" "}
+                    <span className="text-success">
+                      {show(f.after, i18n.language)}
+                    </span>
                   </div>
                 ))}
               </>

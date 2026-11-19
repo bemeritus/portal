@@ -26,7 +26,7 @@ import type {
   Op,
   RoomData,
 } from "../types";
-import { clearanceGap } from "../types";
+import { clearanceGap, localText } from "../types";
 import { assumedByObject, objectFields } from "../model/objects";
 import { LengthInput } from "./LengthInput";
 import { RackPanel, type Prefill } from "./RackPanel";
@@ -184,7 +184,7 @@ function ObjectSummary({
   onSelect,
   onClearance,
 }: Props & { obj: DcObject; item: CatalogItem }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fmt = useFmt();
   const [w, d, h] = objectDims(item, obj.instance);
   const assumed = assumedByObject(data).get(obj.name) ?? [];
@@ -258,9 +258,9 @@ function ObjectSummary({
           </ul>
         </div>
       )}
-      {obj.note && (
+      {localText(obj.note, i18n.language) && (
         <p className="text-xs whitespace-pre-wrap text-muted-foreground">
-          {obj.note}
+          {localText(obj.note, i18n.language)}
         </p>
       )}
       <Button
@@ -296,7 +296,7 @@ function ObjectEditor({
   item: CatalogItem;
   run: Props["run"];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [f, setF] = useState(() => objectFields(obj));
   const [busy, setBusy] = useState(false);
   useEffect(() => setF(objectFields(obj)), [obj]);
@@ -406,7 +406,7 @@ function ObjectEditor({
           id="o-note"
           rows={2}
           className="w-full rounded-md border bg-background p-1.5"
-          value={f.note}
+          value={localText(f.note, i18n.language)}
           onChange={(e) => setF({ ...f, note: e.target.value })}
         />
       </div>

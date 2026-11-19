@@ -658,6 +658,7 @@ export const dcUz = {
   discharge: { upflow: "yuqoriga", downflow: "pastga" },
   prop: {
     dims: "O'lchamlar",
+    finish: "Korpus qoplamasi",
     units: "Yunitlar",
     u1_height_mm: "U1 poldan balandligi",
     door_front: "Old eshik",

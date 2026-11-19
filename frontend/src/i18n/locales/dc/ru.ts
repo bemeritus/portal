@@ -660,6 +660,7 @@ export const dcRu = {
   discharge: { upflow: "вверх", downflow: "вниз" },
   prop: {
     dims: "Размеры",
+    finish: "Отделка корпуса",
     units: "Юниты",
     u1_height_mm: "U1 над полом",
     door_front: "Передняя дверь",

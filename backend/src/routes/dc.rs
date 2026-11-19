@@ -689,7 +689,7 @@ async fn search(
             UNION ALL
             SELECT 'object', o.id, o.id, o.name, o.name, '', '', NULL, NULL, NULL, NULL
               FROM dc_objects o
-             WHERE o.room_id = $1 AND (o.name ILIKE $2 OR o.note ILIKE $2)
+             WHERE o.room_id = $1 AND (o.name ILIKE $2 OR o.note::text ILIKE $2)
          ) hits
          ORDER BY kind DESC, object_name, name
          LIMIT 50",

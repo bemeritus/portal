@@ -50,7 +50,7 @@ pub struct NewObject {
     pub y0: i32,
     pub rotation_deg: i32,
     pub instance: Value,
-    pub note: String,
+    pub note: Text,
 }
 
 pub struct Plan {
@@ -81,8 +81,8 @@ fn src(v: &Value) -> MeasSrc {
         .unwrap_or(MeasSrc::Assumed)
 }
 
-fn note(v: &Value) -> Option<String> {
-    v["note"].as_str().map(str::to_string)
+fn note(v: &Value) -> Option<Text> {
+    v["note"].as_str().map(text)
 }
 
 fn opt(v: &Value) -> Option<i32> {
@@ -141,8 +141,8 @@ fn source(src: PropSrc, url: Option<&str>, note: Option<&str>) -> PropSource {
 
 /// The seed's notes and rating conditions in every UI language (FEEDBACK-5
 /// §5): English as written in `room.json`, `cooling.json` and here, with
-/// Russian and Uzbek. Migration 0026 gives the same texts to rows seeded
-/// before.
+/// Russian and Uzbek. Migrations 0026 (catalog) and 0027 (room, objects)
+/// give the same texts to rows seeded before.
 const SEED_TEXT: &[(&str, &str, &str)] = &[
     (
         "manufacturer nominal",
@@ -233,6 +233,103 @@ const SEED_TEXT: &[(&str, &str, &str)] = &[
         "Fixed by decision of the team: every rack is 600 x 1000 x 2040. Units: floor(((2040 - 160) / 44.45)) = 42, U1 starts 100 mm above the floor (assumed plinth + top cap of 160 mm in total).",
         "Решение команды: каждая стойка 600 × 1000 × 2040. Юниты: floor((2040 − 160) / 44,45) = 42, U1 начинается в 100 мм от пола (принято: цоколь + верхняя крышка всего 160 мм).",
         "Jamoa qarori: har bir stoyka 600 × 1000 × 2040. Yunitlar: floor((2040 − 160) / 44,45) = 42, U1 poldan 100 mm balandda boshlanadi (taxmin: poydevor + yuqori qopqoq jami 160 mm).",
+    ),
+    // The room: measurement notes, what to re-measure, what is not
+    // modelled, conflicts, object notes.
+    (
+        "100 cm on the drawing for every rack",
+        "100 см на чертеже у каждой стойки",
+        "chizmada har bir stoyka uchun 100 sm",
+    ),
+    (
+        "tape 1495-1500; with 600 mm racks and the measured gaps the remainder is 1510",
+        "рулетка 1495–1500; при стойках 600 мм и измеренных зазорах остаток 1510",
+        "ruletka 1495–1500; 600 mm stoykalar va o'lchangan oraliqlar bilan qoldiq 1510",
+    ),
+    (
+        "Racks are placed by the measured aisle from the shelf. The back gap then follows from room width 3845 (a 3840-3850 range): model vs tape differ by -15, +30, 0, -5 mm (r1..r4). Show both values; do not hide the difference. r2 (+30 mm) is worth re-measuring.",
+        "Стойки поставлены по измеренному проходу от стеллажа. Зазор сзади тогда следует из ширины комнаты 3845 (диапазон 3840–3850): модель и рулетка расходятся на −15, +30, 0, −5 мм (стойки 1–4). Показываются оба значения; разница не скрывается. Стойку 2 (+30 мм) стоит перемерить.",
+        "Stoykalar stellajdan o'lchangan o'tish joyi bo'yicha qo'yilgan. Orqadagi oraliq xona kengligi 3845 dan (3840–3850 oralig'i) kelib chiqadi: model va ruletka −15, +30, 0, −5 mm farq qiladi (1–4-stoykalar). Ikkala qiymat ko'rsatiladi; farq yashirilmaydi. 2-stoykani (+30 mm) qayta o'lchash kerak.",
+    ),
+    (
+        "left gap read as 200-300; 200 used",
+        "зазор слева прочитан как 200–300; взято 200",
+        "chapdagi oraliq 200–300 deb o'qilgan; 200 olingan",
+    ),
+    (
+        "drawn against the wall on the hand drawing; depth 910 is measured from the wall",
+        "на эскизе нарисован вплотную к стене; глубина 910 измерена от стены",
+        "qo'lda chizilgan rejada devorga taqab chizilgan; 910 chuqurlik devordan o'lchangan",
+    ),
+    (
+        "equal spacing assumed",
+        "принят равный шаг",
+        "teng oraliq taxmin qilingan",
+    ),
+    (
+        "30 mm from the right wall",
+        "30 мм от правой стены",
+        "o'ng devordan 30 mm",
+    ),
+    (
+        "drawn along the whole wall",
+        "нарисован вдоль всей стены",
+        "butun devor bo'ylab chizilgan",
+    ),
+    (
+        "r2: gap from back to wall (model and tape differ by 30 mm)",
+        "стойка 2: зазор от задней стороны до стены (модель и рулетка расходятся на 30 мм)",
+        "2-stoyka: orqa tomondan devorgacha oraliq (model va ruletka 30 mm farq qiladi)",
+    ),
+    (
+        "gap from r4 to the right wall (1495-1500 vs 1510)",
+        "зазор от стойки 4 до правой стены (1495–1500 против 1510)",
+        "4-stoykadan o'ng devorgacha oraliq (1495–1500 va 1510)",
+    ),
+    (
+        "shelf: left gap (200 or 300), middle board height",
+        "стеллаж: зазор слева (200 или 300), высота средней полки",
+        "stellaj: chapdagi oraliq (200 yoki 300), o'rta polka balandligi",
+    ),
+    (
+        "cable tray: width and exact extent",
+        "кабельный лоток: ширина и точная протяжённость",
+        "kabel lotogi: kengligi va aniq uzunligi",
+    ),
+    (
+        "supply ducts over the aisle, UPS units, electrical box, wall controllers, chairs, lights: seen on photos, intentionally not modelled (team decision)",
+        "подающие воздуховоды над проходом, ИБП, электрощит, настенные пульты, стулья, светильники: видны на фото, намеренно не моделируются (решение команды)",
+        "o'tish joyi ustidagi havo kanallari, UPS bloklari, elektr shiti, devordagi pultlar, stullar, chiroqlar: fotolarda ko'rinadi, ataylab modellashtirilmagan (jamoa qarori)",
+    ),
+    (
+        "power chain: unknown",
+        "цепь питания: неизвестна",
+        "elektr ta'minoti zanjiri: noma'lum",
+    ),
+    (
+        "air conditioners: supply direction, flow (m3/h) and set point not recorded",
+        "кондиционеры: направление подачи, расход (м³/ч) и уставка не записаны",
+        "konditsionerlar: berish yo'nalishi, oqim (m³/soat) va o'rnatilgan harorat yozilmagan",
+    ),
+    (
+        "open frame (photos 03, 08)",
+        "открытая рама (фото 03, 08)",
+        "ochiq rama (foto 03, 08)",
+    ),
+    (
+        "ducted unit on threaded rods under the ceiling (photos 02, 06); ducts not modelled",
+        "канальный блок на шпильках под потолком (фото 02, 06); воздуховоды не моделируются",
+        "shift ostida rezbali shpilkalardagi kanalli blok (foto 02, 06); havo kanallari modellashtirilmagan",
+    ),
+    (
+        "inward, leaf swings toward the shelf wall",
+        "внутрь, полотно открывается к стене со стеллажом",
+        "ichkariga, tabaqa stellaj turgan devor tomon ochiladi",
+    ),
+    (
+        "along the wall behind the racks only (rear aisle); there is NO tray along the left wall",
+        "только вдоль стены за стойками (задний проход); вдоль левой стены лотка НЕТ",
+        "faqat stoykalar orqasidagi devor bo'ylab (orqa o'tish joyi); chap devor bo'ylab lotok YO'Q",
     ),
 ];
 
@@ -424,9 +521,9 @@ pub fn plan() -> Result<Plan, String> {
             rotation_deg: k["rotation_deg"].as_i64().unwrap_or(0) as i32,
             instance,
             note: if id == "r1" {
-                "open frame (photos 03, 08)".into()
+                text("open frame (photos 03, 08)")
             } else {
-                String::new()
+                Text::default()
             },
         });
         // Width as measured (one or two readings), depth and height.
@@ -526,7 +623,7 @@ pub fn plan() -> Result<Plan, String> {
         m.note = rm["conflict"]
             .as_str()
             .filter(|_| g["diff"].as_i64().unwrap_or(0).abs() > 5)
-            .map(str::to_string);
+            .map(text);
         entries.push(drawn(m, width - back, [[cx, 0, back], [cx, 0, width]]));
     }
 
@@ -595,7 +692,7 @@ pub fn plan() -> Result<Plan, String> {
         // Against the shelf wall, its front facing into the room (+z).
         rotation_deg: 180,
         instance: json!({}),
-        note: String::new(),
+        note: Text::default(),
     });
     let sn: &[&str] = &[&shelf_name];
     let shelf_x1 = shelf_x0 + shelf_len;
@@ -730,9 +827,9 @@ pub fn plan() -> Result<Plan, String> {
             // Hanging above the shelf, supply toward the room (+z).
             rotation_deg: 180,
             instance,
-            note:
-                "ducted unit on threaded rods under the ceiling (photos 02, 06); ducts not modelled"
-                    .into(),
+            note: text(
+                "ducted unit on threaded rods under the ceiling (photos 02, 06); ducts not modelled",
+            ),
         });
         let id = a["id"].as_str().unwrap_or("");
         let cx = (x0 + x0 + len) / 2;
@@ -818,7 +915,7 @@ pub fn plan() -> Result<Plan, String> {
         y0: 0,
         rotation_deg: 90,
         instance: json!({ "hinge": hinge }),
-        note: d["opens"].as_str().unwrap_or("").to_string(),
+        note: d["opens"].as_str().map(text).unwrap_or_default(),
     });
     let dx = length + out;
     entries.push(drawn(
@@ -870,7 +967,7 @@ pub fn plan() -> Result<Plan, String> {
         y0: 0,
         rotation_deg: 180,
         instance: json!({}),
-        note: String::new(),
+        note: Text::default(),
     });
     let ln: &[&str] = &[&locker];
     entries.push(drawn(
@@ -935,7 +1032,7 @@ pub fn plan() -> Result<Plan, String> {
         y0: tray_y0,
         rotation_deg: 0,
         instance: json!({ "length_mm": tx1 - tx0 }),
-        note: t["route"].as_str().unwrap_or("").to_string(),
+        note: t["route"].as_str().map(text).unwrap_or_default(),
     });
     let tx = length - 300;
     entries.push(drawn(
@@ -963,17 +1060,17 @@ pub fn plan() -> Result<Plan, String> {
         catalog.push(cooling_item(it)?);
     }
 
-    let strings = |v: &Value| -> Vec<String> {
+    let strings = |v: &Value| -> Vec<Text> {
         v.as_array()
             .into_iter()
             .flatten()
-            .filter_map(|s| s.as_str().map(str::to_string))
+            .filter_map(|s| s.as_str().map(text))
             .collect()
     };
     let mut not_modelled = strings(&r["not_modelled"]);
     not_modelled.extend(strings(&r["not_modelled_or_assumed_only"]));
     if let Some(n) = acc["airflow"]["note"].as_str() {
-        not_modelled.push(format!("air conditioners: {n}"));
+        not_modelled.push(text(&format!("air conditioners: {n}")));
     }
 
     Ok(Plan {
@@ -987,7 +1084,7 @@ pub fn plan() -> Result<Plan, String> {
             not_modelled,
             conflicts: rm["conflict"]
                 .as_str()
-                .map(|s| vec![s.to_string()])
+                .map(|s| vec![text(s)])
                 .unwrap_or_default(),
         },
         settings: RoomSettings::default(),
@@ -1421,6 +1518,31 @@ mod tests {
         );
         // A note typed by a person stays as typed.
         assert_eq!(text("as typed"), Text::Plain("as typed".into()));
+    }
+
+    /// The room's own notes too: measurement notes (the plan's tooltips), what
+    /// to re-measure, what is not modelled, conflicts, and object notes.
+    #[test]
+    fn room_notes_are_in_every_language() {
+        let p = plan().unwrap();
+        let m = &p.measurements;
+        let mut texts: Vec<&Text> = m.entries.iter().filter_map(|e| e.note.as_ref()).collect();
+        texts.extend(&m.remeasure);
+        texts.extend(&m.not_modelled);
+        texts.extend(&m.conflicts);
+        texts.extend(
+            p.objects
+                .iter()
+                .map(|o| &o.note)
+                .filter(|n| **n != Text::default()),
+        );
+        assert!(texts.len() > 20);
+        for t in texts {
+            let Text::Local(l) = t else {
+                panic!("not translated: {t:?}");
+            };
+            assert!(!l.ru.is_empty() && !l.uz.is_empty() && l.ru != l.en);
+        }
     }
 
     /// Every item is drawn in its own finish (FEEDBACK-4 §2): precision units

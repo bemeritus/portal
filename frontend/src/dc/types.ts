@@ -177,7 +177,8 @@ export interface DcObject {
   rotation_deg: 0 | 90 | 180 | 270;
   instance: Instance;
   contents_known: boolean;
-  note: string;
+  /** As typed, or the seed's note in every UI language. */
+  note: Text;
 }
 
 export type DeviceKind =
@@ -284,7 +285,7 @@ export interface Measurement {
   model?: number;
   /** Where the dimension is drawn, room coordinates in mm. */
   line?: [[number, number, number], [number, number, number]];
-  note?: string;
+  note?: Text;
   objects: string[];
 }
 
@@ -302,9 +303,9 @@ export interface Room {
   height_mm: number;
   measurements: {
     entries: Measurement[];
-    remeasure: string[];
-    not_modelled: string[];
-    conflicts: string[];
+    remeasure: Text[];
+    not_modelled: Text[];
+    conflicts: Text[];
   };
   settings: RoomSettings;
   revision: number;

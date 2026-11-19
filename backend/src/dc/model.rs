@@ -420,6 +420,12 @@ pub struct LocalText {
     pub uz: String,
 }
 
+impl Default for Text {
+    fn default() -> Self {
+        Text::Plain(String::new())
+    }
+}
+
 /// One object that uses a catalog item, with its room.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CatalogUse {
@@ -715,7 +721,7 @@ pub struct Measurement {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<[[i32; 3]; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
+    pub note: Option<Text>,
     /// Names of the objects this number positions or sizes — what the 3D
     /// view marks when the number is assumed.
     #[serde(default)]
@@ -745,11 +751,11 @@ impl Measurement {
 pub struct RoomMeasurements {
     pub entries: Vec<Measurement>,
     /// What to re-measure, as written by whoever measured.
-    pub remeasure: Vec<String>,
+    pub remeasure: Vec<Text>,
     /// What the model does not contain or only guesses.
-    pub not_modelled: Vec<String>,
+    pub not_modelled: Vec<Text>,
     /// Conflicts between readings, as written.
-    pub conflicts: Vec<String>,
+    pub conflicts: Vec<Text>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -789,7 +795,8 @@ pub struct DcObject {
     /// Typed by the catalog item's kind ([`Instance`]); sent as stored.
     pub instance: Value,
     pub contents_known: bool,
-    pub note: String,
+    /// As typed, or the seed's note in every UI language.
+    pub note: Text,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

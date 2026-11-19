@@ -87,6 +87,7 @@ import type {
   RoomData,
   ViewPayload,
 } from "../types";
+import { localText } from "../types";
 import type { CapacityRequest } from "./CapacityPanel";
 import type { PaletteObject } from "./CommandPalette";
 import { useShell } from "./DcShell";
@@ -156,6 +157,7 @@ export function measurementText(
   m: Measurement,
   fmt: Fmt,
   t: TFunction,
+  lang: string,
 ): { text: string; title: string; mark: boolean } {
   const read = isRange(m) ? fmt.range(m.min!, m.max!) : fmt.mm(m.value);
   const mark = disagrees(m);
@@ -172,7 +174,7 @@ export function measurementText(
         v: `${diff > 0 ? "+" : "−"}${fmt.mm(Math.abs(diff))}`,
       }),
     );
-  if (m.note) lines.push(m.note);
+  if (m.note) lines.push(localText(m.note, lang));
   return { text: read, title: lines.join("\n"), mark };
 }
 
@@ -330,7 +332,7 @@ export function DcRoomPage() {
       unknownPower: t("dc.rack.someUnknown"),
       mm: fmt.mm,
       range: fmt.range,
-      measurement: (m) => measurementText(m, fmt, t),
+      measurement: (m) => measurementText(m, fmt, t, i18n.language),
       ruler: (r) => rulerText(r, fmt, t, snapWord),
       snap: snapWord,
       clearance: (c) => {
@@ -358,7 +360,7 @@ export function DcRoomPage() {
       right: t("dc.view.right"),
     });
     if (data) e.setModel(toModel(data, catalog));
-  }, [t, fmt, data, catalog]);
+  }, [t, i18n.language, fmt, data, catalog]);
 
   useEffect(() => engine.current?.setMode(mode), [mode, loaded]);
   useEffect(() => engine.current?.setTool(tool), [tool, loaded]);
@@ -725,7 +727,7 @@ export function DcRoomPage() {
         key: `o${o.id}`,
         kind: item?.kind === "rack" ? "rack" : "object",
         label: o.name,
-        extra: o.note,
+        extra: localText(o.note, i18n.language),
         detail,
         run: () => select({ type: "object", id: o.id }),
       });

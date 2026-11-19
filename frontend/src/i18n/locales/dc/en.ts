@@ -657,6 +657,7 @@ export const dcEn = {
   discharge: { upflow: "upflow", downflow: "downflow" },
   prop: {
     dims: "Size",
+    finish: "Body finish",
     units: "Units",
     u1_height_mm: "U1 above the floor",
     door_front: "Front door",

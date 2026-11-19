@@ -104,7 +104,9 @@ export function MeasurementsPanel({
                   </div>
                 )}
                 {e.note && (
-                  <div className="text-muted-foreground">{e.note}</div>
+                  <div className="text-muted-foreground">
+                    {localText(e.note, i18n.language)}
+                  </div>
                 )}
               </td>
               <td className="pr-2 whitespace-nowrap">
@@ -169,8 +171,8 @@ export function MeasurementsPanel({
         <section>
           <h3 className="mb-1 text-sm">{t("dc.measure.conflicts")}</h3>
           <ul className="list-disc pl-4 text-xs">
-            {m.conflicts.map((c) => (
-              <li key={c}>{c}</li>
+            {m.conflicts.map((c, i) => (
+              <li key={i}>{localText(c, i18n.language)}</li>
             ))}
           </ul>
         </section>
@@ -178,16 +180,16 @@ export function MeasurementsPanel({
       <section>
         <h3 className="mb-1 text-sm">{t("dc.measure.remeasure")}</h3>
         <ul className="list-disc pl-4 text-xs">
-          {m.remeasure.map((r) => (
-            <li key={r}>{r}</li>
+          {m.remeasure.map((r, i) => (
+            <li key={i}>{localText(r, i18n.language)}</li>
           ))}
         </ul>
       </section>
       <section>
         <h3 className="mb-1 text-sm">{t("dc.measure.notModelled")}</h3>
         <ul className="list-disc pl-4 text-xs">
-          {m.not_modelled.map((r) => (
-            <li key={r}>{r}</li>
+          {m.not_modelled.map((r, i) => (
+            <li key={i}>{localText(r, i18n.language)}</li>
           ))}
         </ul>
       </section>
