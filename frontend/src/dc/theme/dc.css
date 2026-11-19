@@ -62,11 +62,13 @@
 }
 
 /* --- Top bar --- */
-/* Left and right take what their content needs; the sections sit centred
-   in what is left, so nothing overlaps at 1440 px (the mockups' width). */
+/* The sections sit on the window's centre: the two sides get equal halves
+   of what is left. When a side does not fit, the bar folds (`useFold` in
+   DcShell): search to an icon, unit and theme to one menu, then the room
+   name goes. */
 .dc-top {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   height: 52px;
@@ -84,8 +86,46 @@
   gap: 10px;
   min-width: 0;
 }
+.dc-top-left {
+  justify-self: start;
+  max-width: 100%;
+}
 .dc-top-right {
+  justify-self: end;
   justify-content: flex-end;
+  max-width: 100%;
+}
+/* Only the search box gives way; the rest keeps its size, and the bar
+   folds when that does not fit. */
+.dc-top-left > :not(.dc-sub),
+.dc-top-right > :not(.dc-search) {
+  flex: none;
+}
+.dc-icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--dc-radius);
+  border: 1px solid var(--dc-line);
+  color: var(--dc-muted);
+}
+[data-dc-theme="drawing"] .dc-icon-btn {
+  border-color: var(--dc-rule);
+  border-radius: 0;
+}
+.dc-icon-btn:hover {
+  color: var(--dc-text);
+}
+.dc-view-menu > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  white-space: nowrap;
+  color: var(--dc-text);
+  font-weight: 500;
 }
 .dc-brand {
   font-family: var(--dc-font-heading);
@@ -445,22 +485,96 @@
   pointer-events: none;
 }
 
-/* Plan sheet extras: legend and title block (shown on the plan). */
-.dc-legend-sheet,
-.dc-titleblock {
+/* Plan sheet extras: the legend and the title block, stacked in the title
+   block's corner (bottom right) — clear of the view cube (bottom left) and
+   the mode bar (bottom centre, below this corner). */
+.dc-plan-corner {
   position: absolute;
+  right: 18px;
   bottom: 76px;
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(340px, calc(100% - 36px));
   font-family: var(--dc-font-mono);
   font-size: 11px;
 }
-.dc-legend-sheet {
-  left: 18px;
-  padding: 8px 12px;
-}
 .dc-titleblock {
-  right: 18px;
   min-width: 260px;
+}
+.dc-legend-sheet {
+  width: 100%;
+  padding: 6px 10px 8px;
+  font-family: var(--dc-font-ui);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.dc-legend-sheet header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-family: var(--dc-font-heading);
+  font-weight: 600;
+  text-transform: var(--dc-heading-transform);
+}
+.dc-legend-sheet header button,
+.dc-legend-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dc-muted);
+}
+.dc-legend-sheet header button:hover,
+.dc-legend-button:hover {
+  color: var(--dc-text);
+}
+.dc-legend-button {
+  padding: 5px 10px;
+  font-family: var(--dc-font-ui);
+  font-size: 12px;
+  color: var(--dc-text);
+}
+.dc-legend-sheet ul {
+  display: grid;
+  gap: 6px;
+}
+.dc-legend-sheet li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+/* Each sample is drawn the way the plan draws the mark. */
+.dc-legend-sample {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 16px;
+}
+svg.dc-legend-sample line {
+  stroke: var(--dc-object-edge);
+  stroke-width: 1;
+  stroke-dasharray: 5 3;
+}
+.dc-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--dc-warn);
+}
+.dc-legend-zone {
+  width: 26px;
+  height: 12px;
+  border: 1px solid var(--dc-warn);
+  background: color-mix(in srgb, var(--dc-warn) 30%, var(--dc-viewport));
+}
+.dc-legend-zone[data-zone="split"] {
+  border-color: var(--dc-assumed);
+  background: color-mix(in srgb, var(--dc-assumed) 30%, var(--dc-viewport));
 }
 .dc-titleblock > div {
   display: flex;
@@ -519,6 +633,20 @@
   color: var(--dc-warn);
   background: color-mix(in srgb, var(--dc-viewport) 85%, transparent);
   border: 1px solid var(--dc-warn);
+}
+/* Model and tape disagree about a clearance: amber, two lines. */
+.dc-root .dc-label-caution {
+  color: var(--dc-text);
+  background: color-mix(in srgb, var(--dc-viewport) 85%, transparent);
+  border: 1px solid var(--dc-assumed);
+}
+/* Clearance labels wrap narrow: neighbouring racks' zones are about a rack
+   width apart on the plan, and both labels must show. */
+.dc-root .dc-label-warn,
+.dc-root .dc-label-caution {
+  width: max-content;
+  max-width: 136px;
+  white-space: pre-line;
 }
 .dc-root .dc-label-assumed {
   border: 1px dashed var(--dc-assumed);
@@ -1516,6 +1644,18 @@ a.dc-cat-section:hover {
   margin-right: 6px;
   vertical-align: middle;
   border-radius: 2px;
+}
+/* The openings' face labels on the model, in the legend's colours. */
+.dc-root .dc-label-air {
+  font-size: 10.5px;
+  border-width: 1px;
+  border-style: solid;
+}
+.dc-root .dc-label-air-supply {
+  border-color: #3d8bfd;
+}
+.dc-root .dc-label-air-return {
+  border-color: #ff5a4d;
 }
 .dc-viewer-legend i[data-air="supply"] {
   background: #3d8bfd;

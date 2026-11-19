@@ -26,6 +26,7 @@ import type {
   Op,
   RoomData,
 } from "../types";
+import { clearanceGap, localText } from "../types";
 import { assumedByObject, objectFields } from "../model/objects";
 import { LengthInput } from "./LengthInput";
 import { RackPanel, type Prefill } from "./RackPanel";
@@ -53,7 +54,7 @@ export function SelectionPanel(props: Props) {
   const { data, catalog, selection } = props;
   if (!selection) {
     const short = data.analysis.clearances.filter(
-      (c) => c.gap_mm < c.required_mm,
+      (c) => clearanceGap(c) < c.required_mm,
     );
     return (
       <div className="space-y-3 text-sm">
@@ -99,13 +100,34 @@ export function SelectionPanel(props: Props) {
 export function clearanceText(c: Clearance, fmt: Fmt, t: TFunction): string {
   return t(c.side === "front" ? "dc.clearance.front" : "dc.clearance.rear", {
     name: c.object,
-    gap: fmt.mm(c.gap_mm),
+    gap: fmt.mm(clearanceGap(c)),
+    basis: t(`dc.clearance.basis.${c.basis}`),
     need: fmt.mm(c.required_mm),
     what: c.obstacle
       ? t("dc.clearance.object", { name: c.obstacle })
       : t("dc.clearance.wall"),
   });
 }
+
+/**
+ * Model and tape on different sides of the requirement (FEEDBACK-5 §1):
+ * said in words, so the plan never shows an unexplained contradiction.
+ */
+export function clearanceSplitText(
+  c: { model: number; tape: number },
+  fmt: Fmt,
+  t: TFunction,
+): string {
+  return t("dc.clearance.split", {
+    model: fmt.len(c.model),
+    tape: fmt.mm(c.tape),
+  });
+}
+
+/** Model and tape fall on different sides of the requirement. */
+export const clearanceSplit = (c: Clearance) =>
+  c.measured_mm !== null &&
+  c.measured_mm >= c.required_mm !== c.model_mm >= c.required_mm;
 
 /** Shortfalls, each a button that selects the rack and draws its gap. */
 export function ClearanceList({
@@ -135,6 +157,15 @@ export function ClearanceList({
             >
               {clearanceText(c, fmt, t)}
             </button>
+            {clearanceSplit(c) && (
+              <div className="text-xs text-muted-foreground">
+                {clearanceSplitText(
+                  { model: c.model_mm, tape: c.measured_mm! },
+                  fmt,
+                  t,
+                )}
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -153,12 +184,12 @@ function ObjectSummary({
   onSelect,
   onClearance,
 }: Props & { obj: DcObject; item: CatalogItem }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fmt = useFmt();
   const [w, d, h] = objectDims(item, obj.instance);
   const assumed = assumedByObject(data).get(obj.name) ?? [];
   const clear = data.analysis.clearances.filter((c) => c.object_id === obj.id);
-  const fine = clear.filter((c) => c.gap_mm >= c.required_mm);
+  const fine = clear.filter((c) => clearanceGap(c) >= c.required_mm);
   const problems = problemsOf(obj.id);
   return (
     <div className="space-y-2">
@@ -189,12 +220,29 @@ function ObjectSummary({
       {fine.length > 0 && (
         <ul className="space-y-0.5">
           {fine.map((c) => (
-            <li key={c.side} className="text-muted-foreground">
+            <li
+              key={c.side}
+              className="text-muted-foreground"
+              data-testid={`clearance-${c.side}`}
+            >
               {t(
                 c.side === "front"
                   ? "dc.clearance.frontShort"
                   : "dc.clearance.rearShort",
-                { gap: fmt.mm(c.gap_mm), need: fmt.mm(c.required_mm) },
+                {
+                  gap: fmt.mm(clearanceGap(c)),
+                  basis: t(`dc.clearance.basis.${c.basis}`),
+                  need: fmt.mm(c.required_mm),
+                },
+              )}
+              {clearanceSplit(c) && (
+                <div className="text-xs">
+                  {clearanceSplitText(
+                    { model: c.model_mm, tape: c.measured_mm! },
+                    fmt,
+                    t,
+                  )}
+                </div>
               )}
             </li>
           ))}
@@ -210,9 +258,9 @@ function ObjectSummary({
           </ul>
         </div>
       )}
-      {obj.note && (
+      {localText(obj.note, i18n.language) && (
         <p className="text-xs whitespace-pre-wrap text-muted-foreground">
-          {obj.note}
+          {localText(obj.note, i18n.language)}
         </p>
       )}
       <Button
@@ -248,7 +296,7 @@ function ObjectEditor({
   item: CatalogItem;
   run: Props["run"];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [f, setF] = useState(() => objectFields(obj));
   const [busy, setBusy] = useState(false);
   useEffect(() => setF(objectFields(obj)), [obj]);
@@ -358,7 +406,7 @@ function ObjectEditor({
           id="o-note"
           rows={2}
           className="w-full rounded-md border bg-background p-1.5"
-          value={f.note}
+          value={localText(f.note, i18n.language)}
           onChange={(e) => setF({ ...f, note: e.target.value })}
         />
       </div>

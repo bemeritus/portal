@@ -47,6 +47,9 @@ export interface Opening {
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
+/** The usual condensate outlet of a comfort indoor unit, outer diameter. */
+export const CONDENSATE_OD_MM = 16;
+
 /**
  * The subtype's default openings (used when the catalog lists none) — wall
  * split: return over the top, supply from the lower front louvre angled
@@ -425,25 +428,29 @@ export function buildCooling(
               ),
             );
         }
+      // The condensate outlet at its real size: a short stub of the
+      // catalog's diameter (16 mm when none is given), not a pipe.
+      const od = props.condensate_outlet_mm ?? CONDENSATE_OD_MM;
       const drain = new THREE.Mesh(
-        new THREE.CylinderGeometry(14, 14, 70, 16),
+        new THREE.CylinderGeometry(od / 2, od / 2, 40, 12),
         ctx.lib.role("caster"),
       );
       drain.rotation.z = Math.PI / 2;
-      drain.position.set(w / 2 + 35, h * 0.22, d / 2 - 90);
+      drain.position.set(w / 2 + 20, Math.max(od, h * 0.15), d / 2 - 60);
       drain.userData.role = "caster";
       g.add(drain);
+      // The electrical box: a flat cover on the side, as on the photos.
       g.add(
         rbox(
           ctx,
-          "terminal",
-          90,
-          h * 0.45,
-          120,
-          -w / 2 - 45,
-          h * 0.2,
-          d / 2 - 140,
-          4,
+          body,
+          35,
+          h * 0.5,
+          Math.min(180, d * 0.35),
+          -w / 2 - 17,
+          h * 0.25,
+          d / 2 - Math.min(180, d * 0.35) / 2 - 30,
+          3,
         ),
       );
       break;

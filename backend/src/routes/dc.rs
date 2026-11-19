@@ -142,12 +142,14 @@ enum LengthUnit {
     M,
 }
 
-/// The caller's theme and length unit for this module.
+/// The caller's theme, length unit and plan legend state for this module.
 #[derive(Serialize)]
 struct Settings {
     /// `None` = follow the app's light/dark preference.
     dc_theme: Option<DcTheme>,
     dc_unit: LengthUnit,
+    /// The plan legend is folded to its button.
+    dc_legend_collapsed: bool,
 }
 
 #[derive(Deserialize)]
@@ -158,6 +160,8 @@ struct SettingsBody {
     dc_theme: Option<Option<DcTheme>>,
     #[serde(default)]
     dc_unit: Option<LengthUnit>,
+    #[serde(default)]
+    dc_legend_collapsed: Option<bool>,
 }
 
 /// Tell "field absent" from "field null" (`Option<Option<_>>`).
@@ -170,20 +174,23 @@ where
 }
 
 async fn load_settings(pool: &sqlx::PgPool, user: uuid::Uuid) -> ApiResult<Settings> {
-    let row: Option<(Option<String>, String)> =
-        sqlx::query_as("SELECT dc_theme, dc_unit FROM user_settings WHERE user_id = $1")
-            .bind(user)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| internal("reading the user's DC settings", e))?;
+    let row: Option<(Option<String>, String, bool)> = sqlx::query_as(
+        "SELECT dc_theme, dc_unit, dc_legend_collapsed FROM user_settings WHERE user_id = $1",
+    )
+    .bind(user)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| internal("reading the user's DC settings", e))?;
     Ok(match row {
-        Some((theme, unit)) => Settings {
+        Some((theme, unit, legend)) => Settings {
             dc_theme: theme.as_deref().and_then(parse_enum),
             dc_unit: parse_enum(&unit).unwrap_or(LengthUnit::Cm),
+            dc_legend_collapsed: legend,
         },
         None => Settings {
             dc_theme: None,
             dc_unit: LengthUnit::Cm,
+            dc_legend_collapsed: false,
         },
     })
 }
@@ -207,19 +214,26 @@ async fn set_settings(
         None => current.dc_theme,
     };
     let unit = body.dc_unit.unwrap_or(current.dc_unit);
+    let legend = body
+        .dc_legend_collapsed
+        .unwrap_or(current.dc_legend_collapsed);
     sqlx::query(
-        "INSERT INTO user_settings (user_id, dc_theme, dc_unit) VALUES ($1, $2, $3)
-         ON CONFLICT (user_id) DO UPDATE SET dc_theme = EXCLUDED.dc_theme, dc_unit = EXCLUDED.dc_unit",
+        "INSERT INTO user_settings (user_id, dc_theme, dc_unit, dc_legend_collapsed)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE SET dc_theme = EXCLUDED.dc_theme,
+             dc_unit = EXCLUDED.dc_unit, dc_legend_collapsed = EXCLUDED.dc_legend_collapsed",
     )
     .bind(user.id)
     .bind(theme.map(|t| enum_str(&t)))
     .bind(enum_str(&unit))
+    .bind(legend)
     .execute(&state.pool)
     .await
     .map_err(|e| internal("saving the user's DC settings", e))?;
     Ok(Json(Settings {
         dc_theme: theme,
         dc_unit: unit,
+        dc_legend_collapsed: legend,
     }))
 }
 
@@ -675,7 +689,7 @@ async fn search(
             UNION ALL
             SELECT 'object', o.id, o.id, o.name, o.name, '', '', NULL, NULL, NULL, NULL
               FROM dc_objects o
-             WHERE o.room_id = $1 AND (o.name ILIKE $2 OR o.note ILIKE $2)
+             WHERE o.room_id = $1 AND (o.name ILIKE $2 OR o.note::text ILIKE $2)
          ) hits
          ORDER BY kind DESC, object_name, name
          LIMIT 50",

@@ -8,7 +8,7 @@
 import * as THREE from "three";
 
 export type LabelKind =
-  "name" | "dim" | "warn" | "assumed" | "note" | "measure";
+  "name" | "dim" | "warn" | "caution" | "assumed" | "note" | "measure" | "air";
 
 export interface LabelOptions {
   priority?: number;

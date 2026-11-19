@@ -303,6 +303,37 @@ sudo systemctl start portal
 
 `backend/migrations/` dagi yangi migratsiyalar ishga tushishda avtomatik qo'llanadi.
 
+### Tuzatish: ish jurnali 23-migratsiya sifatida qo'llangan
+
+Bir muddat `main` da 0023 raqamli ikkita migratsiya bor edi:
+`0023_dc_catalog_finish` va `0023_worklog`. Endi ish jurnali —
+`0024_worklog.sql`, mazmuni o'zgarmagan. Ish jurnalini 23-versiya sifatida
+qo'llagan baza ishga tushmaydi va quyidagini yozadi:
+
+```
+could not apply the migrations in ./migrations: migration 23 was previously applied but has been modified
+```
+
+Baza 23-versiya sifatida qaysi migratsiyani qo'llaganini tekshiring:
+
+```sh
+sudo -u postgres psql portal -c "SELECT version, description FROM _sqlx_migrations WHERE version >= 22 ORDER BY version"
+```
+
+Agar 23-versiya `worklog` bo'lsa, xizmat to'xtatilgan holda shu qatorning
+raqamini bir marta o'zgartiring, so'ng xizmatni ishga tushiring:
+
+```sql
+UPDATE _sqlx_migrations SET version = 24 WHERE version = 23 AND description = 'worklog';
+```
+
+Keyingi ishga tushishda sqlx `0023_dc_catalog_finish` ni qo'llaydi. U
+yetishmayotgan har bir migratsiyani qo'llaydi, hatto raqami eng oxirgi
+qo'llangan migratsiyadan kichik bo'lsa ham. Nazorat summasi faqat SQL matnini
+qamraydi, u esa o'zgarmagan, shuning uchun raqami o'zgartirilgan qator
+tekshiruvdan o'tadi. 23-versiya `dc catalog finish` bo'lsa yoki baza 22 da
+to'xtagan bo'lsa, hech narsa qilish shart emas.
+
 > **Sessiyalar qayta ishga tushirishdan omon qoladi.** Ular Postgres'da
 > saqlanadi, shuning uchun qayta joylashtirish endi hammani tizimdan chiqarmaydi
 > va bir nechta nusxa sessiyalarni bo'lishishi mumkin — [B ilovasi](#b-ilovasi--sessiyalar).

@@ -179,6 +179,7 @@ export function applyTokens(el: HTMLElement, t: DcTokens) {
     good: t.good,
     assumed: t.assumed,
     dim: t.dim,
+    "object-edge": t.objectEdge,
     radius: `${t.radius}px`,
     shadow: t.shadow,
     "font-ui": t.fontUi,

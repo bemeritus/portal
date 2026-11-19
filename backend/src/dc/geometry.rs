@@ -12,8 +12,8 @@
 use serde::Serialize;
 
 use super::model::{
-    CatalogItem, CatalogProps, DcObject, Hinge, Instance, Kind, RoomSettings, ShelfProps,
-    StructureSubtype,
+    CatalogItem, CatalogProps, DcObject, Hinge, Instance, Kind, Measurement, RoomSettings,
+    ShelfProps, StructureSubtype,
 };
 
 /// Rack unit height, 1.75 in.
@@ -437,6 +437,16 @@ pub enum Side {
     Rear,
 }
 
+/// What a clearance check was decided on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Basis {
+    /// A tape reading of this very gap.
+    Measured,
+    /// The model's distance; nobody measured this gap directly.
+    Model,
+}
+
 /// One service-clearance check for a rack (§4.4). A shortfall is a warning,
 /// never a refusal.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -444,24 +454,65 @@ pub struct Clearance {
     pub object_id: i64,
     pub object: String,
     pub side: Side,
-    pub gap_mm: i32,
+    pub basis: Basis,
+    /// The tape reading of the same gap; for two readings, the lower one.
+    pub measured_mm: Option<i32>,
+    /// The gap in the model.
+    pub model_mm: i32,
     pub required_mm: i32,
     /// What the gap ends at; `None` = a wall.
     pub obstacle: Option<String>,
 }
 
 impl Clearance {
-    pub fn ok(&self) -> bool {
-        self.gap_mm >= self.required_mm
+    /// The gap the check is decided on: the tape when there is one.
+    pub fn gap_mm(&self) -> i32 {
+        self.measured_mm.unwrap_or(self.model_mm)
     }
+
+    pub fn ok(&self) -> bool {
+        self.gap_mm() >= self.required_mm
+    }
+}
+
+/// How far a measurement's ends may sit from the gap's ends and still be
+/// read as the same gap (the model is placed in whole millimetres).
+const SAME_GAP_MM: i32 = 2;
+
+/// The tape reading of a rack's gap: a measurement drawn along the same line —
+/// from the rack's face, in the gap's direction, within the rack's width, to
+/// where the gap ends. For two readings, the lower one.
+fn measured_gap(rect: &Rect, dir: Dir, g: Gap, measurements: &[Measurement]) -> Option<i32> {
+    let (face, end, across) = match dir {
+        Dir::Left => (rect.x0, rect.x0 - g.mm, (rect.z0, rect.z1)),
+        Dir::Right => (rect.x1, rect.x1 + g.mm, (rect.z0, rect.z1)),
+        Dir::Up => (rect.z0, rect.z0 - g.mm, (rect.x0, rect.x1)),
+        Dir::Down => (rect.z1, rect.z1 + g.mm, (rect.x0, rect.x1)),
+    };
+    let along_x = matches!(dir, Dir::Left | Dir::Right);
+    measurements.iter().find_map(|m| {
+        let [p, q] = m.line?;
+        let (pa, qa, pc, qc) = if along_x {
+            (p[0], q[0], p[2], q[2])
+        } else {
+            (p[2], q[2], p[0], q[0])
+        };
+        let near = |a: i32, b: i32| (a - b).abs() <= SAME_GAP_MM;
+        let ends = (near(pa, face) && near(qa, end)) || (near(qa, face) && near(pa, end));
+        let inside = pc == qc && across.0 < pc && pc < across.1;
+        (ends && inside).then(|| m.min.unwrap_or(m.value))
+    })
 }
 
 /// Front and rear clearance of every rack. Obstacles are the other things that
 /// stand on the floor; wall- and ceiling-mounted ones leave the floor free.
+/// A tape reading of the same gap decides over the model (FEEDBACK-5 §1): the
+/// model is assembled from other readings, the tape read this one.
 pub fn clearances(
     solids: &[Solid],
     polygon: &[[i32; 2]],
     settings: &RoomSettings,
+    measurements: &[Measurement],
 ) -> Vec<Clearance> {
     let mut out = Vec::new();
     for (i, s) in solids.iter().enumerate() {
@@ -481,11 +532,18 @@ pub fn clearances(
             (Side::Rear, front.opposite(), settings.clearance_rear_mm),
         ] {
             let g = gap(&s.rect, dir, &rects, polygon);
+            let measured = measured_gap(&s.rect, dir, g, measurements);
             out.push(Clearance {
                 object_id: s.id,
                 object: s.name.clone(),
                 side,
-                gap_mm: g.mm,
+                basis: if measured.is_some() {
+                    Basis::Measured
+                } else {
+                    Basis::Model
+                },
+                measured_mm: measured,
+                model_mm: g.mm,
                 required_mm: required,
                 obstacle: g.obstacle.map(|k| solids[others[k].0].name.clone()),
             });
@@ -606,6 +664,7 @@ pub fn blocked_cells(shelf: &Solid, p: &ShelfProps, overhead: &[&Solid]) -> Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dc::model::MeasSrc;
 
     const ROOM: [[i32; 2]; 4] = [[0, 0], [5545, 0], [5545, 3845], [0, 3845]];
 
@@ -775,16 +834,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_seeded_room_gives_rear_warnings_for_racks_one_and_two() {
-        // SPEC §4.4: with 1000/600 defaults, racks 1 and 2 are short at the
-        // rear (595 and 585 mm by the model of room.json v2) — a true finding.
-        let racks = [
-            rack("r1", 530, 2250),
-            rack("r2", 1595, 2260),
-            rack("r3", 2635, 2220),
-            rack("r4", 3435, 2215),
-        ];
+    fn seeded_racks() -> Vec<Solid> {
         let tray = s(
             "tray",
             Kind::CableTray,
@@ -792,22 +842,55 @@ mod tests {
             1990,
             2050,
         );
-        let mut solids = vec![shelf(), tray];
-        solids.extend(racks);
-        let c = clearances(&solids, &ROOM, &RoomSettings::default());
+        vec![
+            shelf(),
+            tray,
+            rack("r1", 530, 2250),
+            rack("r2", 1595, 2260),
+            rack("r3", 2635, 2220),
+            rack("r4", 3435, 2215),
+        ]
+    }
+
+    /// A tape reading drawn from a rack's back (rack at `x0`, front at
+    /// `front_z`) to the rear wall, as the seed draws it.
+    fn back_tape(x0: i32, front_z: i32, value: i32, range: Option<(i32, i32)>) -> Measurement {
+        let back = front_z + 1000;
+        Measurement {
+            key: "racks.back".into(),
+            value,
+            min: range.map(|r| r.0),
+            max: range.map(|r| r.1),
+            src: MeasSrc::Measured,
+            model: Some(3845 - back),
+            line: Some([[x0 + 300, 0, back], [x0 + 300, 0, 3845]]),
+            note: None,
+            objects: vec![],
+        }
+    }
+
+    #[test]
+    fn without_a_tape_reading_the_model_decides() {
+        // SPEC §4.4: with 1000/600 defaults, racks 1 and 2 are short at the
+        // rear by the model of room.json v2 (595 and 585 mm).
+        let c = clearances(&seeded_racks(), &ROOM, &RoomSettings::default(), &[]);
         let short: Vec<_> = c
             .iter()
             .filter(|c| !c.ok())
-            .map(|c| (c.object.as_str(), c.side, c.gap_mm))
+            .map(|c| (c.object.as_str(), c.side, c.basis, c.gap_mm()))
             .collect();
         assert_eq!(
             short,
-            vec![("r1", Side::Rear, 595), ("r2", Side::Rear, 585)]
+            vec![
+                ("r1", Side::Rear, Basis::Model, 595),
+                ("r2", Side::Rear, Basis::Model, 585)
+            ]
         );
+        assert!(c.iter().all(|c| c.measured_mm.is_none()));
         let front: Vec<_> = c
             .iter()
             .filter(|c| c.side == Side::Front)
-            .map(|c| c.gap_mm)
+            .map(|c| c.model_mm)
             .collect();
         assert_eq!(front, vec![1340, 1350, 1310, 1305]);
         assert!(
@@ -815,6 +898,90 @@ mod tests {
                 .filter(|c| c.side == Side::Front)
                 .all(|c| c.obstacle.as_deref() == Some("shelf"))
         );
+    }
+
+    #[test]
+    fn a_tape_reading_of_the_same_gap_decides() {
+        // FEEDBACK-5 §1: r1 is 595 by the model but 610 by the tape — it
+        // passes; r2 is 585 by the model and 555 by the tape — it fails.
+        let tapes = [
+            back_tape(530, 2250, 610, None),
+            back_tape(1595, 2260, 555, None),
+        ];
+        let c = clearances(&seeded_racks(), &ROOM, &RoomSettings::default(), &tapes);
+        let rear = |name: &str| {
+            c.iter()
+                .find(|c| c.object == name && c.side == Side::Rear)
+                .unwrap()
+        };
+        let r1 = rear("r1");
+        assert_eq!(
+            (r1.basis, r1.measured_mm, r1.model_mm, r1.ok()),
+            (Basis::Measured, Some(610), 595, true)
+        );
+        let r2 = rear("r2");
+        assert_eq!(
+            (r2.basis, r2.measured_mm, r2.model_mm, r2.ok()),
+            (Basis::Measured, Some(555), 585, false)
+        );
+        // Nobody measured r3's back: the model decides there.
+        let r3 = rear("r3");
+        assert_eq!((r3.basis, r3.measured_mm), (Basis::Model, None));
+        // A reading of the rack's back does not stand for its front.
+        assert!(
+            c.iter()
+                .filter(|c| c.side == Side::Front)
+                .all(|c| c.basis == Basis::Model)
+        );
+        let short: Vec<_> = c
+            .iter()
+            .filter(|c| !c.ok())
+            .map(|c| c.object.as_str())
+            .collect();
+        assert_eq!(short, vec!["r2"]);
+    }
+
+    #[test]
+    fn a_tape_line_elsewhere_is_not_this_gap() {
+        // Same length, but beside the rack: not a reading of its gap.
+        let mut beside = back_tape(530, 2250, 610, None);
+        beside.line = Some([[1200, 0, 3250], [1200, 0, 3845]]);
+        // Along the rack, but to a different end (the rack has moved since).
+        let mut moved = back_tape(530, 2250, 610, None);
+        moved.line = Some([[830, 0, 3200], [830, 0, 3845]]);
+        // No line at all.
+        let mut undrawn = back_tape(530, 2250, 610, None);
+        undrawn.line = None;
+        for m in [beside, moved, undrawn] {
+            let c = clearances(&seeded_racks(), &ROOM, &RoomSettings::default(), &[m]);
+            let r1 = c
+                .iter()
+                .find(|c| c.object == "r1" && c.side == Side::Rear)
+                .unwrap();
+            assert_eq!((r1.basis, r1.gap_mm()), (Basis::Model, 595));
+        }
+    }
+
+    #[test]
+    fn a_range_that_straddles_the_requirement_uses_its_lower_end() {
+        // Two readings, 590 and 615: the lower one decides, so it fails —
+        // even though the midpoint (603) and the model would pass.
+        // 600 mm behind, the default.
+        let settings = RoomSettings::default();
+        let solids = vec![rack("r", 530, 2240), shelf()];
+        let tape = back_tape(530, 2240, 603, Some((590, 615)));
+        let c = clearances(&solids, &ROOM, &settings, &[tape]);
+        let rear = c.iter().find(|c| c.side == Side::Rear).unwrap();
+        assert_eq!(rear.model_mm, 605);
+        assert_eq!(
+            (rear.basis, rear.measured_mm, rear.ok()),
+            (Basis::Measured, Some(590), false)
+        );
+        // A range wholly above the requirement passes.
+        let tape = back_tape(530, 2240, 610, Some((605, 615)));
+        let c = clearances(&solids, &ROOM, &settings, &[tape]);
+        let rear = c.iter().find(|c| c.side == Side::Rear).unwrap();
+        assert_eq!((rear.measured_mm, rear.ok()), (Some(605), true));
     }
 
     #[test]

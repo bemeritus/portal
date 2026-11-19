@@ -1,7 +1,8 @@
 /**
- * The user's settings for this module — theme and length unit — saved on the
- * server (`/api/dc/settings`, table `user_settings`) and applied without a
- * reload. Everything that shows a length formats it through `useFmt()`.
+ * The user's settings for this module — theme, length unit, the plan
+ * legend's state — saved on the server (`/api/dc/settings`, table
+ * `user_settings`) and applied without a reload. Everything that shows a
+ * length formats it through `useFmt()`.
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
@@ -17,6 +18,8 @@ export interface DcSettings {
   /** `null` = follow the app's light/dark preference. */
   dc_theme: DcThemeName | null;
   dc_unit: LengthUnit;
+  /** The plan legend is folded to its button. */
+  dc_legend_collapsed: boolean;
 }
 
 interface Ctx {
@@ -28,9 +31,14 @@ interface Ctx {
   unit: LengthUnit;
   setUnit: (u: LengthUnit) => void;
   setTheme: (t: DcThemeName) => void;
+  setLegendCollapsed: (on: boolean) => void;
 }
 
-const DEFAULTS: DcSettings = { dc_theme: null, dc_unit: "cm" };
+const DEFAULTS: DcSettings = {
+  dc_theme: null,
+  dc_unit: "cm",
+  dc_legend_collapsed: false,
+};
 const SettingsContext = createContext<Ctx | null>(null);
 
 /** The app's own light/dark choice, from `<html data-theme>`. */
@@ -67,6 +75,8 @@ export function DcSettingsProvider({ children }: { children: ReactNode }) {
       unit: settings.dc_unit,
       setUnit: (dc_unit) => save.mutate({ dc_unit }),
       setTheme: (dc_theme) => save.mutate({ dc_theme }),
+      setLegendCollapsed: (dc_legend_collapsed) =>
+        save.mutate({ dc_legend_collapsed }),
     }),
     // `save.mutate` is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps

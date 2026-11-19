@@ -146,7 +146,7 @@ mod tests {
             rotation_deg: 0,
             instance: json!({}),
             contents_known: false,
-            note: String::new(),
+            note: Default::default(),
         }
     }
 

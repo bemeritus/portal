@@ -19,11 +19,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgConnection;
+use sqlx::types::Json;
 
 use super::geometry::{self, Clearance, Problem, Solid};
 use super::model::{
     AnnotationPayload, CatalogItem, CatalogProps, DcObject, DeviceFields, Instance, Kind, Room,
-    ShelfCell, Snapshot, enum_str,
+    ShelfCell, Snapshot, Text, enum_str,
 };
 use super::store;
 use crate::audit::{Audit, audit_tx};
@@ -50,7 +51,7 @@ pub struct ObjectFields {
     #[serde(default)]
     pub contents_known: bool,
     #[serde(default)]
-    pub note: String,
+    pub note: Text,
 }
 
 fn empty_object() -> Value {
@@ -163,7 +164,12 @@ pub fn analyse(
             });
         }
     }
-    a.clearances = geometry::clearances(&solids, &room.floor_plan, &room.settings);
+    a.clearances = geometry::clearances(
+        &solids,
+        &room.floor_plan,
+        &room.settings,
+        &room.measurements.entries,
+    );
     let cooling: Vec<&Solid> = solids.iter().filter(|s| s.kind == Kind::Cooling).collect();
     for (o, solid) in s.objects.iter().zip(&solids) {
         if let Some(CatalogProps::Shelf(p)) = items.get(&o.catalog_id).map(|i| &i.props) {
@@ -390,7 +396,7 @@ pub async fn apply(
                 .bind(object.rotation_deg as i16)
                 .bind(&instance)
                 .bind(object.contents_known)
-                .bind(&object.note)
+                .bind(Json(&object.note))
                 .execute(&mut **conn)
                 .await
                 .map_err(|e| db_refusal("updating an object", e))?;

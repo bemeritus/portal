@@ -9,12 +9,13 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 use sqlx::PgConnection;
+use sqlx::types::Json;
 use uuid::Uuid;
 
 use super::model::{
     Annotation, AnnotationPayload, CatalogItem, CatalogProps, CatalogUse, DcObject, Device,
     DeviceFields, PropSource, Room, RoomMeasurements, RoomSettings, RoomSummary, RoomView,
-    ShelfCell, Snapshot, enum_str, parse_enum,
+    ShelfCell, Snapshot, Text, enum_str, parse_enum,
 };
 use crate::error::{ApiError, ApiResult, internal};
 
@@ -214,7 +215,18 @@ type AnnotationRow = (
     Option<String>,
     chrono::DateTime<chrono::Utc>,
 );
-type ObjectRow = (i64, i64, String, i32, i32, i32, i16, Value, bool, String);
+type ObjectRow = (
+    i64,
+    i64,
+    String,
+    i32,
+    i32,
+    i32,
+    i16,
+    Value,
+    bool,
+    Json<Text>,
+);
 type DeviceRow = (
     i64,
     i64,
@@ -317,7 +329,7 @@ pub async fn snapshot(conn: &mut PgConnection, room_id: i64) -> ApiResult<Snapsh
                 rotation_deg: r.6 as i32,
                 instance: r.7,
                 contents_known: r.8,
-                note: r.9,
+                note: r.9.0,
             })
             .collect(),
         devices: devices
@@ -389,7 +401,7 @@ pub async fn insert_object(
     .bind(o.rotation_deg as i16)
     .bind(&o.instance)
     .bind(o.contents_known)
-    .bind(&o.note)
+    .bind(Json(&o.note))
     .fetch_one(&mut *conn)
     .await
 }

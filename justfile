@@ -123,17 +123,14 @@ fmt-check:
 # cluster running (`just db-start`), for check-migrations.
 ci: fmt-check lint check-web test check-migrations
 
-# No two migrations share a version (a unit test), and the whole set applies
-# to a fresh database through the API's own migrator, as a start would. The
-# scratch database is created and dropped again; DATABASE_URL is not touched.
+# The whole set of migrations applies to a fresh database through the API's
+# own migrator, as a start would. The scratch database is created and dropped
+# again; DATABASE_URL is not touched. Two migrations with one version are
+# caught by `db::tests::migration_versions_are_unique` (in `just test`), which
+# reads the set as sqlx embeds it.
 check-migrations:
     #!/usr/bin/env bash
     set -euo pipefail
-    dupes=$(ls backend/migrations/*.sql | xargs -n1 basename | cut -d_ -f1 | sort | uniq -d)
-    if [ -n "$dupes" ]; then
-        echo "migration versions used more than once: $dupes" >&2
-        exit 1
-    fi
     db=portal_migrate_check_$$
     url="postgres://{{pguser}}@127.0.0.1:{{pgport}}/$db"
     createdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} "$db"

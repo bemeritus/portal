@@ -3,7 +3,8 @@
  * `dc-handoff/design/`): a full-screen page with its top bar — brand and room,
  * the sections (3D, plan, racks, catalog), search (⌘K), the length unit
  * (mm / cm / m) and the three themes — themed by tokens on the root
- * element. Every `/dc` route renders inside it.
+ * element. Every `/dc` route renders inside it. The sections sit on the
+ * window's centre; when the sides do not fit, the bar folds (`useFold`).
  *
  * The command palette lives here; a room page registers what it can offer
  * (objects, actions) through `useShell().setRoomPalette`.
@@ -14,14 +15,17 @@ import {
   Suspense,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Link, Outlet, useLocation, useMatch } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Eye, Search } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -40,9 +44,15 @@ import { useToolAccess } from "../../auth/useToolAccess";
 import { Spinner } from "../../components/Loading";
 import { LANGUAGES } from "../../i18n";
 import { dcApi } from "../api";
-import { UNITS } from "../model/units";
+import { UNITS, type LengthUnit } from "../model/units";
 import { DcSettingsProvider, useDcSettings } from "../settings";
-import { applyTokens, clearTokens, THEMES, TOKENS } from "../theme/tokens";
+import {
+  applyTokens,
+  clearTokens,
+  THEMES,
+  TOKENS,
+  type DcThemeName,
+} from "../theme/tokens";
 import "../theme/fonts";
 import "../theme/dc.css";
 import { CommandPalette, type RoomPalette } from "./CommandPalette";
@@ -61,6 +71,55 @@ export function useShell(): Shell {
   const c = useContext(ShellContext);
   if (!c) throw new Error("useShell outside <DcShell>");
   return c;
+}
+
+/** Text that does not fit its box (sub-pixel slack allowed). */
+const isCut = (e: Element) => e.scrollWidth > e.clientWidth + 1;
+
+/**
+ * A side of the bar whose pieces stick out of it — to either side: the right
+ * side is end-aligned, so it overflows to the left, which `scrollWidth`
+ * does not see.
+ */
+function overflows(side: Element): boolean {
+  const box = side.getBoundingClientRect();
+  return [...side.children].some((c) => {
+    const r = c.getBoundingClientRect();
+    return r.left < box.left - 1 || r.right > box.right + 1;
+  });
+}
+
+/**
+ * How far the top bar folds to fit (FEEDBACK-5 §3). The sections are
+ * centred on the window, so each side gets half of what they leave; as that
+ * shrinks: 1 — the search becomes an icon that opens ⌘K; 2 — the unit and
+ * theme switches move into one «Вид» menu; 3 — the brand keeps only its
+ * name. Measured before paint, not guessed by breakpoints: the words'
+ * widths differ by language and theme.
+ */
+function useFold(bar: RefObject<HTMLElement | null>, deps: unknown[]): number {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bar]);
+  // Any change starts unfolded and folds step by step until nothing is cut.
+  const sig = JSON.stringify([width, ...deps]);
+  const [state, setState] = useState({ sig, fold: 0 });
+  const fold = state.sig === sig ? state.fold : 0;
+  useLayoutEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const cut =
+      [...el.children].some((c) => isCut(c) || overflows(c)) ||
+      [...el.querySelectorAll(".dc-sub, .dc-search > span")].some(isCut);
+    if (cut && fold < 3) setState({ sig, fold: fold + 1 });
+    else if (state.sig !== sig) setState({ sig, fold });
+  }, [bar, fold, sig, state.sig]);
+  return fold;
 }
 
 /** The `/dc` route element: access check, settings, chrome. */
@@ -90,7 +149,7 @@ export function DcShellRoute() {
 }
 
 function DcShell({ children }: { children: ReactNode }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const settings = useDcSettings();
   const tokens = TOKENS[settings.theme];
   const [palette, setPalette] = useState<{ open: boolean; query: string }>({
@@ -109,6 +168,15 @@ function DcShell({ children }: { children: ReactNode }) {
     queryFn: ({ signal }) => dcApi.rooms(signal),
   });
   const roomName = rooms.data?.find((r) => r.id === roomId)?.name;
+  // Fonts arriving (each theme has its own) change every width in the bar.
+  const [fontsLoaded, setFontsLoaded] = useState(0);
+  useEffect(() => {
+    const f = document.fonts;
+    if (!f) return;
+    const done = () => setFontsLoaded((n) => n + 1);
+    f.addEventListener("loadingdone", done);
+    return () => f.removeEventListener("loadingdone", done);
+  }, []);
 
   // On the document, so that dialogs and menus (portalled to <body>) are
   // themed too; the host's own variables are mapped in dc.css.
@@ -158,11 +226,26 @@ function DcShell({ children }: { children: ReactNode }) {
             ? "3d"
             : null;
   const target = roomId ?? rooms.data?.[0]?.id ?? null;
+  const bar = useRef<HTMLElement>(null);
+  // A new page starts at its top: the scroller is shared by every page, so
+  // without this an item opened from a scrolled list showed its title cut
+  // under the bar (FEEDBACK-5 §5). Filters change the query, not the path.
+  const scroller = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    scroller.current?.scrollTo(0, 0);
+  }, [location.pathname]);
+  const fold = useFold(bar, [
+    i18n.language,
+    settings.theme,
+    roomName,
+    target,
+    fontsLoaded,
+  ]);
 
   return (
     <ShellContext.Provider value={shell}>
       <div className="dc-root" data-dc-framed={tokens.framed} data-own-keys>
-        <header className="dc-top">
+        <header ref={bar} className="dc-top" data-fold={fold}>
           <div className="dc-top-left">
             <Link
               to="/"
@@ -175,7 +258,7 @@ function DcShell({ children }: { children: ReactNode }) {
             <Link to="/dc" className="dc-brand">
               {t("dc.shell.brand")}
             </Link>
-            {roomName && roomName !== t("dc.shell.brand") && (
+            {fold < 3 && roomName && roomName !== t("dc.shell.brand") && (
               <span className="dc-sub">{roomName}</span>
             )}
           </div>
@@ -211,49 +294,67 @@ function DcShell({ children }: { children: ReactNode }) {
             </Link>
           </nav>
           <div className="dc-top-right">
-            <button
-              type="button"
-              className="dc-search"
-              onClick={() => shell.openPalette()}
-            >
-              <Search className="size-4" />
-              <span className="truncate">{t("dc.shell.search")}</span>
-              <kbd>⌘K</kbd>
-            </button>
-            <div
-              className="dc-seg"
-              role="radiogroup"
-              aria-label={t("dc.shell.unit")}
-            >
-              {UNITS.map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  role="radio"
-                  aria-checked={settings.unit === u}
-                  onClick={() => settings.setUnit(u)}
+            {fold < 1 ? (
+              <button
+                type="button"
+                className="dc-search"
+                onClick={() => shell.openPalette()}
+              >
+                <Search className="size-4" />
+                <span className="truncate">{t("dc.shell.search")}</span>
+                <kbd>⌘K</kbd>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="dc-icon-btn"
+                title={`${t("dc.shell.search")} (⌘K)`}
+                aria-label={t("dc.shell.search")}
+                onClick={() => shell.openPalette()}
+              >
+                <Search className="size-4" />
+              </button>
+            )}
+            {fold < 2 ? (
+              <>
+                <div
+                  className="dc-seg"
+                  role="radiogroup"
+                  aria-label={t("dc.shell.unit")}
                 >
-                  {t(`dc.unitWord.${u}`)}
-                </button>
-              ))}
-            </div>
-            <div
-              className="dc-seg"
-              role="radiogroup"
-              aria-label={t("dc.shell.theme")}
-            >
-              {THEMES.map((th) => (
-                <button
-                  key={th}
-                  type="button"
-                  role="radio"
-                  aria-checked={settings.theme === th}
-                  onClick={() => settings.setTheme(th)}
+                  {UNITS.map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      role="radio"
+                      aria-checked={settings.unit === u}
+                      onClick={() => settings.setUnit(u)}
+                    >
+                      {t(`dc.unitWord.${u}`)}
+                    </button>
+                  ))}
+                </div>
+                <div
+                  className="dc-seg"
+                  role="radiogroup"
+                  aria-label={t("dc.shell.theme")}
                 >
-                  {t(`dc.theme.${th}`)}
-                </button>
-              ))}
-            </div>
+                  {THEMES.map((th) => (
+                    <button
+                      key={th}
+                      type="button"
+                      role="radio"
+                      aria-checked={settings.theme === th}
+                      onClick={() => settings.setTheme(th)}
+                    >
+                      {t(`dc.theme.${th}`)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <ViewMenu />
+            )}
             <UserButton />
           </div>
         </header>
@@ -263,7 +364,7 @@ function DcShell({ children }: { children: ReactNode }) {
         {roomPage ? (
           children
         ) : (
-          <main className="dc-scroll">
+          <main ref={scroller} className="dc-scroll">
             <div className={tab === "catalog" ? "dc-page-wide" : "dc-page"}>
               {children}
             </div>
@@ -277,6 +378,48 @@ function DcShell({ children }: { children: ReactNode }) {
         />
       </div>
     </ShellContext.Provider>
+  );
+}
+
+/** The unit and theme switches folded into one menu. */
+function ViewMenu() {
+  const { t } = useTranslation();
+  const settings = useDcSettings();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="dc-seg dc-view-menu">
+          <span>
+            <Eye className="size-4" /> {t("dc.shell.viewMenu")}
+          </span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>{t("dc.shell.unit")}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={settings.unit}
+          onValueChange={(u) => settings.setUnit(u as LengthUnit)}
+        >
+          {UNITS.map((u) => (
+            <DropdownMenuRadioItem key={u} value={u}>
+              {t(`dc.unitWord.${u}`)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>{t("dc.shell.theme")}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={settings.theme}
+          onValueChange={(th) => settings.setTheme(th as DcThemeName)}
+        >
+          {THEMES.map((th) => (
+            <DropdownMenuRadioItem key={th} value={th}>
+              {t(`dc.theme.${th}`)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

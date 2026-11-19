@@ -216,7 +216,7 @@ pub struct CoolingProps {
     /// The part that lowers air temperature; `None` when the datasheet does
     /// not publish it (§12.2).
     pub cooling_sensible_w: Option<i32>,
-    pub rating_conditions: Option<String>,
+    pub rating_conditions: Option<Text>,
     pub cooling_range_w: Option<[i32; 2]>,
     /// Fan steps, highest first.
     pub airflow_m3h: Vec<i32>,
@@ -237,6 +237,9 @@ pub struct CoolingProps {
     pub source_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish: Option<Finish>,
+    /// Outer diameter of the condensate outlet; `None` = the usual 16 mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condensate_outlet_mm: Option<i32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -396,7 +399,31 @@ pub struct PropSource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
+    pub note: Option<Text>,
+}
+
+/// A note shown to people: as typed (one language), or written by the seed in
+/// each UI language (FEEDBACK-5 §5). The UI shows the user's language and
+/// falls back to English.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Text {
+    Plain(String),
+    Local(LocalText),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalText {
+    pub en: String,
+    pub ru: String,
+    pub uz: String,
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Text::Plain(String::new())
+    }
 }
 
 /// One object that uses a catalog item, with its room.
@@ -694,7 +721,7 @@ pub struct Measurement {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<[[i32; 3]; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
+    pub note: Option<Text>,
     /// Names of the objects this number positions or sizes — what the 3D
     /// view marks when the number is assumed.
     #[serde(default)]
@@ -724,11 +751,11 @@ impl Measurement {
 pub struct RoomMeasurements {
     pub entries: Vec<Measurement>,
     /// What to re-measure, as written by whoever measured.
-    pub remeasure: Vec<String>,
+    pub remeasure: Vec<Text>,
     /// What the model does not contain or only guesses.
-    pub not_modelled: Vec<String>,
+    pub not_modelled: Vec<Text>,
     /// Conflicts between readings, as written.
-    pub conflicts: Vec<String>,
+    pub conflicts: Vec<Text>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -768,7 +795,8 @@ pub struct DcObject {
     /// Typed by the catalog item's kind ([`Instance`]); sent as stored.
     pub instance: Value,
     pub contents_known: bool,
-    pub note: String,
+    /// As typed, or the seed's note in every UI language.
+    pub note: Text,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

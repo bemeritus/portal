@@ -232,27 +232,97 @@ function seeded(seed: number): () => number {
   };
 }
 
-/** Galvanised sheet steel: a light ground with a spangle of zinc crystals. */
-function galvanised(): HTMLCanvasElement {
-  const n = 256;
+/**
+ * Galvanised sheet steel (FEEDBACK-5 §5): a spangle of zinc crystals 5–20 mm
+ * across, on a tile of `GALV_TILE_MM` mapped in millimetres on the object
+ * (`mmUv`), so the pattern has its real size on every face. The crystals
+ * differ mostly in how they reflect (`galvanisedRoughness`), hardly in
+ * colour — at a metre it reads as an even grey sheen, not marble.
+ */
+const GALV_TILE_MM = 160;
+const GALV_PX = 512;
+
+/** The spangle: crystals as irregular polygons, wrapping at the tile edges. */
+function spangle(
+  ground: number,
+  spread: [number, number],
+  alpha: number,
+): HTMLCanvasElement {
+  const n = GALV_PX;
+  const pxPerMm = n / GALV_TILE_MM;
   const [c, g] = canvas(n, n);
   const r = seeded(1234567);
-  g.fillStyle = "#bcc1c6";
+  g.fillStyle = `rgb(${ground},${ground},${ground})`;
   g.fillRect(0, 0, n, n);
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 480; i++) {
     const x = r() * n,
       y = r() * n,
-      rad = 6 + r() * 18,
-      v = (150 + r() * 70) | 0;
-    g.fillStyle = `rgba(${v},${v + 4},${v + 8},0.35)`;
-    g.beginPath();
-    for (let k = 0; k < 6; k++) {
-      const a = r() * Math.PI * 2;
-      g.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
+      rad = (2.5 + r() * 7.5) * pxPerMm,
+      v = (spread[0] + r() * (spread[1] - spread[0])) | 0,
+      sides = 6 + ((r() * 4) | 0),
+      turn = r() * Math.PI * 2;
+    const pts: [number, number][] = [];
+    for (let k = 0; k < sides; k++) {
+      const t = turn + (k / sides) * Math.PI * 2;
+      const q = rad * (0.7 + r() * 0.3);
+      pts.push([Math.cos(t) * q, Math.sin(t) * q]);
     }
-    g.fill();
+    g.fillStyle = `rgba(${v},${v},${v},${alpha})`;
+    // Drawn again across the edges, so the tile repeats without seams.
+    for (const dx of [-n, 0, n])
+      for (const dy of [-n, 0, n]) {
+        if (x + dx + rad < 0 || x + dx - rad > n) continue;
+        if (y + dy + rad < 0 || y + dy - rad > n) continue;
+        g.beginPath();
+        for (const [px, py] of pts) g.lineTo(x + dx + px, y + dy + py);
+        g.fill();
+      }
   }
   return c;
+}
+
+/** Colour: near white (the body colour carries the grey), ±2 %. */
+const galvanised = () => spangle(245, [239, 251], 0.6);
+/** Roughness (green channel): crystals between 0.3 and 0.44. */
+const galvanisedRoughness = () => spangle(94, [77, 112], 0.85);
+
+/**
+ * Sample `map` and `roughnessMap` by object-space millimetres, projected
+ * along the face's main axis, one tile per `GALV_TILE_MM`.
+ */
+function mmUv(m: THREE.MeshStandardMaterial) {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying vec3 vMmPos;\nvarying vec3 vMmNormal;",
+      )
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvMmPos = position;\nvMmNormal = normal;",
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+varying vec3 vMmPos;
+varying vec3 vMmNormal;
+vec2 mmUv() {
+  vec3 n = abs(vMmNormal);
+  vec2 p = n.x > n.y && n.x > n.z ? vMmPos.zy : n.y > n.z ? vMmPos.xz : vMmPos.xy;
+  return p / ${GALV_TILE_MM.toFixed(1)};
+}`,
+      )
+      .replace(
+        "#include <map_fragment>",
+        "diffuseColor *= texture2D(map, mmUv());",
+      )
+      .replace(
+        "#include <roughnessmap_fragment>",
+        "float roughnessFactor = roughness * texture2D(roughnessMap, mmUv()).g;",
+      );
+  };
+  m.customProgramCacheKey = () => "mm-uv";
 }
 
 /**
@@ -450,13 +520,17 @@ export class MaterialLibrary {
     const color = base === "rim" ? lighter(f.color) : f.color;
     if (f.kind === "galvanised") {
       const t = this.tex("galvanised", galvanised);
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      return new THREE.MeshStandardMaterial({
+      const r = this.tex("galvanisedRoughness", galvanisedRoughness, false);
+      for (const x of [t, r]) x.wrapS = x.wrapT = THREE.RepeatWrapping;
+      const m = new THREE.MeshStandardMaterial({
         map: t,
+        roughnessMap: r,
         color,
         metalness: 0.8,
-        roughness: 0.42,
+        roughness: 1,
       });
+      mmUv(m);
+      return m;
     }
     if (f.kind === "white_plastic")
       return new THREE.MeshPhysicalMaterial({
@@ -794,14 +868,23 @@ export class MaterialLibrary {
   }
 
   /** Clearance zones on the floor. */
-  zone(ok: boolean): THREE.Material {
+  /**
+   * A clearance zone: fine, short, or split — model and tape on different
+   * sides of the requirement (amber).
+   */
+  zone(state: "ok" | "short" | "split"): THREE.Material {
     return this.memo(
-      `zone|${ok}`,
+      `zone|${state}`,
       () =>
         new THREE.MeshBasicMaterial({
-          color: ok ? this.theme.good : this.theme.warn,
+          color:
+            state === "ok"
+              ? this.theme.good
+              : state === "split"
+                ? this.theme.assumed
+                : this.theme.warn,
           transparent: true,
-          opacity: ok ? 0.14 : 0.3,
+          opacity: state === "ok" ? 0.14 : 0.3,
           depthWrite: false,
         }),
     );

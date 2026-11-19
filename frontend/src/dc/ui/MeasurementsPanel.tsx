@@ -12,7 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useFmt } from "../settings";
 import { disagrees, isRange } from "../model/measure";
-import type { CatalogItem, MeasSrc, RoomData } from "../types";
+import {
+  localText,
+  type CatalogItem,
+  type MeasSrc,
+  type RoomData,
+} from "../types";
 import { measureLabel } from "./measureLabel";
 
 const SRC_STYLE: Record<MeasSrc, string> = {
@@ -32,7 +37,7 @@ export function MeasurementsPanel({
   catalog: Map<number, CatalogItem>;
   onSelect: (objectId: number) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fmt = useFmt();
   const m = data.room.measurements;
   const byName = new Map(data.objects.map((o) => [o.name, o.id]));
@@ -43,7 +48,11 @@ export function MeasurementsPanel({
   const itemsAssumed = [...catalog.values()].flatMap((it) =>
     Object.entries(it.props_src)
       .filter(([, s]) => s.src === "assumed" || s.src === "photo")
-      .map(([prop, s]) => ({ it, prop, note: s.note })),
+      .map(([prop, s]) => ({
+        it,
+        prop,
+        note: s.note && localText(s.note, i18n.language),
+      })),
   );
 
   return (
@@ -95,7 +104,9 @@ export function MeasurementsPanel({
                   </div>
                 )}
                 {e.note && (
-                  <div className="text-muted-foreground">{e.note}</div>
+                  <div className="text-muted-foreground">
+                    {localText(e.note, i18n.language)}
+                  </div>
                 )}
               </td>
               <td className="pr-2 whitespace-nowrap">
@@ -160,8 +171,8 @@ export function MeasurementsPanel({
         <section>
           <h3 className="mb-1 text-sm">{t("dc.measure.conflicts")}</h3>
           <ul className="list-disc pl-4 text-xs">
-            {m.conflicts.map((c) => (
-              <li key={c}>{c}</li>
+            {m.conflicts.map((c, i) => (
+              <li key={i}>{localText(c, i18n.language)}</li>
             ))}
           </ul>
         </section>
@@ -169,16 +180,16 @@ export function MeasurementsPanel({
       <section>
         <h3 className="mb-1 text-sm">{t("dc.measure.remeasure")}</h3>
         <ul className="list-disc pl-4 text-xs">
-          {m.remeasure.map((r) => (
-            <li key={r}>{r}</li>
+          {m.remeasure.map((r, i) => (
+            <li key={i}>{localText(r, i18n.language)}</li>
           ))}
         </ul>
       </section>
       <section>
         <h3 className="mb-1 text-sm">{t("dc.measure.notModelled")}</h3>
         <ul className="list-disc pl-4 text-xs">
-          {m.not_modelled.map((r) => (
-            <li key={r}>{r}</li>
+          {m.not_modelled.map((r, i) => (
+            <li key={i}>{localText(r, i18n.language)}</li>
           ))}
         </ul>
       </section>

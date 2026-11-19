@@ -231,17 +231,20 @@ function Viewer({ item }: { item: CatalogItem }) {
   const [view, setView] = useState<ViewName>("3d");
   const [toggles, setToggles] = useState<ViewerToggles>({
     dims: true,
-    airflow: item.kind === "cooling",
+    openings: item.kind === "cooling",
     rack: false,
   });
   const [hint, setHint] = useState(false);
-  const text = { mm: fmt.mm, rack: t("dc.catalog.rack42") };
+  const face = (k: string) => tDyn(t, `dc.catalog.face.${k}`);
+  const text = { mm: fmt.mm, rack: t("dc.catalog.rack42"), face };
 
   // One viewer per item and theme; toggles, view and words go to it.
   useEffect(() => {
     if (!host.current) return;
     const v = new ItemViewer(host.current, item, text, TOKENS[theme], toggles);
     viewer.current = v;
+    // The end-to-end tests read what the viewer draws.
+    if (import.meta.env.DEV) Object.assign(window, { __dcViewer: v });
     return () => {
       v.dispose();
       viewer.current = null;
@@ -252,7 +255,12 @@ function Viewer({ item }: { item: CatalogItem }) {
   useEffect(() => viewer.current?.setToggles(toggles), [toggles]);
   useEffect(() => viewer.current?.setView(view), [view]);
   useEffect(
-    () => viewer.current?.setText({ mm: fmt.mm, rack: t("dc.catalog.rack42") }),
+    () =>
+      viewer.current?.setText({
+        mm: fmt.mm,
+        rack: t("dc.catalog.rack42"),
+        face: (k) => tDyn(t, `dc.catalog.face.${k}`),
+      }),
     [fmt, t],
   );
 
@@ -293,8 +301,8 @@ function Viewer({ item }: { item: CatalogItem }) {
           {item.kind === "cooling" && (
             <button
               type="button"
-              aria-pressed={toggles.airflow}
-              onClick={() => toggle("airflow")}
+              aria-pressed={toggles.openings}
+              onClick={() => toggle("openings")}
             >
               <Wind className="size-4" /> {t("dc.catalog.toggleAir")}
             </button>
@@ -326,7 +334,7 @@ function Viewer({ item }: { item: CatalogItem }) {
           </div>
         )}
       </div>
-      {faces && toggles.airflow && (
+      {faces && toggles.openings && (
         <div className="dc-viewer-legend" data-testid="air-legend">
           <span>
             <i data-air="supply" />

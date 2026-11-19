@@ -98,7 +98,24 @@ export interface EngineText {
   };
   /** A ruler result: `face ⟂ face · 59.5 cm`, in the user's language. */
   ruler: (r: Result) => string;
+  /**
+   * A clearance zone's label: side, value, requirement and basis, and the
+   * model and tape both when they disagree about it.
+   */
+  clearance: (c: ClearanceCheck) => string;
   snap: (k: SnapKind) => string;
+}
+
+/** The marks drawn in the view, for the plan legend (FEEDBACK-5 §2). */
+export interface LegendMarks {
+  /** Dashed outlines: things that hang above the floor. */
+  overhead: boolean;
+  /** A dimension whose tape reading and model disagree. */
+  tapeDot: boolean;
+  /** Requirements of the red zones drawn (mm), ascending. */
+  short: number[];
+  /** An amber zone: model and tape on different sides of the requirement. */
+  split: boolean;
 }
 
 export type Measure = Result;
@@ -209,6 +226,19 @@ export class DcEngine {
   onProjection: (ortho: boolean) => void = () => {};
   /** The rendering quality was lowered because frames were slow. */
   onQuality: (q: 0 | 1 | 2) => void = () => {};
+  /** The set of marks drawn changed. */
+  onLegend: (m: LegendMarks) => void = () => {};
+  /**
+   * On the plan, the user turned the view (right drag, a view cube face, a
+   * preset, perspective, walking): the page leaves for 3D and flies to
+   * `preset` there.
+   */
+  onLeavePlan: (preset: Preset) => void = () => {};
+  /** The plan: straight down, orbit off — only pan and zoom. */
+  private planLock = false;
+  /** A right drag started on the plan (where it turns into 3D). */
+  private turnFrom: { x: number; y: number } | null = null;
+  private legendSig = "";
   private disposed = false;
 
   constructor(
@@ -468,7 +498,14 @@ export class DcEngine {
   /** The clearance gap drawn by `showClearance`, mm (tests). */
   shownClearance(): { objectId: number; side: string; mm: number } | null {
     const c = this.focusedClearance();
-    return c ? { objectId: c.objectId, side: c.side, mm: c.gap.mm } : null;
+    return c ? { objectId: c.objectId, side: c.side, mm: c.mm } : null;
+  }
+
+  /** The clearance zones drawn on the floor, and how (tests). */
+  clearanceZones(): { objectId: number; side: string; state: string }[] {
+    return this.overlay.children
+      .filter((o) => o.userData.clearance)
+      .map((o) => ({ ...o.userData.clearance }));
   }
 
   flyTo(ref: Pick) {
@@ -516,7 +553,39 @@ export class DcEngine {
     );
   }
 
+  /**
+   * Lock the camera to the plan (FEEDBACK-5 §4): orthographic, straight
+   * down, no orbit — the left button pans, the wheel zooms. Turning the view
+   * asks the page to leave the plan (`onLeavePlan`).
+   */
+  setPlanLock(on: boolean) {
+    this.planLock = on;
+    const c = this.rig.controls;
+    c.enableRotate = !on;
+    c.mouseButtons = on
+      ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null }
+      : {
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN,
+        };
+    c.touches = on
+      ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }
+      : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+    this.dirty = true;
+    this.refreshOverlays();
+  }
+
+  /** Whether the camera is locked to the plan (tests). */
+  planLocked(): boolean {
+    return this.planLock;
+  }
+
   preset(p: Preset, dur?: number) {
+    if (this.planLock && p !== "top") {
+      this.onLeavePlan(p);
+      return;
+    }
     const m = this.model;
     if ((p === "aisle" || p === "racks") && m) {
       // The front aisle: between the shelf's front and the racks' fronts.
@@ -563,10 +632,18 @@ export class DcEngine {
   }
 
   setOrtho(on: boolean) {
+    if (this.planLock && !on) {
+      this.onLeavePlan("iso");
+      return;
+    }
     this.rig.setOrtho(on);
   }
 
   setWalk(on: boolean) {
+    if (this.planLock && on) {
+      this.onLeavePlan("iso");
+      return;
+    }
     this.rig.setWalk(on);
     this.dirty = true;
   }
@@ -1161,6 +1238,14 @@ export class DcEngine {
     const solids = [...this.entries.values()].map((e) => e.solid);
     const poly = m.room.floor_plan;
     const schema = this.mode !== "realistic";
+    const legend: LegendMarks = {
+      overhead:
+        schema &&
+        [...this.entries.values()].some((e) => e.edges.userData.overhead),
+      tapeDot: false,
+      short: [],
+      split: false,
+    };
 
     // Door swings, on the floor.
     for (const s of solids)
@@ -1202,26 +1287,44 @@ export class DcEngine {
         this.overlay.add(line);
       }
 
-    // Service clearance: a violation is a thin red zone on the floor with
-    // one label; zones that are fine show only while editing.
+    // Service clearance, decided by the tape where it read the gap: a
+    // violation is a thin red zone on the floor with one label; where model
+    // and tape fall on different sides of the requirement the zone is amber
+    // and says so; zones that are fine show only while editing.
     if (schema || this.tool === "edit") {
-      for (const c of clearances(solids, poly, m.room.settings)) {
-        if (c.ok && this.tool !== "edit") continue;
+      const measured = m.room.measurements.entries;
+      for (const c of clearances(solids, poly, m.room.settings, measured)) {
+        if (c.ok && !c.split && this.tool !== "edit") continue;
+        const state = c.split ? "split" : c.ok ? "ok" : "short";
+        if (state === "split") legend.split = true;
+        if (state === "short" && !legend.short.includes(c.required))
+          legend.short.push(c.required);
         const z = c.zone;
         const geo = new THREE.PlaneGeometry(z.x1 - z.x0, z.z1 - z.z0);
         geo.rotateX(-Math.PI / 2);
-        const mesh = new THREE.Mesh(geo, this.lib.zone(c.ok));
+        const mesh = new THREE.Mesh(geo, this.lib.zone(state));
         mesh.position.set((z.x0 + z.x1) / 2, 3, (z.z0 + z.z1) / 2);
         mesh.renderOrder = 5;
+        mesh.userData.clearance = {
+          objectId: c.objectId,
+          side: c.side,
+          state,
+        };
         this.overlay.add(mesh);
         const rim = new THREE.LineSegments(
           new THREE.EdgesGeometry(geo),
-          this.lib.line(c.ok ? this.theme.good : this.theme.warn),
+          this.lib.line(
+            state === "split"
+              ? this.theme.assumed
+              : c.ok
+                ? this.theme.good
+                : this.theme.warn,
+          ),
         );
         rim.position.copy(mesh.position);
         rim.renderOrder = 6;
         this.overlay.add(rim);
-        if (!c.ok) {
+        if (!c.ok || c.split) {
           // Towards the zone's far end, clear of the tape dimension that
           // usually runs through its middle.
           const o = this.entries.get(c.objectId)?.solid.rect;
@@ -1235,10 +1338,10 @@ export class DcEngine {
           }
           this.labels.set(
             `gap:${c.objectId}:${c.side}`,
-            `${this.text.mm(c.gap.mm)} < ${this.text.mm(c.required)}`,
+            this.text.clearance(c),
             new THREE.Vector3(lx, 30, lz),
             {
-              kind: "warn",
+              kind: c.split ? "caution" : "warn",
               priority: 8,
             },
           );
@@ -1249,7 +1352,7 @@ export class DcEngine {
     // Schema: every measurement as a dimension, with the value as read (and a
     // dot where the model disagrees); the selected object's clear distances
     // to its neighbours, live while it moves.
-    if (schema) this.measurementDims();
+    if (schema) legend.tapeDot = this.measurementDims();
     const sel = this.selectedEntry();
     if (sel && (schema || this.tool === "edit"))
       this.gapDims(sel.solid, solids);
@@ -1264,7 +1367,7 @@ export class DcEngine {
       this.labels.remove("clear:line");
       this.labels.set(
         "clear:gap",
-        this.text.mm(focus.gap.mm),
+        this.text.mm(focus.mm),
         a
           .clone()
           .add(b)
@@ -1331,6 +1434,12 @@ export class DcEngine {
       dot.renderOrder = 1000;
       this.overlay.add(dot);
     }
+    legend.short.sort((a, b) => a - b);
+    const sig = JSON.stringify(legend);
+    if (sig !== this.legendSig) {
+      this.legendSig = sig;
+      this.onLegend(legend);
+    }
     this.dirty = true;
   }
 
@@ -1353,9 +1462,12 @@ export class DcEngine {
     const m = this.model;
     if (!f || !m) return null;
     const solids = [...this.entries.values()].map((e) => e.solid);
-    const c = clearances(solids, m.room.floor_plan, m.room.settings).find(
-      (x) => x.objectId === f.objectId && x.side === f.side,
-    );
+    const c = clearances(
+      solids,
+      m.room.floor_plan,
+      m.room.settings,
+      m.room.measurements.entries,
+    ).find((x) => x.objectId === f.objectId && x.side === f.side);
     return c && c.gap.mm > 0 ? c : null;
   }
 
@@ -1378,6 +1490,13 @@ export class DcEngine {
     priority = 3,
     extra: { title?: string; mark?: boolean } = {},
   ) {
+    if (this.planLock) {
+      // On the plan every dimension lies on the floor, read from above; a
+      // vertical one would be seen end-on, so it is not drawn.
+      if (Math.abs(b.y - a.y) > Math.hypot(b.x - a.x, b.z - a.z)) return;
+      a = new THREE.Vector3(a.x, 2, a.z);
+      b = new THREE.Vector3(b.x, 2, b.z);
+    }
     const dir = b.clone().sub(a);
     const len = dir.length();
     if (len < 1) return;
@@ -1420,9 +1539,13 @@ export class DcEngine {
     );
   }
 
-  /** Every measurement of the room that has a place to be drawn. */
-  private measurementDims() {
+  /**
+   * Every measurement of the room that has a place to be drawn. Says
+   * whether any of them carries the disagreement dot.
+   */
+  private measurementDims(): boolean {
     const m = this.model!;
+    let marked = false;
     for (const e of m.room.measurements.entries) {
       if (!e.line) continue;
       const [p, q] = e.line;
@@ -1437,7 +1560,9 @@ export class DcEngine {
         priority,
         { title: t.title, mark: t.mark },
       );
+      marked ||= t.mark;
     }
+    return marked;
   }
 
   private gapDims(s: Solid, solids: Solid[]) {
@@ -1885,6 +2010,10 @@ export class DcEngine {
     el.addEventListener("pointerdown", (ev) => {
       el.focus();
       this.down = { x: ev.clientX, y: ev.clientY, t: performance.now() };
+      this.turnFrom =
+        this.planLock && ev.button === 2
+          ? { x: ev.clientX, y: ev.clientY }
+          : null;
       if (this.rig.walk.on) {
         el.setPointerCapture(ev.pointerId);
         return;
@@ -1930,6 +2059,17 @@ export class DcEngine {
         this.dragTo(ev);
         return;
       }
+      // A right drag is the rotate gesture: on the plan it means "3D".
+      const turn = this.turnFrom;
+      if (
+        turn &&
+        ev.buttons & 2 &&
+        Math.hypot(ev.clientX - turn.x, ev.clientY - turn.y) > 6
+      ) {
+        this.turnFrom = null;
+        this.onLeavePlan("iso");
+        return;
+      }
       const fp = this.floorPoint(ev);
       this.onCursor(fp ? { x: Math.round(fp.x), z: Math.round(fp.z) } : null);
       if (ev.buttons) return;
@@ -1967,6 +2107,7 @@ export class DcEngine {
     el.addEventListener("pointerup", (ev) => {
       const d = this.down;
       this.down = null;
+      this.turnFrom = null;
       if (this.drag) {
         const dr = this.drag;
         this.drag = null;

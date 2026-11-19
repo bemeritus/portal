@@ -23,6 +23,7 @@ import type {
   RoomData,
   ViewPayload,
 } from "../types";
+import { localText } from "../types";
 import { CapacityPanel, type CapacityRequest } from "./CapacityPanel";
 import { InspectorTabs, TABPANEL_ID, tabId } from "./InspectorTabs";
 import { assumedByObject } from "../model/objects";
@@ -71,7 +72,7 @@ interface Props {
 }
 
 export function Inspector(p: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fmt = useFmt();
   const { data, catalog, selection } = p;
   const objId = selection
@@ -202,7 +203,10 @@ export function Inspector(p: Props) {
                 <div className="dc-section-title">{t("dc.inspector.dims")}</div>
                 <div className="dc-rows">
                   {dims.map((m) => (
-                    <div key={m.key} title={m.note}>
+                    <div
+                      key={m.key}
+                      title={m.note && localText(m.note, i18n.language)}
+                    >
                       <span>{measureLabel(m.key, t)}</span>
                       <span className="dc-num">
                         {isRange(m)

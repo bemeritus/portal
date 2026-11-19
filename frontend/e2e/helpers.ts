@@ -31,6 +31,7 @@ async function csrf(page: Page): Promise<string> {
 interface Settings {
   dc_theme: Theme | null;
   dc_unit: "mm" | "cm" | "m";
+  dc_legend_collapsed: boolean;
 }
 
 export async function setSettings(page: Page, s: Partial<Settings>) {
