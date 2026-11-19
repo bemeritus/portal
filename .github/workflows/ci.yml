@@ -21,11 +21,21 @@ permissions:
 
 jobs:
   backend:
-    name: Backend — fmt, clippy, test
+    name: Backend — fmt, clippy, test, migrations
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+    # Only for the migrations step; the unit tests touch no database.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: portal
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -48,9 +58,17 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
       # Unit tests only — sqlx queries are runtime-checked and the tests touch
-      # no database, so no Postgres service is needed here.
+      # no database. One of them fails on two migrations with one version.
       - name: tests
         run: cargo test
+
+      # The whole set on a fresh database through the API's own migrator, as
+      # a start would. The `database` job's psql loop cannot catch this: it
+      # never looks at version numbers.
+      - name: migrations (fresh database, sqlx)
+        run: cargo run -q -- migrate
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/portal
 
   frontend:
     name: Frontend — typecheck, lint, build

@@ -75,3 +75,27 @@ pub async fn seed_admin(pool: &PgPool, config: &Config) {
     });
     tracing::info!("seeded admin user '{}'", config.admin_username);
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    /// Two files with one version number compile and pass a psql run of the
+    /// directory, but sqlx refuses them at startup: a fresh database fails on
+    /// the second insert into `_sqlx_migrations`, and one that has either
+    /// file applied reports the other as "previously applied but modified".
+    #[test]
+    fn migration_versions_are_unique() {
+        let mut seen: BTreeMap<i64, Vec<String>> = BTreeMap::new();
+        for m in sqlx::migrate!("./migrations").iter() {
+            seen.entry(m.version)
+                .or_default()
+                .push(m.description.to_string());
+        }
+        let dupes: Vec<_> = seen.into_iter().filter(|(_, d)| d.len() > 1).collect();
+        assert!(
+            dupes.is_empty(),
+            "migration versions used more than once: {dupes:?}"
+        );
+    }
+}

@@ -119,8 +119,26 @@ fmt:
 fmt-check:
     cd backend && cargo fmt --check
 
-# Everything a change should pass before being committed.
-ci: fmt-check lint check-web test
+# Everything a change should pass before being committed. Needs the local
+# cluster running (`just db-start`), for check-migrations.
+ci: fmt-check lint check-web test check-migrations
+
+# No two migrations share a version (a unit test), and the whole set applies
+# to a fresh database through the API's own migrator, as a start would. The
+# scratch database is created and dropped again; DATABASE_URL is not touched.
+check-migrations:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dupes=$(ls backend/migrations/*.sql | xargs -n1 basename | cut -d_ -f1 | sort | uniq -d)
+    if [ -n "$dupes" ]; then
+        echo "migration versions used more than once: $dupes" >&2
+        exit 1
+    fi
+    db=portal_migrate_check_$$
+    url="postgres://{{pguser}}@127.0.0.1:{{pgport}}/$db"
+    createdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} "$db"
+    trap 'dropdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} --if-exists "$db"' EXIT
+    cd backend && DATABASE_URL="$url" cargo run -q -- migrate
 
 # --- Database ---------------------------------------------------------------
 # The port lives only in the pg_ctl invocation: postgresql.conf leaves `port`

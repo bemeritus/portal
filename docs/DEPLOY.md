@@ -297,6 +297,36 @@ sudo systemctl start portal
 
 New migrations in `backend/migrations/` are applied automatically on start.
 
+### Repair: the work log applied as migration 23
+
+For a while `main` had two migrations numbered 0023: `0023_dc_catalog_finish`
+and `0023_worklog`. The work log is now `0024_worklog.sql`, with unchanged
+content. A database that applied the work log as version 23 refuses to start
+with:
+
+```
+could not apply the migrations in ./migrations: migration 23 was previously applied but has been modified
+```
+
+Check which migration it applied as 23:
+
+```sh
+sudo -u postgres psql portal -c "SELECT version, description FROM _sqlx_migrations WHERE version >= 22 ORDER BY version"
+```
+
+If version 23 is `worklog`, renumber that row once, with the service stopped,
+and then start it:
+
+```sql
+UPDATE _sqlx_migrations SET version = 24 WHERE version = 23 AND description = 'worklog';
+```
+
+On the next start sqlx applies `0023_dc_catalog_finish`. It applies every
+migration that is missing, even one numbered below the newest applied
+migration. The checksum covers only the SQL, which did not change, so the
+renumbered row passes the check. Nothing else needs to be done when version 23
+is `dc catalog finish` or when the database stopped at 22.
+
 > **Sessions survive a restart.** They are stored in Postgres, so a redeploy no
 > longer logs everyone out and more than one instance can share them — see
 > [Appendix B](#appendix-b--sessions).
