@@ -108,7 +108,7 @@ There is no third term. In particular:
 `frontend/src/permissions.ts` mirrors this rule to decide what to *show*. It
 never decides what is allowed: the server re-checks every request behind it.
 
-### «Внутренние инструменты» (internal tools)
+### Internal tools
 
 A second, independent family for internal tools, in
 `user_tool_permissions` and `backend/src/tool_access.rs`:
@@ -270,7 +270,7 @@ backend/
     audit.rs               the two audit-writing helpers
     content.rs             markdown → sanitized HTML, slugify
     diff.rs                LCS line/block diffing for the document history
-    tool_access.rs         «Внутренние инструменты»: tool registry and guard
+    tool_access.rs         internal tools: tool registry and guard
     dc/                    server room: typed model, geometry, capacity, CSV, DXF, change sets, seed
     error.rs               ApiError → status + {"error": …}
     routes/                auth, categories, documents, users, uploads, audit, dc
