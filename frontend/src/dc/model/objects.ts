@@ -20,7 +20,9 @@ export function assumedByObject(data: RoomData): Map<string, string[]> {
     const item = data.catalog.find((c) => c.id === o.catalog_id);
     if (!item) continue;
     for (const [prop, s] of Object.entries(item.props_src))
-      if (s.src === "assumed" || s.src === "photo") add(o.name, `item.${prop}`);
+      // The finish is how a body looks, not a number that places or sizes it.
+      if ((s.src === "assumed" || s.src === "photo") && prop !== "finish")
+        add(o.name, `item.${prop}`);
     // Supply outlets not set by hand are the subtype's default (§14.1).
     if (o.instance.supply_outlets?.some((x) => x.source === "catalog_default"))
       add(o.name, "item.supply_outlets");

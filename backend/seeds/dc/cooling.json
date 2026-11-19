@@ -47,7 +47,11 @@
    ],
    "power_supply": "220-240 V, 1 ph, 50 Hz",
    "source": "https://midea.com/ly/heating-cooling/jungle-inverter/jungle-inverter-a-energy-class-msafb-12hrdn1-qc0",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "midea-msaf-24crdn1",
@@ -73,7 +77,11 @@
     650
    ],
    "source": "https://midea.com/westafrica/air-conditioner/forest-inverter/24000-btu-forest-inverter",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "midea-mtiu-12hwfnx",
@@ -106,7 +114,11 @@
     "max": 60
    },
    "source": "https://uploads.prod01.london.platform-os.com/instances/827/assets/documentation/GAIN-36HWFNX/Fiche-produit-Midea-mti-36hwfnx-ui-clim-cash.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "midea-mtiu-18hwfnx",
@@ -139,7 +151,11 @@
     "max": 100
    },
    "source": "https://uploads.prod01.london.platform-os.com/instances/827/assets/documentation/GAIN-36HWFNX/Fiche-produit-Midea-mti-36hwfnx-ui-clim-cash.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "midea-mti-24hwfnx",
@@ -172,7 +188,11 @@
     "max": 160
    },
    "source": "https://uploads.prod01.london.platform-os.com/instances/827/assets/documentation/GAIN-36HWFNX/Fiche-produit-Midea-mti-36hwfnx-ui-clim-cash.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "gree-gwh12aec",
@@ -189,7 +209,7 @@
    "cooling_total_w": 3500,
    "cooling_sensible_w": null,
    "power_input_w": 875,
-   "eer": 4.0,
+   "eer": 4,
    "airflow_m3h": [
     750,
     650,
@@ -201,7 +221,11 @@
    ],
    "power_supply": "220-240 V, 1 ph, 50 Hz",
    "source": "https://static.elitesecurity.org/uploads/3/9/3935302/G-TECH%20Tehnicka%20Specifikacija.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "gree-gwh24ye",
@@ -234,7 +258,11 @@
    ],
    "power_supply": "220-240 V, 1 ph, 50 Hz",
    "source": "https://www.profishop.de/media/pdf/52/7d/88/GWH24YE-K6DNA1A-GREE_Single-Split-Klimaanlage_Amber_Kaelteleistung_7_kW_24000_Btu-h_GWH24YE-6734808cb2110.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "gree-gfh24k",
@@ -260,7 +288,11 @@
     "max": 150
    },
    "source": "https://gree-iran.com/wp-content/uploads/2020/12/Gree-Duct.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "gree-gfh36k",
@@ -286,7 +318,11 @@
     "max": 200
    },
    "source": "https://gree-iran.com/wp-content/uploads/2020/12/Gree-Duct.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "gree-gfh48k",
@@ -312,7 +348,11 @@
     "max": 200
    },
    "source": "https://gree-iran.com/wp-content/uploads/2020/12/Gree-Duct.pdf",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "daikin-ftxm35r",
@@ -341,7 +381,11 @@
     "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10768421/file/document",
     "https://oceanairuk.com/cdn/shop/files/FTXM-R_RZAG-A_Datasheet_10851_FTXM35R.pdf"
    ],
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "daikin-ftxm50r",
@@ -370,7 +414,11 @@
     "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10768421/file/document",
     "https://oceanairuk.com/cdn/shop/files/FTXM-R_RZAG-A_Datasheet_10851_FTXM35R.pdf"
    ],
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "daikin-ftxm60r",
@@ -399,7 +447,11 @@
     "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10768421/file/document",
     "https://oceanairuk.com/cdn/shop/files/FTXM-R_RZAG-A_Datasheet_10851_FTXM35R.pdf"
    ],
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#f3f4f5",
+    "kind": "white_plastic"
+   }
   },
   {
    "id": "daikin-fdxm35f9",
@@ -432,7 +484,11 @@
     "max": 40
    },
    "source": "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10315888/file/document",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "daikin-fdxm50f9",
@@ -465,7 +521,11 @@
     "max": 40
    },
    "source": "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10315888/file/document",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "daikin-fdxm60f9",
@@ -498,7 +558,11 @@
     "max": 40
    },
    "source": "https://camdocs.camden.gov.uk/CMWebDrawer/Record/10315888/file/document",
-   "designed_24_7": false
+   "designed_24_7": false,
+   "finish": {
+    "color": "#c3c7cb",
+    "kind": "galvanised"
+   }
   },
   {
    "id": "vertiv-crv-crd10",
@@ -522,7 +586,11 @@
     3200
    ],
    "airflow_pattern": "draws from the hot aisle at the rear, discharges to the cold aisle at the front",
-   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf"
+   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf",
+   "finish": {
+    "color": "#16171a",
+    "kind": "powder"
+   }
   },
   {
    "id": "vertiv-crv-crd25",
@@ -546,7 +614,11 @@
     5200
    ],
    "airflow_pattern": "draws from the hot aisle at the rear, discharges to the cold aisle at the front",
-   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf"
+   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf",
+   "finish": {
+    "color": "#16171a",
+    "kind": "powder"
+   }
   },
   {
    "id": "vertiv-crv-crd35",
@@ -570,7 +642,11 @@
     8000
    ],
    "airflow_pattern": "draws from the hot aisle at the rear, discharges to the cold aisle at the front",
-   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf"
+   "source": "https://www.vertiv.com/49e99c/globalassets/products/thermal-management/in-row-cooling/vertiv-liebert-crv-data-sheet-sl-11998.pdf",
+   "finish": {
+    "color": "#16171a",
+    "kind": "powder"
+   }
   },
   {
    "id": "vertiv-pdx-px011",
@@ -597,7 +673,11 @@
     "upflow",
     "downflow"
    ],
-   "source": "https://www.vertiv.com/en-cn/products-catalog/thermal-management/room-cooling/px011-11kw/"
+   "source": "https://www.vertiv.com/en-cn/products-catalog/thermal-management/room-cooling/px011-11kw/",
+   "finish": {
+    "color": "#16171a",
+    "kind": "powder"
+   }
   }
  ]
 }

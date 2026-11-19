@@ -40,6 +40,12 @@ const DcShellRoute = lazy(() => import("./dc/ui/DcShell").then((m) => ({ default
 const DcRacksPage = lazy(() => import("./dc/ui/DcRacksPage").then((m) => ({ default: m.DcRacksPage })));
 const DcLabelsPage = lazy(() => import("./dc/ui/DcLabelsPage").then((m) => ({ default: m.DcLabelsPage })));
 const DcCatalogPage = lazy(() => import("./dc/ui/DcCatalogPage").then((m) => ({ default: m.DcCatalogPage })));
+const DcCatalogItemPage = lazy(() =>
+  import("./dc/ui/DcCatalogItemPage").then((m) => ({ default: m.DcCatalogItemPage })),
+);
+const DcCatalogComparePage = lazy(() =>
+  import("./dc/ui/DcCatalogComparePage").then((m) => ({ default: m.DcCatalogComparePage })),
+);
 
 function NotFound() {
   return (
@@ -71,6 +77,9 @@ export function App() {
         >
           <Route index element={<DcRoomsPage />} />
           <Route path="catalog" element={<DcCatalogPage />} />
+          <Route path="catalog/item/:id" element={<DcCatalogItemPage />} />
+          <Route path="catalog/compare" element={<DcCatalogComparePage />} />
+          <Route path="catalog/:section" element={<DcCatalogPage />} />
           <Route path=":roomId" element={<DcRoomPage />} />
           <Route path=":roomId/racks" element={<DcRacksPage />} />
           <Route path=":roomId/labels" element={<DcLabelsPage />} />

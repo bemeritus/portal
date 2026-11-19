@@ -18,7 +18,26 @@
 import * as THREE from "three";
 
 import type { DeviceKind } from "../types";
+import { baseRole } from "./renderers/types";
 import type { DcTheme } from "./theme";
+
+type FinishKind = "powder" | "galvanised" | "white_plastic";
+
+/** The finish a `surface()` role carries, if any. */
+function finishOf(role: string): { kind: FinishKind; color: string } | null {
+  const [, kind, color] = role.split("|");
+  return kind && color ? { kind: kind as FinishKind, color } : null;
+}
+
+/** A dark colour a shade lighter (frames and rims catch the light); light ones as they are. */
+export function lighter(color: string, by = 0.18): string {
+  const c = new THREE.Color(color);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  if (hsl.l > 0.5) return color;
+  c.setHSL(hsl.h, hsl.s, Math.min(1, hsl.l + by));
+  return `#${c.getHexString()}`;
+}
 
 export type Mode = "schema" | "realistic" | "fill" | "power";
 
@@ -204,6 +223,38 @@ function perforated(): HTMLCanvasElement {
   return c;
 }
 
+/** A seeded random generator, so procedural textures look the same every time. */
+function seeded(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+/** Galvanised sheet steel: a light ground with a spangle of zinc crystals. */
+function galvanised(): HTMLCanvasElement {
+  const n = 256;
+  const [c, g] = canvas(n, n);
+  const r = seeded(1234567);
+  g.fillStyle = "#bcc1c6";
+  g.fillRect(0, 0, n, n);
+  for (let i = 0; i < 260; i++) {
+    const x = r() * n,
+      y = r() * n,
+      rad = 6 + r() * 18,
+      v = (150 + r() * 70) | 0;
+    g.fillStyle = `rgba(${v},${v + 4},${v + 8},0.35)`;
+    g.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = r() * Math.PI * 2;
+      g.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
+    }
+    g.fill();
+  }
+  return c;
+}
+
 /**
  * The floor of the photos: terracotta tiles with an interlocking lighter
  * pattern. One canvas is one 300 mm tile.
@@ -332,6 +383,19 @@ const PBR: Record<
   structure: { color: "#9aa0a6", metalness: 0.1, roughness: 0.8 },
   cell: { color: "#22252b", metalness: 0.35, roughness: 0.5 },
   cellBlocked: { color: "#7a2c26", metalness: 0.1, roughness: 0.8 },
+  // Parts of the equipment templates (renderers/parts.ts).
+  rim: { color: "#2b2e33", metalness: 0.45, roughness: 0.45 },
+  fan: { color: "#80858c", metalness: 0.6, roughness: 0.4 },
+  fanHub: { color: "#1c1d20", metalness: 0.2, roughness: 0.45 },
+  fanShroud: { color: "#0b0c0e", metalness: 0.2, roughness: 0.8 },
+  bezel: { color: "#141518", metalness: 0.2, roughness: 0.4 },
+  plinth: { color: "#0f1012", metalness: 0.3, roughness: 0.7 },
+  foot: { color: "#a4a8ad", metalness: 0.85, roughness: 0.3 },
+  caster: { color: "#1a1b1d", metalness: 0.1, roughness: 0.6 },
+  vent: { color: "#0c0d0f", metalness: 0.2, roughness: 0.8 },
+  hinge: { color: "#3a3d42", metalness: 0.7, roughness: 0.35 },
+  opening: { color: "#0d0e10", metalness: 0, roughness: 0.9 },
+  terminal: { color: "#e5e7ea", metalness: 0, roughness: 0.6 },
 };
 
 export class MaterialLibrary {
@@ -381,9 +445,72 @@ export class MaterialLibrary {
     return m;
   }
 
+  /** A body in its finish (realistic mode): powder coat, galvanised, white plastic. */
+  private finish(base: string, f: { kind: FinishKind; color: string }) {
+    const color = base === "rim" ? lighter(f.color) : f.color;
+    if (f.kind === "galvanised") {
+      const t = this.tex("galvanised", galvanised);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      return new THREE.MeshStandardMaterial({
+        map: t,
+        color,
+        metalness: 0.8,
+        roughness: 0.42,
+      });
+    }
+    if (f.kind === "white_plastic")
+      return new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: 0.32,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.25,
+      });
+    return new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.35,
+      roughness: 0.58,
+    });
+  }
+
+  /**
+   * A honeycomb-perforated sheet of `w × h` mm with holes `pitch` mm apart,
+   * in the body's colour. Mipmapped and blended, so from afar it reads as a
+   * see-through face rather than a solid one or a moiré.
+   */
+  perforation(body: string, w: number, h: number, pitch: number) {
+    const f = finishOf(body);
+    // The tile holds 4 × 4 holes: 4 pitches wide, 3.5 pitches high.
+    const rx = w / (4 * pitch),
+      ry = h / (3.5 * pitch);
+    return this.memo(
+      `perf|${f?.color ?? ""}|${rx.toFixed(2)}|${ry.toFixed(2)}`,
+      () => {
+        if (!this.realistic()) return this.role("perforated");
+        const t = this.tex("perf", perforated, false).clone();
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(rx, ry);
+        t.anisotropy = 8;
+        return new THREE.MeshStandardMaterial({
+          color: f?.color ?? "#1b1d22",
+          metalness: 0.45,
+          roughness: 0.5,
+          alphaMap: t,
+          transparent: true,
+          alphaTest: 0.02,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+      },
+    );
+  }
+
   /** The material for a role in the current mode. */
   role(role: string): THREE.Material {
     return this.memo(role, () => {
+      const fin = finishOf(role);
+      if (fin && this.realistic()) return this.finish(baseRole(role), fin);
+      // The schema modes and bodies without a finish: the base role.
+      if (fin) return this.role(baseRole(role));
       if (role === "glass")
         return this.realistic()
           ? new THREE.MeshPhysicalMaterial({

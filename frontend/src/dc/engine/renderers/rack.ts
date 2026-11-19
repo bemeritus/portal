@@ -17,8 +17,11 @@ import type {
 } from "../../types";
 import { TYPICAL_DEPTH } from "../../model/devices";
 import { U_MM } from "../../model/geometry";
+import { perfPitch, rbox, seam } from "./parts";
 import {
   box,
+  surface,
+  withBase,
   type BuildContext,
   type Built,
   type DoorLeaf,
@@ -49,6 +52,7 @@ function doorRole(t: DoorType): string {
 function doors(
   ctx: BuildContext,
   group: THREE.Group,
+  frame: string,
   type: DoorType | null,
   w: number,
   h: number,
@@ -71,9 +75,47 @@ function doors(
     // A leaf on the rear face swings the other way.
     pivot.userData.outward = outward;
     group.add(pivot);
-    const leaf = box(ctx, doorRole(type), lw - 6, fh, 6, (dir * lw) / 2, 40, 0);
-    leaf.userData.door = true;
-    pivot.add(leaf);
+    if (type === "perforated") {
+      // A frame in the rack's finish round a honeycomb sheet; through it the
+      // rails and the equipment show (FEEDBACK-4 §2).
+      const bar = 40;
+      for (const [bw, bh, bx, by] of [
+        [lw - 6, bar, (dir * lw) / 2, 40 + fh - bar],
+        [lw - 6, bar, (dir * lw) / 2, 40],
+        [bar, fh - 2 * bar, dir * (bar / 2 + 3), 40 + bar],
+        [bar, fh - 2 * bar, dir * (lw - 3 - bar / 2), 40 + bar],
+      ]) {
+        const f = rbox(ctx, withBase(frame, "rim"), bw, bh, 10, bx, by, 0, 3);
+        f.userData.door = true;
+        pivot.add(f);
+      }
+      const sw = lw - 6 - 2 * bar,
+        sh = fh - 2 * bar;
+      const sheet = new THREE.Mesh(
+        new THREE.PlaneGeometry(sw, sh),
+        ctx.lib.perforation(frame, sw, sh, perfPitch(ctx.pxPerMm)),
+      );
+      sheet.position.set((dir * lw) / 2, 40 + fh / 2, 0);
+      if (outward < 0) sheet.rotation.y = Math.PI;
+      sheet.userData.role = "perforated";
+      sheet.userData.fixedMaterial = true;
+      sheet.userData.noMerge = true;
+      sheet.userData.door = true;
+      pivot.add(sheet);
+    } else {
+      const leaf = box(
+        ctx,
+        doorRole(type),
+        lw - 6,
+        fh,
+        6,
+        (dir * lw) / 2,
+        40,
+        0,
+      );
+      leaf.userData.door = true;
+      pivot.add(leaf);
+    }
     if (type === "glass") {
       // A dark frame round the glass.
       for (const [bw, bh, bx, by] of [
@@ -82,7 +124,7 @@ function doors(
         [26, fh, dir * 13, 40],
         [26, fh, dir * (lw - 13), 40],
       ]) {
-        const f = box(ctx, "rackFrame", bw, bh, 9, bx, by, 0);
+        const f = box(ctx, frame, bw, bh, 9, bx, by, 0);
         f.userData.door = true;
         pivot.add(f);
       }
@@ -110,26 +152,43 @@ export const rackRenderer: ObjectRenderer = {
     const g = new THREE.Group();
     const pick = { type: "object" as const, id: obj.id };
     const t = 15;
+    // The body's colour and surface come from the item (FEEDBACK-4 §2).
+    const frame = surface("rackFrame", p.finish);
+    const cap = surface("rackCap", p.finish);
     // Frame: side panels (not on an open frame), posts, top cap, plinth.
     if (!obj.instance.open_frame) {
-      g.add(box(ctx, "rackFrame", t, h, d, -w / 2 + t / 2, 0, 0, pick));
-      g.add(box(ctx, "rackFrame", t, h, d, w / 2 - t / 2, 0, 0, pick));
+      g.add(box(ctx, frame, t, h, d, -w / 2 + t / 2, 0, 0, pick));
+      g.add(box(ctx, frame, t, h, d, w / 2 - t / 2, 0, 0, pick));
+      // Each side is two panels: a seam half way along.
+      for (const sx of [-1, 1])
+        seam(ctx, g, "vent", 3, h - 120, sx * (w / 2 + 1), 60, 0);
     } else {
       // Side rails top and bottom tie the posts of an open frame.
       for (const sx of [-1, 1])
         for (const y of [60, h - 80])
-          g.add(
-            box(ctx, "rackFrame", 30, 30, d, sx * (w / 2 - 25), y, 0, pick),
-          );
+          g.add(box(ctx, frame, 30, 30, d, sx * (w / 2 - 25), y, 0, pick));
     }
-    g.add(box(ctx, "rackCap", w + 6, 15, d + 6, 0, h - 15, 0, pick));
-    g.add(box(ctx, "rackCap", w, 50, d, 0, 0, 0, pick));
+    g.add(box(ctx, cap, w + 6, 15, d + 6, 0, h - 15, 0, pick));
+    g.add(box(ctx, cap, w, 50, d, 0, 0, 0, pick));
+    // The top cable entry: a brushed slot towards the rear.
+    g.add(box(ctx, "opening", w * 0.5, 2, 90, 0, h, d / 2 - 160));
+    if (ctx.detail > 0)
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          const foot = new THREE.Mesh(
+            new THREE.CylinderGeometry(20, 24, 10, 16),
+            ctx.lib.role("foot"),
+          );
+          foot.position.set(sx * (w / 2 - 45), 5, sz * (d / 2 - 45));
+          foot.userData.role = "foot";
+          g.add(foot);
+        }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1])
         g.add(
           box(
             ctx,
-            "rackFrame",
+            frame,
             30,
             h,
             30,
@@ -185,8 +244,8 @@ export const rackRenderer: ObjectRenderer = {
     const front = obj.instance.door_front ?? rack?.door_front ?? null;
     const rear = obj.instance.door_rear ?? rack?.door_rear ?? null;
     const leaves = [
-      ...doors(ctx, g, front, w, h, -d / 2, -1),
-      ...doors(ctx, g, rear, w, h, d / 2, 1),
+      ...doors(ctx, g, frame, front, w, h, -d / 2, -1),
+      ...doors(ctx, g, frame, rear, w, h, d / 2, 1),
     ];
     return {
       group: g,

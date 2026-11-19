@@ -15,6 +15,8 @@ export interface DcTokens {
   bg: string;
   /** Viewport background behind the 3D scene. */
   viewport: string;
+  /** Catalog previews' backdrop, top to bottom (flat when both are equal). */
+  preview: [string, string];
   panel: string;
   /** Backdrop blur of floating panels, px (0 = docked, opaque). */
   blur: number;
@@ -62,6 +64,7 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
     dark: true,
     bg: "#1b1c1f",
     viewport: "#121316",
+    preview: ["#33353a", "#1b1c1f"],
     panel: "rgba(32, 33, 37, 0.86)",
     blur: 14,
     floating: true,
@@ -94,6 +97,7 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
     dark: false,
     bg: "#f6f5f1",
     viewport: "#f6f5f1",
+    preview: ["#f6f5f1", "#f6f5f1"],
     panel: "#f6f5f1",
     blur: 0,
     floating: false,
@@ -126,6 +130,7 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
     dark: false,
     bg: "#f2f2f5",
     viewport: "#e8e8ed",
+    preview: ["#eef0f3", "#d6d9de"],
     panel: "rgba(255, 255, 255, 0.86)",
     blur: 14,
     floating: true,
@@ -160,6 +165,8 @@ export function applyTokens(el: HTMLElement, t: DcTokens) {
   const v: Record<string, string> = {
     bg: t.bg,
     viewport: t.viewport,
+    "preview-top": t.preview[0],
+    "preview-bottom": t.preview[1],
     panel: t.panel,
     blur: `${t.blur}px`,
     line: t.line,

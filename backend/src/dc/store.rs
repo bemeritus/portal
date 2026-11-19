@@ -12,9 +12,9 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 use super::model::{
-    Annotation, AnnotationPayload, CatalogItem, CatalogProps, DcObject, Device, DeviceFields,
-    PropSource, Room, RoomMeasurements, RoomSettings, RoomSummary, RoomView, ShelfCell, Snapshot,
-    enum_str, parse_enum,
+    Annotation, AnnotationPayload, CatalogItem, CatalogProps, CatalogUse, DcObject, Device,
+    DeviceFields, PropSource, Room, RoomMeasurements, RoomSettings, RoomSummary, RoomView,
+    ShelfCell, Snapshot, enum_str, parse_enum,
 };
 use crate::error::{ApiError, ApiResult, internal};
 
@@ -177,6 +177,31 @@ pub async fn catalog_of_room(conn: &mut PgConnection, room_id: i64) -> ApiResult
     .await
     .map_err(|e| internal("loading a room's catalog items", e))?;
     rows.into_iter().map(item_from_row).collect()
+}
+
+/// Where catalog items stand: one row per object, by item, room and name.
+pub async fn catalog_usage(conn: &mut PgConnection) -> ApiResult<Vec<CatalogUse>> {
+    sqlx::query_as::<_, (i64, i64, String, i64, String)>(
+        "SELECT o.catalog_id, r.id, r.name, o.id, o.name
+           FROM dc_objects o JOIN dc_rooms r ON r.id = o.room_id
+          ORDER BY o.catalog_id, r.name, o.name",
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|e| internal("listing where catalog items are used", e))
+    .map(|rows| {
+        rows.into_iter()
+            .map(
+                |(catalog_id, room_id, room_name, object_id, object_name)| CatalogUse {
+                    catalog_id,
+                    room_id,
+                    room_name,
+                    object_id,
+                    object_name,
+                },
+            )
+            .collect()
+    })
 }
 
 // --- Contents --------------------------------------------------------------------

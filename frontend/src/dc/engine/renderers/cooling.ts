@@ -19,7 +19,17 @@ import type {
   Discharge,
 } from "../../types";
 import {
+  display,
+  fan,
+  perforatedFace,
+  plinth,
+  rbox,
+  seam,
+  topVents,
+} from "./parts";
+import {
   box,
+  surface,
   type BuildContext,
   type Built,
   type ObjectRenderer,
@@ -177,7 +187,10 @@ export function openings(
   }
 }
 
-/** A rounded-profile body extruded along x: the wall split's housing. */
+/**
+ * A rounded-profile body extruded along x: the wall split's housing, with a
+ * small bevel so its edges catch the light.
+ */
 function roundedBody(
   ctx: BuildContext,
   role: string,
@@ -195,17 +208,22 @@ function roundedBody(
   s.quadraticCurveTo(-hz, h, -hz, h - r);
   s.lineTo(-hz, r);
   s.quadraticCurveTo(-hz, 0, -hz + r, 0);
+  const bevel = ctx.detail > 0 ? 6 : 0;
   const geo = new THREE.ExtrudeGeometry(s, {
-    depth: w,
-    bevelEnabled: false,
-    curveSegments: 8,
+    depth: w - 2 * bevel,
+    bevelEnabled: bevel > 0,
+    bevelSize: bevel,
+    bevelThickness: bevel,
+    bevelSegments: 3,
+    curveSegments: 10,
   });
   // Shape is in (z, y); extrude runs along +z: turn so the extrusion is x.
   geo.rotateY(Math.PI / 2);
-  geo.translate(-w / 2, 0, 0);
+  geo.translate(-w / 2 + bevel, 0, 0);
   const m = new THREE.Mesh(geo, ctx.lib.role(role));
   m.userData.role = role;
   m.castShadow = ctx.mode === "realistic";
+  m.receiveShadow = ctx.mode === "realistic";
   return m;
 }
 
@@ -215,14 +233,13 @@ function louvre(
   y: number,
   z: number,
   angle: number,
+  role = "louvre",
 ): THREE.Mesh {
-  const m = new THREE.Mesh(
-    new THREE.BoxGeometry(w, 8, 50),
-    ctx.lib.role("louvre"),
-  );
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 8, 50), ctx.lib.role(role));
   m.position.set(0, y, z);
   m.rotation.x = angle;
-  m.userData.role = "louvre";
+  m.userData.role = role;
+  m.castShadow = ctx.mode === "realistic";
   return m;
 }
 
@@ -236,6 +253,22 @@ function grille(
   bars: number,
   axis: "x" | "z" = "x",
 ) {
+  // The grille's bars are detail; at the lowest level one dark panel stands in.
+  if (ctx.detail === 0) {
+    g.add(
+      box(
+        ctx,
+        "opening",
+        axis === "x" ? w : 8,
+        2,
+        axis === "x" ? d : d,
+        0,
+        y,
+        z,
+      ),
+    );
+    return;
+  }
   for (let i = 0; i < bars; i++) {
     const t = (i + 0.5) / bars - 0.5;
     const bar =
@@ -243,6 +276,50 @@ function grille(
         ? box(ctx, "louvre", w, 6, 8, 0, y, z + t * d)
         : box(ctx, "louvre", 8, 6, d, t * w, y, z);
     g.add(bar);
+  }
+}
+
+/**
+ * A duct flange on a face: a collar standing out of the casing and the dark
+ * opening inside it, with `vanes` louvre blades across (supply) or none.
+ */
+function flange(
+  ctx: BuildContext,
+  g: THREE.Group,
+  body: string,
+  w: number,
+  h: number,
+  y: number,
+  z: number,
+  outward: -1 | 1,
+  vanes: number,
+) {
+  const depth = 50;
+  const zc = z + (outward * depth) / 2;
+  const t = 14;
+  for (const [bw, bh, bx, by] of [
+    [w, t, 0, y + h - t],
+    [w, t, 0, y],
+    [t, h, -w / 2 + t / 2, y],
+    [t, h, w / 2 - t / 2, y],
+  ])
+    g.add(rbox(ctx, body, bw, bh, depth, bx, by, zc, 3));
+  g.add(
+    box(ctx, "opening", w - 2 * t, h - 2 * t, 4, 0, y + t, z + outward * 4),
+  );
+  if (ctx.detail === 0) return;
+  for (let i = 0; i < vanes; i++) {
+    const vy = y + t + ((i + 0.5) * (h - 2 * t)) / vanes;
+    const vane = louvre(
+      ctx,
+      w - 2 * t - 4,
+      vy,
+      z + outward * 22,
+      0.55,
+      "louvre",
+    );
+    vane.scale.z = 0.6;
+    g.add(vane);
   }
 }
 
@@ -265,34 +342,29 @@ export function buildCooling(
   };
   const precision =
     props.subtype === "in_row" || props.subtype === "precision_perimeter";
-  const bodyRole = precision ? "coolingPrecision" : "cooling";
+  // The body's colour and surface come from the item (FEEDBACK-4 §2).
+  const body = surface(
+    precision ? "coolingPrecision" : "cooling",
+    props.finish,
+  );
   switch (props.subtype) {
     case "split_wall": {
-      g.add(roundedBody(ctx, bodyRole, w, h, d, Math.min(h, d) * 0.35));
-      // Front panel, lower louvre angled down (supply), top grille (return),
-      // display window.
-      g.add(box(ctx, "louvre", w * 0.96, h * 0.55, 6, 0, h * 0.35, -d / 2 - 1));
-      g.add(louvre(ctx, w * 0.8, h * 0.12, -d / 2 + 20, -0.5));
-      grille(ctx, g, w * 0.85, d * 0.6, h, 0, 6);
-      const disp = box(
-        ctx,
-        "display",
-        w * 0.08,
-        h * 0.06,
-        4,
-        w * 0.36,
-        h * 0.6,
-        -d / 2 - 4,
-      );
-      g.add(disp);
+      // A rounded white body, a horizontal louvre at the bottom front
+      // (supply, angled down), the intake grille on top and underneath,
+      // a display window.
+      g.add(roundedBody(ctx, body, w, h, d, Math.min(h, d) * 0.4));
+      g.add(louvre(ctx, w * 0.84, h * 0.1, -d / 2 + 18, -0.55, body));
+      g.add(box(ctx, "opening", w * 0.86, 14, d * 0.25, 0, 2, -d * 0.18));
+      grille(ctx, g, w * 0.85, d * 0.55, h, 0.05 * d, 7);
+      display(ctx, g, w * 0.06, h * 0.05, w * 0.33, h * 0.62, -d / 2, -1);
       break;
     }
     case "split_cassette": {
-      // Ceiling body above, a larger square panel below with four louvres
-      // round a central return grille.
-      g.add(box(ctx, bodyRole, w * 0.85, h - 30, d * 0.85, 0, 30, 0));
-      g.add(box(ctx, "louvre", w, 30, d, 0, 0, 0));
-      grille(ctx, g, w * 0.45, d * 0.45, -4, 0, 8);
+      // A square body in the ceiling, a larger panel below it with four
+      // louvres round a central return grille.
+      g.add(rbox(ctx, "rim", w * 0.85, h - 30, d * 0.85, 0, 30, 0, 6));
+      g.add(rbox(ctx, body, w, 30, d, 0, 0, 0, 10));
+      grille(ctx, g, w * 0.42, d * 0.42, -3, 0, 9);
       for (const [x, z, rx, ry] of [
         [0, -d * 0.36, w * 0.5, 0],
         [0, d * 0.36, w * 0.5, 0],
@@ -311,30 +383,31 @@ export function buildCooling(
       break;
     }
     case "split_floor_ceiling": {
-      g.add(roundedBody(ctx, bodyRole, w, h, d, Math.min(h, d) * 0.25));
-      g.add(louvre(ctx, w * 0.8, h * 0.5, -d / 2 + 15, -0.2));
+      // A curved low body with a front louvre and a return grille below.
+      g.add(roundedBody(ctx, body, w, h, d, Math.min(h, d) * 0.3));
+      g.add(louvre(ctx, w * 0.8, h * 0.5, -d / 2 + 15, -0.2, body));
       grille(ctx, g, w * 0.8, d * 0.4, -2, d * 0.2, 6);
       break;
     }
     case "ducted": {
-      // Box, supply flange at the front, return flange at the rear, hanger
-      // brackets, condensate outlet.
-      g.add(box(ctx, bodyRole, w, h, d, 0, 0, 0));
-      g.add(box(ctx, "rail", w * 0.75, h * 0.6, 40, 0, h * 0.2, -d / 2 - 20));
-      g.add(box(ctx, "rail", w * 0.8, h * 0.7, 30, 0, h * 0.15, d / 2 + 15));
-      grille(ctx, g, w * 0.7, h * 0.5, h * 0.5, -d / 2 - 42, 1);
+      // A galvanised casing; the supply flange with a louvre at the front,
+      // the return flange at the rear; hanger brackets, the condensate
+      // outlet and a terminal box on the side.
+      g.add(rbox(ctx, body, w, h, d, 0, 0, 0, 5));
+      flange(ctx, g, body, w * 0.78, h * 0.62, h * 0.19, -d / 2, -1, 4);
+      flange(ctx, g, body, w * 0.82, h * 0.7, h * 0.15, d / 2, 1, 0);
       for (const sx of [-1, 1])
         for (const sz of [-1, 1]) {
           g.add(
             box(
               ctx,
-              "rail",
-              30,
-              60,
-              60,
-              sx * (w / 2 + 15),
-              h - 60,
-              sz * d * 0.3,
+              "hinge",
+              50,
+              12,
+              70,
+              sx * (w / 2 + 25),
+              h - 40,
+              sz * d * 0.32,
             ),
           );
           // Threaded rods up to the ceiling (photos 02, 06).
@@ -344,76 +417,180 @@ export function buildCooling(
                 ctx,
                 "rod",
                 10,
-                ctx.ceilingAbove + 60,
+                ctx.ceilingAbove + 40,
                 10,
-                sx * (w / 2 + 15),
-                h - 60,
-                sz * d * 0.3,
+                sx * (w / 2 + 30),
+                h - 40,
+                sz * d * 0.32,
               ),
             );
         }
       const drain = new THREE.Mesh(
-        new THREE.CylinderGeometry(12, 12, 60, 12),
-        ctx.lib.role("rail"),
+        new THREE.CylinderGeometry(14, 14, 70, 16),
+        ctx.lib.role("caster"),
       );
-      drain.rotation.x = Math.PI / 2;
-      drain.position.set(w / 2 - 60, h * 0.25, d / 2 + 30);
-      drain.userData.role = "rail";
+      drain.rotation.z = Math.PI / 2;
+      drain.position.set(w / 2 + 35, h * 0.22, d / 2 - 90);
+      drain.userData.role = "caster";
       g.add(drain);
+      g.add(
+        rbox(
+          ctx,
+          "terminal",
+          90,
+          h * 0.45,
+          120,
+          -w / 2 - 45,
+          h * 0.2,
+          d / 2 - 140,
+          4,
+        ),
+      );
       break;
     }
     case "in_row": {
-      // Rack-height cabinet of its width, perforated front (supply) and rear
-      // (return), fan modules behind the front, casters.
-      g.add(box(ctx, bodyRole, w, h - 60, d - 20, 0, 60, 0));
-      const perf = (z: number) => {
-        const m = new THREE.Mesh(
-          new THREE.PlaneGeometry(w - 40, h - 200),
-          ctx.lib.role("perforated"),
-        );
-        m.position.set(0, (h - 200) / 2 + 120, z);
-        if (z < 0) m.rotation.y = Math.PI;
-        m.userData.role = "perforated";
-        g.add(m);
-      };
-      perf(-d / 2 - 2);
-      perf(d / 2 + 2);
-      const fans = Math.max(2, Math.round((h - 400) / 420));
-      for (let i = 0; i < fans; i++) {
-        const fan = new THREE.Mesh(
-          new THREE.CylinderGeometry(w * 0.32, w * 0.32, 30, 24),
-          ctx.lib.role("rail"),
-        );
-        fan.rotation.x = Math.PI / 2;
-        fan.position.set(0, 300 + (i + 0.5) * ((h - 500) / fans), -d / 2 + 40);
-        fan.userData.role = "rail";
-        g.add(fan);
-      }
+      // A rack-height cabinet on a plinth with levelling feet: the front
+      // door perforated over a stack of fans, a display at the top, the
+      // door's hinge line, a vented top, side panel seams; the rear
+      // perforated too (return).
+      const base = 60;
+      plinth(ctx, g, w, d, base);
+      // A shell — sides and top over the full depth — round a core set
+      // back 90 mm at each end, so the fans have room behind the doors.
+      const recess = 90;
       for (const sx of [-1, 1])
-        for (const sz of [-1, 1]) {
-          const c = new THREE.Mesh(
-            new THREE.CylinderGeometry(25, 25, 30, 12),
-            ctx.lib.role("rackFrame"),
+        g.add(
+          rbox(ctx, body, 24, h - base, d - 20, sx * (w / 2 - 12), base, 0, 4),
+        );
+      g.add(rbox(ctx, body, w, 30, d - 20, 0, h - 30, 0, 4));
+      g.add(box(ctx, body, w - 40, h - base - 30, d - 2 * recess, 0, base, 0));
+      for (const sz of [-1, 1])
+        g.add(
+          box(
+            ctx,
+            "fanShroud",
+            w - 40,
+            h - base - 30,
+            4,
+            0,
+            base,
+            sz * (d / 2 - recess),
+          ),
+        );
+      const top = h - 340;
+      const fanR = Math.min(w * 0.36, 150);
+      const cols = w >= 500 ? 2 : 1;
+      const perfH = top - (base + 80);
+      perforatedFace(
+        ctx,
+        g,
+        body,
+        w - 24,
+        perfH,
+        0,
+        base + 80,
+        -d / 2 + 10,
+        -1,
+        (zb) => {
+          const rows = Math.max(2, Math.floor(perfH / (fanR * 2.6)));
+          for (let i = 0; i < rows; i++)
+            for (let j = 0; j < cols; j++)
+              fan(
+                ctx,
+                g,
+                fanR,
+                cols > 1 ? (j - 0.5) * (w * 0.46) : 0,
+                base + 80 + ((i + 0.5) * perfH) / rows,
+                zb,
+              );
+        },
+      );
+      perforatedFace(ctx, g, body, w - 24, perfH, 0, base + 80, d / 2 - 10, 1);
+      display(ctx, g, Math.min(140, w - 80), 80, 0, h - 230, -d / 2 + 10, -1);
+      // The door's hinge line, down its left edge as seen from the front.
+      g.add(
+        box(
+          ctx,
+          "hinge",
+          6,
+          h - base - 40,
+          6,
+          w / 2 - 8,
+          base + 20,
+          -d / 2 + 8,
+        ),
+      );
+      topVents(ctx, g, w, d, h + 1, 8);
+      for (const f of [1 / 3, 2 / 3])
+        for (const sx of [-1, 1])
+          seam(
+            ctx,
+            g,
+            "rim",
+            3,
+            h - base - 60,
+            sx * (w / 2 + 1),
+            base + 30,
+            -d / 2 + d * f,
           );
-          c.rotation.z = Math.PI / 2;
-          c.position.set(sx * (w / 2 - 50), 25, sz * (d / 2 - 80));
-          c.userData.role = "rackFrame";
-          g.add(c);
-        }
       break;
     }
     case "precision_perimeter": {
-      g.add(box(ctx, bodyRole, w, h, d, 0, 0, 0));
-      // Service panels: vertical seams on the front.
-      for (const f of [1 / 3, 2 / 3])
-        g.add(box(ctx, "rail", 6, h - 120, 4, -w / 2 + w * f, 60, -d / 2 - 2));
-      g.add(box(ctx, "display", 120, 70, 4, w / 2 - 120, h - 300, -d / 2 - 3));
+      // A floor cabinet on a plinth: front service panels with seams and
+      // handles, a display, a top grille (upflow) or a base louvre
+      // (downflow).
+      const base = 100;
+      plinth(ctx, g, w, d, base);
+      g.add(rbox(ctx, body, w, h - base, d, 0, base, 0, 6));
+      const panels = w > 1200 ? 3 : 2;
+      const pw = w / panels;
+      for (let i = 0; i < panels; i++) {
+        const px = -w / 2 + pw * (i + 0.5);
+        g.add(
+          rbox(
+            ctx,
+            body,
+            pw - 14,
+            h - base - 60,
+            10,
+            px,
+            base + 30,
+            -d / 2 - 4,
+            3,
+          ),
+        );
+        if (i > 0)
+          seam(
+            ctx,
+            g,
+            "vent",
+            4,
+            h - base - 60,
+            -w / 2 + pw * i,
+            base + 30,
+            -d / 2 - 10,
+          );
+        // A handle by each panel's opening edge.
+        g.add(
+          rbox(
+            ctx,
+            "foot",
+            16,
+            180,
+            22,
+            px + (i % 2 ? -1 : 1) * (pw / 2 - 50),
+            base + (h - base) * 0.5,
+            -d / 2 - 14,
+            4,
+          ),
+        );
+      }
+      display(ctx, g, 160, 100, w / 2 - pw / 2, h - 420, -d / 2 - 8, -1);
       if (discharge === "downflow") {
-        g.add(box(ctx, "louvre", w * 0.8, 10, d * 0.7, 0, -12, 0));
-        grille(ctx, g, w * 0.8, d * 0.7, h, 0, 8);
+        g.add(box(ctx, "opening", w * 0.8, 6, d * 0.7, 0, h, 0));
+        grille(ctx, g, w * 0.8, 6, base * 0.5, -d / 2 - 10, 1);
       } else {
-        grille(ctx, g, w * 0.8, d * 0.7, h, 0, 8);
-        grille(ctx, g, w * 0.8, 6, h * 0.4, -d / 2 - 6, 1);
+        grille(ctx, g, w * 0.84, d * 0.76, h + 1, 0, 14);
       }
       break;
     }
