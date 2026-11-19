@@ -1,7 +1,7 @@
 /**
- * End-to-end checks in a real browser (`just e2e`). They drive the running
- * dev servers (`just dev`) against the seeded server room (`just seed-dc`);
- * E2E_USER / E2E_PASSWORD name an account with `dc_room` access.
+ * End-to-end checks in a real browser (`just e2e`). They run on a stack of
+ * their own — a scratch database, seeded, with its own API and Vite
+ * (scripts/e2e-stack.sh), which sets E2E_BASE_URL, E2E_USER, E2E_PASSWORD.
  */
 import { defineConfig, devices } from "@playwright/test";
 

@@ -250,18 +250,21 @@ come with phase 2.
   locale key parity, every server error sentence translated).
 - `just test-db` — the database-level rules (`backend/tests/dc_constraints.sql`)
   against a throwaway database; CI runs the same against a Postgres service.
-- `just e2e` — Playwright (Chromium) against the running dev servers and the
-  seeded room: the ruler's 595 mm (r1 back face → back wall) and 200 mm
+- `just e2e` — Playwright (Chromium) on a stack of its own
+  (`scripts/e2e-stack.sh`): a scratch database created, migrated and seeded
+  for the run and dropped after it, with its own API and Vite (ports
+  `E2E_API_PORT` 3101, `E2E_WEB_PORT` 5181) and its own test account. The
+  dev database is never touched, so a branch's migrations cannot reach it
+  before merge. `just e2e-serve` keeps the same stack up until Ctrl-C, for
+  screenshots or a look by hand. The checks: the ruler's 595 mm (r1 back face → back wall) and 200 mm
   (r3–r4); the inspector's tabs on one row in every theme × language; blocked
   shelf cells in the realistic mode; where a room opens in the drawing theme;
   the palette's find-free-space parameters; the docked rail's separators;
   the clearance warning; the catalog (sizes in three units, the item page,
   the table's sorting, a picture on every card, filters, comparison).
-  `E2E_USER` / `E2E_PASSWORD`: an account with
-  `dc_room:edit` (defaults to the local test account `dcedit`). The tests
-  change that account's language and theme and put them back afterwards, so
-  they run one at a time; the saved-view test adds a view and deletes it
-  (two revisions). Set `PLAYWRIGHT_BROWSERS_PATH` where Playwright's browsers
+  `E2E_USER` / `E2E_PASSWORD` name the account the stack creates
+  (`dcedit` by default). The tests change that account's language and theme
+  and put them back afterwards, so they run one at a time. Set `PLAYWRIGHT_BROWSERS_PATH` where Playwright's browsers
   are not downloaded — on Nix, `nix build nixpkgs#playwright-driver.browsers`
   of the same version as `@playwright/test`, and run with `LD_LIBRARY_PATH`
   unset (the dev shell's glibc is older than the browsers').
