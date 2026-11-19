@@ -12,6 +12,7 @@ import type {
   CatalogItem,
   DcObject,
   Instance,
+  Measurement,
   RoomSettings,
   ShelfProps,
 } from "../types";
@@ -371,18 +372,63 @@ export function gap(
 export interface ClearanceCheck {
   objectId: number;
   side: "front" | "rear";
+  /** The gap in the model. */
   gap: Gap;
+  /** A tape reading of this very gap (the lower end of two readings). */
+  measured: number | null;
+  /** What the check goes by: the tape when there is one. */
+  basis: "measured" | "model";
+  /** The gap the check is decided on. */
+  mm: number;
   required: number;
   /** The zone that must stay free, on the floor. */
   zone: Rect;
   ok: boolean;
+  /** Model and tape fall on different sides of the requirement. */
+  split: boolean;
 }
 
-/** Front and rear service clearance of each rack (§4.4); a shortfall warns. */
+/** Measurement ends this close to the gap's ends read the same gap. */
+const SAME_GAP_MM = 2;
+
+/**
+ * The tape reading of a gap: a measurement drawn along the same line — from
+ * the rack's face, within its width, to where the gap ends. For two
+ * readings, the lower one. Mirrors `measured_gap` on the server.
+ */
+function measuredGap(
+  r: Rect,
+  dir: Dir,
+  g: Gap,
+  measurements: Measurement[],
+): number | null {
+  const alongX = dir === "left" || dir === "right";
+  const face = { left: r.x0, right: r.x1, up: r.z0, down: r.z1 }[dir];
+  const end = dir === "left" || dir === "up" ? face - g.mm : face + g.mm;
+  const [lo, hi] = alongX ? [r.z0, r.z1] : [r.x0, r.x1];
+  const near = (a: number, b: number) => Math.abs(a - b) <= SAME_GAP_MM;
+  for (const m of measurements) {
+    if (!m.line) continue;
+    const [p, q] = m.line;
+    const [pa, qa, pc, qc] = alongX
+      ? [p[0], q[0], p[2], q[2]]
+      : [p[2], q[2], p[0], q[0]];
+    const ends =
+      (near(pa, face) && near(qa, end)) || (near(qa, face) && near(pa, end));
+    if (ends && pc === qc && lo < pc && pc < hi) return m.min ?? m.value;
+  }
+  return null;
+}
+
+/**
+ * Front and rear service clearance of each rack (§4.4); a shortfall warns. A
+ * tape reading of the same gap decides over the model (FEEDBACK-5 §1).
+ */
 export function clearances(
   solids: Solid[],
   poly: [number, number][],
   settings: RoomSettings,
+  measurements: Measurement[] = [],
 ): ClearanceCheck[] {
   const out: ClearanceCheck[] = [];
   solids.forEach((s, i) => {
@@ -405,13 +451,19 @@ export function clearances(
             : dir === "left"
               ? rect(r.x0 - required, r.z0, r.x0, r.z1)
               : rect(r.x1, r.z0, r.x1 + required, r.z1);
+      const measured = measuredGap(r, dir, g, measurements);
+      const mm = measured ?? g.mm;
       out.push({
         objectId: s.id,
         side,
         gap: g,
+        measured,
+        basis: measured === null ? "model" : "measured",
+        mm,
         required,
         zone,
-        ok: g.mm >= required,
+        ok: mm >= required,
+        split: measured !== null && measured >= required !== g.mm >= required,
       });
     }
   });

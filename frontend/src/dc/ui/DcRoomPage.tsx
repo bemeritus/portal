@@ -63,6 +63,7 @@ import { dcApi } from "../api";
 import {
   DcEngine,
   type EngineModel,
+  type LegendMarks,
   type Measure,
   type Mode,
   type RulerMode,
@@ -94,6 +95,8 @@ import { Inspector, type InspectorTab } from "./Inspector";
 import { planByDefault } from "./landing";
 import { assumedByObject, objectFields } from "../model/objects";
 import { measureLabel } from "./measureLabel";
+import { clearanceSplitText } from "./SelectionPanel";
+import { hasLegend, PlanLegend } from "./PlanLegend";
 
 const MODES: Mode[] = ["schema", "realistic", "fill", "power"];
 const TOOLS: { tool: Tool; icon: typeof Eye }[] = [
@@ -244,6 +247,8 @@ export function DcRoomPage() {
     power: number | null;
   } | null>(null);
   const flewTo = useRef(false);
+  /** The marks drawn in the view, for the plan legend. */
+  const [legend, setLegend] = useState<LegendMarks | null>(null);
 
   const catalog = useMemo(
     () =>
@@ -283,6 +288,7 @@ export function DcRoomPage() {
         measurement: (m) => ({ text: String(m.value), title: "", mark: false }),
         ruler: (r) => String(r.distance),
         snap: (k) => k,
+        clearance: (c) => String(c.mm),
       },
       TOKENS[settings.theme],
     );
@@ -300,6 +306,7 @@ export function DcRoomPage() {
     e.onPlaceNote = (p) => setNotePos(p);
     e.onRuler = (m) => setMeasures([...m]);
     e.onQuality = () => setNotice(t("dc.quality.lowered"));
+    e.onLegend = setLegend;
     return () => {
       e.dispose();
       engine.current = null;
@@ -326,6 +333,21 @@ export function DcRoomPage() {
       measurement: (m) => measurementText(m, fmt, t),
       ruler: (r) => rulerText(r, fmt, t, snapWord),
       snap: snapWord,
+      clearance: (c) => {
+        const head = t(
+          c.side === "front"
+            ? "dc.clearance.zoneFront"
+            : "dc.clearance.zoneRear",
+          {
+            gap: fmt.mm(c.mm),
+            basis: t(`dc.clearance.basis.${c.basis}`),
+            need: fmt.len(c.required),
+          },
+        );
+        return c.split
+          ? `${head}\n${clearanceSplitText({ model: c.gap.mm, tape: c.mm }, fmt, t)}`
+          : head;
+      },
     };
     e.setCubeLabels({
       top: t("dc.view.top"),
@@ -369,19 +391,36 @@ export function DcRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.ready]);
 
-  // The plan: orthographic from above; 3D again when leaving it.
+  // The plan: orthographic, straight down, orbit off — only pan and zoom
+  // (FEEDBACK-5 §4). 3D again when leaving it; a turn of the view on the
+  // plan leaves it too, and flies there smoothly.
+  const leaveTo = useRef<Preset | null>(null);
   useEffect(() => {
     const e = engine.current;
     if (!e || !settings.ready) return;
     // On its way to the plan: no 3D view first.
     if (!plan && toPlan.current) return;
     toPlan.current = false;
+    e.setPlanLock(plan);
     if (plan) e.preset("top", 0);
-    else if (initial.current.cam) {
+    else if (leaveTo.current) {
+      e.preset(leaveTo.current);
+      leaveTo.current = null;
+    } else if (initial.current.cam) {
       e.goView(initial.current.cam);
       initial.current.cam = null;
     } else e.preset("iso", 0);
   }, [plan, loaded, settings.ready]);
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    e.onLeavePlan = (p) => {
+      leaveTo.current = p;
+      const q = new URLSearchParams(search);
+      q.set("view", "3d");
+      navigate({ search: q.toString(), hash: window.location.hash });
+    };
+  }, [search, navigate, loaded]);
 
   // Selection → engine, URL hash.
   useEffect(() => {
@@ -802,19 +841,6 @@ export function DcRoomPage() {
     ? (owners.find((o) => o.name === owner)?.count ?? 0)
     : 0;
   const assumedCount = assumedByObject(data).size;
-  // The plan legend's requirement: what the short racks need (or, with
-  // none short, what every rack needs).
-  const clearanceNeed = [
-    ...new Set(
-      (data.analysis.clearances.some((c) => c.gap_mm < c.required_mm)
-        ? data.analysis.clearances.filter((c) => c.gap_mm < c.required_mm)
-        : data.analysis.clearances
-      ).map((c) => c.required_mm),
-    ),
-  ]
-    .sort((a, b) => a - b)
-    .map(fmt.mm)
-    .join(" / ");
 
   const rail = (
     <div
@@ -998,36 +1024,29 @@ export function DcRoomPage() {
 
         {plan && (
           <>
-            <div className="dc-legend-sheet dc-panel">
-              <div>— — — {t("dc.plan.overhead")}</div>
-              <div>
-                <span
-                  className="mr-1 inline-block size-1.5 rounded-full align-middle"
-                  style={{ background: "var(--dc-warn)" }}
-                />{" "}
-                {t("dc.plan.tapeDiffers")}
-              </div>
-              <div>
-                <span
-                  className="mr-1 inline-block h-1.5 w-3 align-middle"
-                  style={{ background: "var(--dc-warn)", opacity: 0.4 }}
-                />{" "}
-                {t("dc.plan.clearance", { need: clearanceNeed })}
-              </div>
-            </div>
-            <div className="dc-titleblock dc-panel">
-              <div>{data.room.name}</div>
-              <div>
-                <span>{t("dc.plan.sheet")}</span>
-                <span className="dc-num">
-                  {new Date().toLocaleDateString(i18n.language)}
-                </span>
-              </div>
-              <div>
-                <span>{t("dc.plan.units", { unit: fmt.unitWord })}</span>
-                <span className="dc-num">
-                  {t("dc.revision", { n: data.room.revision })}
-                </span>
+            <div className="dc-plan-corner">
+              {hasLegend(legend) && (
+                <PlanLegend
+                  marks={legend}
+                  fmt={fmt}
+                  collapsed={settings.settings.dc_legend_collapsed}
+                  onCollapsed={settings.setLegendCollapsed}
+                />
+              )}
+              <div className="dc-titleblock dc-panel">
+                <div>{data.room.name}</div>
+                <div>
+                  <span>{t("dc.plan.sheet")}</span>
+                  <span className="dc-num">
+                    {new Date().toLocaleDateString(i18n.language)}
+                  </span>
+                </div>
+                <div>
+                  <span>{t("dc.plan.units", { unit: fmt.unitWord })}</span>
+                  <span className="dc-num">
+                    {t("dc.revision", { n: data.room.revision })}
+                  </span>
+                </div>
               </div>
             </div>
           </>

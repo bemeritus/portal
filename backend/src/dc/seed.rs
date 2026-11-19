@@ -22,8 +22,9 @@ use sqlx::PgPool;
 use super::geometry::units_for_height;
 use super::model::{
     CableTrayProps, CatalogProps, CoolingProps, CoolingSubtype, DcObject, Discharge, EspPa, Finish,
-    FinishKind, MeasSrc, Measurement, PropSource, PropSrc, RackProps, RoomMeasurements,
-    RoomSettings, ShelfProps, Snapshot, StructureProps, StructureSubtype, TrayType, parse_enum,
+    FinishKind, LocalText, MeasSrc, Measurement, PropSource, PropSrc, RackProps, RoomMeasurements,
+    RoomSettings, ShelfProps, Snapshot, StructureProps, StructureSubtype, Text, TrayType,
+    parse_enum,
 };
 
 const ROOM_JSON: &str = include_str!("../../seeds/dc/room.json");
@@ -134,8 +135,150 @@ fn source(src: PropSrc, url: Option<&str>, note: Option<&str>) -> PropSource {
     PropSource {
         src,
         url: url.map(str::to_string),
-        note: note.map(str::to_string),
+        note: note.map(text),
     }
+}
+
+/// The seed's notes and rating conditions in every UI language (FEEDBACK-5
+/// §5): English as written in `room.json`, `cooling.json` and here, with
+/// Russian and Uzbek. Migration 0026 gives the same texts to rows seeded
+/// before.
+const SEED_TEXT: &[(&str, &str, &str)] = &[
+    (
+        "manufacturer nominal",
+        "номинал производителя",
+        "ishlab chiqaruvchi nominali",
+    ),
+    (
+        "return air 37 °C, 24 % RH; outdoor 35 °C",
+        "воздух на входе 37 °C, отн. влажность 24 %; снаружи 35 °C",
+        "kiruvchi havo 37 °C, nisbiy namlik 24 %; tashqarida 35 °C",
+    ),
+    (
+        "converted from BTU/h",
+        "пересчитано из BTU/ч",
+        "BTU/soat dan qayta hisoblangan",
+    ),
+    (
+        "bottom board and the middle board's height (equal spacing, 947.5 rounded) assumed; top board measured",
+        "высота нижней и средней полки принята (равный шаг, 947,5 округлено); верхняя полка измерена",
+        "pastki va o'rta polka balandligi taxmin qilingan (teng oraliq, 947,5 yaxlitlangan); yuqori polka o'lchangan",
+    ),
+    (
+        "body measured on site; length differs per unit (see the room's measurements)",
+        "корпус измерен на месте; длина у каждого блока своя (см. замеры комнаты)",
+        "korpus joyida o'lchangan; uzunligi har bir blokda har xil (xona o'lchovlariga qarang)",
+    ),
+    (
+        "fixed by team decision: every rack is 600 × 1000 × 2040; measured widths are kept as tape values",
+        "решение команды: каждая стойка 600 × 1000 × 2040; измеренная ширина сохранена как показания рулетки",
+        "jamoa qarori: har bir stoyka 600 × 1000 × 2040; o'lchangan kengliklar ruletka qiymatlari sifatida saqlangan",
+    ),
+    (
+        "grey two-section metal locker next to the shelf at the door end (photos 02, 06); measured 506 x 400 x 1230",
+        "серый двухсекционный металлический шкаф у стеллажа со стороны двери (фото 02, 06); измерено 506 × 400 × 1230",
+        "eshik tomonda stellaj yonidagi kulrang ikki seksiyali metall shkaf (foto 02, 06); o'lchangan 506 × 400 × 1230",
+    ),
+    (
+        "height read as 1795–1800",
+        "высота прочитана как 1795–1800",
+        "balandlik 1795–1800 deb o'qilgan",
+    ),
+    (
+        "width and side height assumed from photos 04, 05",
+        "ширина и высота боковины приняты по фото 04, 05",
+        "kenglik va yon balandligi 04, 05 fotolar bo'yicha taxmin qilingan",
+    ),
+    (
+        "black metal (photo 02)",
+        "чёрный металл (фото 02)",
+        "qora metall (foto 02)",
+    ),
+    (
+        "black powder coat (photos 03, 08)",
+        "чёрная порошковая окраска (фото 03, 08)",
+        "qora kukunli bo'yoq (foto 03, 08)",
+    ),
+    (
+        "galvanised casing (photos 02, 06)",
+        "оцинкованный корпус (фото 02, 06)",
+        "ruxlangan korpus (foto 02, 06)",
+    ),
+    (
+        "the manufacturer's product photos",
+        "фотографии изделия у производителя",
+        "ishlab chiqaruvchining mahsulot fotosuratlari",
+    ),
+    (
+        "top board 1-14, middle board 15-28 (plates on the boards), bottom board has no plates",
+        "верхняя полка 1–14, средняя 15–28 (таблички на полках), на нижней табличек нет",
+        "yuqori polka 1–14, o'rta polka 15–28 (polkalarda raqam lavhalari), pastki polkada lavha yo'q",
+    ),
+    (
+        "assumed from photos",
+        "принято по фото",
+        "fotolar bo'yicha taxmin qilingan",
+    ),
+    (
+        "indoor units hang on threaded rods under the ceiling above the shelf (photos 02, 06). Their supply ducts over the aisle are intentionally not modelled (team decision). Model and capacity unknown.",
+        "внутренние блоки висят на шпильках под потолком над стеллажом (фото 02, 06). Их подающие воздуховоды над проходом намеренно не моделируются (решение команды). Модель и мощность неизвестны.",
+        "ichki bloklar stellaj ustida shiftga rezbali shpilkalarda osilgan (foto 02, 06). Ularning o'tish joyi ustidagi havo kanallari ataylab modellashtirilmagan (jamoa qarori). Modeli va quvvati noma'lum.",
+    ),
+    (
+        "plinth and top cap of 160 mm in total assumed",
+        "цоколь и верхняя крышка — всего 160 мм, принято",
+        "poydevor va yuqori qopqoq jami 160 mm deb taxmin qilingan",
+    ),
+    (
+        "Fixed by decision of the team: every rack is 600 x 1000 x 2040. Units: floor(((2040 - 160) / 44.45)) = 42, U1 starts 100 mm above the floor (assumed plinth + top cap of 160 mm in total).",
+        "Решение команды: каждая стойка 600 × 1000 × 2040. Юниты: floor((2040 − 160) / 44,45) = 42, U1 начинается в 100 мм от пола (принято: цоколь + верхняя крышка всего 160 мм).",
+        "Jamoa qarori: har bir stoyka 600 × 1000 × 2040. Yunitlar: floor((2040 − 160) / 44,45) = 42, U1 poldan 100 mm balandda boshlanadi (taxmin: poydevor + yuqori qopqoq jami 160 mm).",
+    ),
+];
+
+/// A seed note in every UI language. Notes with numbers in them follow a
+/// pattern; anything not in the table stays as written (a test makes sure
+/// nothing the seed writes is left so).
+fn text(en: &str) -> Text {
+    let local = |ru: String, uz: String| {
+        Text::Local(LocalText {
+            en: en.to_string(),
+            ru,
+            uz,
+        })
+    };
+    if let Some((_, ru, uz)) = SEED_TEXT.iter().find(|t| t.0 == en) {
+        return local(ru.to_string(), uz.to_string());
+    }
+    let comma = |n: &str| n.replace('.', ",");
+    // "Daikin UK rating conditions: total 3320 W, sensible 2260 W"
+    if let Some(rest) = en.strip_prefix("Daikin UK rating conditions: total ")
+        && let Some((total, rest)) = rest.split_once(" W, sensible ")
+        && let Some(sensible) = rest.strip_suffix(" W")
+    {
+        return local(
+            format!("условия рейтинга Daikin UK: полная {total} Вт, явная {sensible} Вт"),
+            format!("Daikin UK reyting sharoitlari: umumiy {total} Vt, ochiq {sensible} Vt"),
+        );
+    }
+    // "derived (7034 W / EER 3.1)"
+    if let Some(rest) = en.strip_prefix("derived (")
+        && let Some((w, rest)) = rest.split_once(" W / EER ")
+        && let Some(eer) = rest.strip_suffix(')')
+    {
+        return local(
+            format!("вычислено ({w} Вт / EER {})", comma(eer)),
+            format!("hisoblangan ({w} Vt / EER {})", comma(eer)),
+        );
+    }
+    // "1800 CFM converted"
+    if let Some(cfm) = en.strip_suffix(" CFM converted") {
+        return local(
+            format!("пересчитано из {cfm} CFM"),
+            format!("{cfm} CFM dan qayta hisoblangan"),
+        );
+    }
+    Text::Plain(en.to_string())
 }
 
 /// Black powder-coated steel: the racks and the shelf on the photos.
@@ -552,6 +695,7 @@ pub fn plan() -> Result<Plan, String> {
                 color: "#c3c7cb".into(),
                 kind: FinishKind::Galvanised,
             }),
+            condensate_outlet_mm: None,
         })),
         props_src: ac_src,
     });
@@ -934,7 +1078,7 @@ fn cooling_item(it: &Value) -> Result<NewItem, String> {
         designed_24_7: it["designed_24_7"].as_bool(),
         cooling_total_w: opt(&it["cooling_total_w"]),
         cooling_sensible_w: opt(&it["cooling_sensible_w"]),
-        rating_conditions: it["conditions"].as_str().map(str::to_string),
+        rating_conditions: it["conditions"].as_str().map(text),
         cooling_range_w: range,
         airflow_m3h: it["airflow_m3h"]
             .as_array()
@@ -964,6 +1108,7 @@ fn cooling_item(it: &Value) -> Result<NewItem, String> {
         derating: vec![],
         source_url: url.map(str::to_string),
         finish,
+        condensate_outlet_mm: None,
     };
     let props = CatalogProps::Cooling(Box::new(props));
     props
@@ -1247,6 +1392,37 @@ mod tests {
         }
     }
 
+    /// FEEDBACK-5 §5: every note and rating condition the seed writes into
+    /// the catalog is in Russian, Uzbek and English.
+    #[test]
+    fn catalog_notes_are_in_every_language() {
+        let p = plan().unwrap();
+        let mut texts = Vec::new();
+        for c in &p.catalog {
+            texts.extend(c.props_src.values().filter_map(|s| s.note.as_ref()));
+            if let CatalogProps::Cooling(cp) = &c.props {
+                texts.extend(cp.rating_conditions.as_ref());
+            }
+        }
+        assert!(texts.len() > 40);
+        for t in texts {
+            let Text::Local(l) = t else {
+                panic!("not translated: {t:?}");
+            };
+            assert!(!l.ru.is_empty() && !l.uz.is_empty() && l.ru != l.en);
+        }
+        assert_eq!(
+            text("Daikin UK rating conditions: total 3320 W, sensible 2260 W"),
+            Text::Local(LocalText {
+                en: "Daikin UK rating conditions: total 3320 W, sensible 2260 W".into(),
+                ru: "условия рейтинга Daikin UK: полная 3320 Вт, явная 2260 Вт".into(),
+                uz: "Daikin UK reyting sharoitlari: umumiy 3320 Vt, ochiq 2260 Vt".into(),
+            })
+        );
+        // A note typed by a person stays as typed.
+        assert_eq!(text("as typed"), Text::Plain("as typed".into()));
+    }
+
     /// Every item is drawn in its own finish (FEEDBACK-4 §2): precision units
     /// in black powder coat, comfort splits in white plastic, ducted units
     /// galvanised; the room's racks and shelf black, its units galvanised.
@@ -1442,14 +1618,15 @@ mod tests {
         assert_eq!(midea.props_src["cooling_range_w"].src, PropSrc::Derived);
     }
 
-    /// The plan placed and drawn: the DXF has the walls and the racks where
-    /// `room.json` puts them, in millimetres, with the plan's z flipped.
-    #[test]
-    fn the_dxf_of_the_seeded_room_matches_room_json() {
-        use crate::dc::dxf::{self, Placed};
+    /// The plan as the database would hold it, every object placed.
+    fn seeded_room() -> (
+        crate::dc::model::Room,
+        Vec<crate::dc::model::CatalogItem>,
+        Vec<crate::dc::model::DcObject>,
+        Vec<crate::dc::geometry::Solid>,
+    ) {
         use crate::dc::geometry::solid;
         use crate::dc::model::{CatalogItem, DcObject, Room};
-        use crate::models::Language;
 
         let p = plan().unwrap();
         let items: Vec<CatalogItem> = p
@@ -1499,6 +1676,61 @@ mod tests {
             .iter()
             .map(|o| solid(o, &items[o.catalog_id as usize - 1], &room.floor_plan).unwrap())
             .collect();
+        (room, items, objects, solids)
+    }
+
+    /// FEEDBACK-5 §1: the tape decides the rear clearance where it read that
+    /// very gap. Rack 1 is 595 mm by the model and 610 by the tape: it passes.
+    /// Rack 2 is 585 by the model and 555 by the tape: it fails.
+    #[test]
+    fn the_seeded_clearances_go_by_the_tape() {
+        use crate::dc::geometry::{Basis, Side, clearances};
+
+        let (room, _, _, solids) = seeded_room();
+        let c = clearances(
+            &solids,
+            &room.floor_plan,
+            &room.settings,
+            &room.measurements.entries,
+        );
+        let rear: Vec<_> = c
+            .iter()
+            .filter(|c| c.side == Side::Rear)
+            .map(|c| {
+                (
+                    c.object.as_str(),
+                    c.basis,
+                    c.measured_mm,
+                    c.model_mm,
+                    c.ok(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            rear,
+            vec![
+                ("Стойка 1", Basis::Measured, Some(610), 595, true),
+                ("Стойка 2", Basis::Measured, Some(555), 585, false),
+                ("Стойка 3", Basis::Measured, Some(625), 625, true),
+                ("Стойка 4", Basis::Measured, Some(635), 630, true),
+            ]
+        );
+        let short: Vec<_> = c
+            .iter()
+            .filter(|c| !c.ok())
+            .map(|c| c.object.as_str())
+            .collect();
+        assert_eq!(short, vec!["Стойка 2"]);
+    }
+
+    /// The plan placed and drawn: the DXF has the walls and the racks where
+    /// `room.json` puts them, in millimetres, with the plan's z flipped.
+    #[test]
+    fn the_dxf_of_the_seeded_room_matches_room_json() {
+        use crate::dc::dxf::{self, Placed};
+        use crate::models::Language;
+
+        let (room, items, objects, solids) = seeded_room();
         let placed: Vec<Placed> = objects
             .iter()
             .zip(&solids)
@@ -1546,7 +1778,7 @@ mod tests {
         assert!(texts.contains(&"610"));
         assert!(!texts.contains(&"595"));
         let circles = lines.iter().filter(|l| **l == "CIRCLE").count();
-        let marked = p
+        let marked = room
             .measurements
             .entries
             .iter()

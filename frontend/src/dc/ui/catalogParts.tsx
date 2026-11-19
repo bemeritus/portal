@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { tDyn } from "../../i18n";
+import i18n, { tDyn } from "../../i18n";
 import { dcApi } from "../api";
 import { cachedThumbnail, thumbnail, type ThumbSize } from "../engine/preview";
 import type { Fmt } from "../format";
@@ -23,7 +23,12 @@ import {
 } from "../model/catalog";
 import { useDcSettings } from "../settings";
 import { TOKENS } from "../theme/tokens";
-import type { CatalogItem, PropSource } from "../types";
+import {
+  localText,
+  type CatalogItem,
+  type PropSource,
+  type Text,
+} from "../types";
 
 /** The catalog and where its items are used; both cached by React Query. */
 export function useCatalog() {
@@ -149,6 +154,8 @@ export function specGroups(
   fmt: Fmt,
   t: TFunction,
 ): SpecGroup[] {
+  const textOf = (x: Text | null | undefined) =>
+    x ? localText(x, i18n.language) : undefined;
   const source = (k: string): SpecRow["src"] => {
     const s: PropSource | undefined = item.props_src[k] ?? item.props_src.dims;
     if (!s) return undefined;
@@ -170,7 +177,8 @@ export function specGroups(
     value,
     mono,
     // Conditions and notes belong to a value: none under "no data".
-    note: value === null ? undefined : (note ?? item.props_src[key]?.note),
+    note:
+      value === null ? undefined : (note ?? textOf(item.props_src[key]?.note)),
     why: value === null ? unknownWhy : undefined,
     src: value !== null ? source(key) : undefined,
   });
@@ -188,7 +196,7 @@ export function specGroups(
   if (item.kind === "cooling") {
     const p = item.props;
     const conditions = p.rating_conditions
-      ? t("dc.catalog.conditions", { c: p.rating_conditions })
+      ? t("dc.catalog.conditions", { c: textOf(p.rating_conditions) })
       : undefined;
     const faces = airFaces(p);
     const faceText = (fs: string[]) =>

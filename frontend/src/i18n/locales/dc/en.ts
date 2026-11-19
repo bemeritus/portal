@@ -124,14 +124,18 @@ export const dcEn = {
   clearance: {
     title: "Too little room for servicing",
     front:
-      "{{name}}: {{gap}} in front, to {{what}}. {{need}} is needed to open the front door and pull a server out.",
-    rear:
-      "{{name}}: {{gap}} behind, to {{what}}. Servicing needs {{need}} — the rear door may not open fully, and a server on rails may not slide out.",
-    frontShort: "Free in front: {{gap}} (needed {{need}})",
-    rearShort: "Free behind: {{gap}} (needed {{need}})",
+      "{{name}}: {{gap}} in front {{basis}}, to {{what}}. {{need}} is needed to open the front door and pull a server out.",
+    rear: "{{name}}: {{gap}} behind {{basis}}, to {{what}}. Servicing needs {{need}} — the rear door may not open fully, and a server on rails may not slide out.",
+    frontShort: "Free in front: {{gap}} {{basis}} (needed {{need}})",
+    rearShort: "Free behind: {{gap}} {{basis}} (needed {{need}})",
     wall: "the wall",
     object: "“{{name}}”",
     note: "This is a warning from the measurements, not an error in the model. Do not change the dimensions — mark it if it is intended.",
+    basis: { measured: "by tape", model: "by the model" },
+    zoneFront: "Front {{gap}} {{basis}} — needs {{need}}",
+    zoneRear: "Rear {{gap}} {{basis}} — needs {{need}}",
+    split:
+      "The model and the tape disagree: {{model}} and {{tape}}. Checked by the tape.",
   },
   edit: {
     title: "Edit",
@@ -557,7 +561,7 @@ export const dcEn = {
     viewSide: "Side",
     viewTop: "Top",
     toggleDims: "Dimensions",
-    toggleAir: "Airflow",
+    toggleAir: "Supply and return",
     toggleRack: "42U rack beside",
     rack42: "42U rack",
     viewerLabel: "3D view of {{model}}",
@@ -703,6 +707,7 @@ export const dcEn = {
     search: "Find or do…",
     unit: "Length unit",
     theme: "Theme",
+    viewMenu: "View",
   },
   theme: {
     studio: "Studio",
@@ -739,9 +744,15 @@ export const dcEn = {
     free: "point",
   },
   plan: {
-    overhead: "above the floor (AC units, tray)",
-    tapeDiffers: "tape differs from the model by > 5 mm",
-    clearance: "too little room for servicing (< {{need}})",
+    legend: "Legend",
+    legendHide: "Fold the legend",
+    overhead:
+      "Dashed — hangs above the floor: air conditioners, the cable tray",
+    tapeDiffers:
+      "Dot by a dimension — the tape reading and the model differ by more than {{tol}}. Hover the dimension to see both values",
+    clearance: "Red zone — too little room for servicing: less than {{need}}",
+    clearanceSplit:
+      "Amber zone — the model and the tape disagree; checked by the tape",
     sheet: "Room plan",
     units: "Dimensions in {{unit}}",
   },

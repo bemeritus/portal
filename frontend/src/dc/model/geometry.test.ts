@@ -12,6 +12,7 @@ import {
   swingHits,
   type Solid,
 } from "./geometry";
+import type { Measurement } from "../types";
 
 const ROOM: [number, number][] = [
   [0, 0],
@@ -94,6 +95,77 @@ describe("geometry mirrors the server", () => {
     expect(gap(rect(530, 2275, 1130, 3275), "up", [shelf.rect], ROOM).mm).toBe(
       1340,
     );
+  });
+
+  // A tape reading from the rack's back (x0, front at z) to the rear wall.
+  const backTape = (
+    x0: number,
+    z: number,
+    value: number,
+    range?: [number, number],
+  ): Measurement => ({
+    key: "racks.back",
+    value,
+    min: range?.[0],
+    max: range?.[1],
+    src: range ? "range" : "measured",
+    model: 3845 - (z + 1000),
+    line: [
+      [x0 + 300, 0, z + 1000],
+      [x0 + 300, 0, 3845],
+    ],
+    objects: [],
+  });
+
+  it("decides by the tape where it read the same gap", () => {
+    const r1 = rack("r1", 530, 2250),
+      r2 = rack("r2", 1595, 2260),
+      r3 = rack("r3", 2635, 2220);
+    const tapes = [backTape(530, 2250, 610), backTape(1595, 2260, 555)];
+    const rear = clearances([shelf, r1, r2, r3], ROOM, settings, tapes).filter(
+      (c) => c.side === "rear",
+    );
+    const pick = (c: (typeof rear)[number]) => [
+      c.basis,
+      c.measured,
+      c.gap.mm,
+      c.ok,
+      c.split,
+    ];
+    // r1: 595 by the model, 610 by the tape — passes, and the two disagree.
+    expect(pick(rear[0])).toEqual(["measured", 610, 595, true, true]);
+    // r2: 585 by the model, 555 by the tape — fails; both say so.
+    expect(pick(rear[1])).toEqual(["measured", 555, 585, false, false]);
+    // r3: nobody measured its back.
+    expect(pick(rear[2])).toEqual(["model", null, 625, true, false]);
+  });
+
+  it("ignores a tape line that is not this gap", () => {
+    const moved = backTape(530, 2200, 610);
+    const beside = backTape(530, 2250, 610);
+    beside.line = [
+      [1200, 0, 3250],
+      [1200, 0, 3845],
+    ];
+    for (const m of [moved, beside]) {
+      const c = clearances([shelf, rack("r1", 530, 2250)], ROOM, settings, [
+        m,
+      ]).find((x) => x.side === "rear")!;
+      expect([c.basis, c.mm]).toEqual(["model", 595]);
+    }
+  });
+
+  it("takes the lower end of a range that straddles the requirement", () => {
+    const solids = [shelf, rack("r", 530, 2240)];
+    const c = clearances(solids, ROOM, settings, [
+      backTape(530, 2240, 603, [590, 615]),
+    ]).find((x) => x.side === "rear")!;
+    expect([c.gap.mm, c.measured, c.ok, c.split]).toEqual([
+      605,
+      590,
+      false,
+      true,
+    ]);
   });
 
   it("snaps to walls and neighbours within 25 mm, else to the grid", () => {

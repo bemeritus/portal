@@ -69,7 +69,7 @@ export interface CoolingProps {
   designed_24_7: boolean | null;
   cooling_total_w: number | null;
   cooling_sensible_w: number | null;
-  rating_conditions: string | null;
+  rating_conditions: Text | null;
   cooling_range_w: [number, number] | null;
   airflow_m3h: number[];
   power_input_w: number | null;
@@ -85,6 +85,8 @@ export interface CoolingProps {
   derating: { outdoor_c: number; capacity_w: number }[];
   source_url: string | null;
   finish?: Finish;
+  /** Outer diameter of the condensate outlet, mm; absent = 16. */
+  condensate_outlet_mm?: number | null;
 }
 
 export interface CableTrayProps {
@@ -102,7 +104,20 @@ export type PropSrc =
 export interface PropSource {
   src: PropSrc;
   url?: string;
-  note?: string;
+  note?: Text;
+}
+
+/**
+ * A note as typed (one language), or written by the seed in each UI
+ * language; shown with `localText` (FEEDBACK-5 §5).
+ */
+export type Text = string | { en: string; ru: string; uz: string };
+
+/** A note in the user's language, English when it has none. */
+export function localText(text: Text, lang: string): string {
+  if (typeof text === "string") return text;
+  const l = lang.split("-")[0];
+  return (l === "ru" || l === "uz" ? text[l] : "") || text.en;
 }
 
 interface ItemBase {
@@ -315,10 +330,17 @@ export interface Clearance {
   object_id: number;
   object: string;
   side: "front" | "rear";
-  gap_mm: number;
+  /** What the check goes by: a tape reading of this very gap, or the model. */
+  basis: "measured" | "model";
+  /** The tape reading (the lower end of two readings). */
+  measured_mm: number | null;
+  model_mm: number;
   required_mm: number;
   obstacle: string | null;
 }
+
+/** The gap a clearance check is decided on: the tape when there is one. */
+export const clearanceGap = (c: Clearance) => c.measured_mm ?? c.model_mm;
 
 export interface Analysis {
   problems: ({ object_id: number } & Problem)[];

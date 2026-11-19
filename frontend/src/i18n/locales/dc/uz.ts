@@ -124,14 +124,18 @@ export const dcUz = {
   clearance: {
     title: "Xizmat ko'rsatish uchun joy kam",
     front:
-      "{{name}}: oldida {{what}} {{gap}}. Old eshikni ochish va serverni tortib chiqarish uchun {{need}} kerak.",
-    rear:
-      "{{name}}: orqada {{what}} {{gap}}. Xizmat ko'rsatish uchun {{need}} kerak — orqa eshik to'liq ochilmasligi, salazkadagi server tortib chiqarilmasligi mumkin.",
-    frontShort: "Oldi bo'sh: {{gap}} (kerak {{need}})",
-    rearShort: "Orqasi bo'sh: {{gap}} (kerak {{need}})",
+      "{{name}}: oldida {{what}} {{gap}} ({{basis}}). Old eshikni ochish va serverni tortib chiqarish uchun {{need}} kerak.",
+    rear: "{{name}}: orqada {{what}} {{gap}} ({{basis}}). Xizmat ko'rsatish uchun {{need}} kerak — orqa eshik to'liq ochilmasligi, salazkadagi server tortib chiqarilmasligi mumkin.",
+    frontShort: "Oldi bo'sh: {{gap}} {{basis}} (kerak {{need}})",
+    rearShort: "Orqasi bo'sh: {{gap}} {{basis}} (kerak {{need}})",
     wall: "devorgacha",
     object: "«{{name}}» gacha",
     note: "Bu o'lchovlar bo'yicha ogohlantirish, modeldagi xato emas. O'lchamlarni o'zgartirmang — agar shunday rejalangan bo'lsa, belgilab qo'ying.",
+    basis: { measured: "ruletka bo'yicha", model: "model bo'yicha" },
+    zoneFront: "Oldida {{gap}} {{basis}} — kerak {{need}}",
+    zoneRear: "Orqada {{gap}} {{basis}} — kerak {{need}}",
+    split:
+      "Model va ruletka farq qiladi: {{model}} va {{tape}}. Ruletka bo'yicha tekshirildi.",
   },
   edit: {
     title: "O'zgartirish",
@@ -558,7 +562,7 @@ export const dcUz = {
     viewSide: "Yonidan",
     viewTop: "Tepadan",
     toggleDims: "O'lchamlar",
-    toggleAir: "Havo oqimi",
+    toggleAir: "Berish va olish",
     toggleRack: "Yonida 42U stoyka",
     rack42: "42U stoyka",
     viewerLabel: "{{model}} 3D ko'rinishi",
@@ -704,6 +708,7 @@ export const dcUz = {
     search: "Topish yoki bajarish…",
     unit: "Uzunlik birligi",
     theme: "Mavzu",
+    viewMenu: "Ko'rinish",
   },
   theme: {
     studio: "Studiya",
@@ -740,9 +745,14 @@ export const dcUz = {
     free: "nuqta",
   },
   plan: {
-    overhead: "pol ustida (konditsionerlar, lotok)",
-    tapeDiffers: "ruletka modeldan 5 mm dan ko'p farq qiladi",
-    clearance: "xizmat ko'rsatish uchun joy kam (< {{need}})",
+    legend: "Shartli belgilar",
+    legendHide: "Shartli belgilarni yig'ish",
+    overhead: "Punktir — pol ustida osilgan: konditsionerlar, kabel lotogi",
+    tapeDiffers:
+      "O'lcham yonidagi nuqta — ruletka o'lchovi va model {{tol}} dan ko'p farq qiladi. Ikkala qiymatni ko'rish uchun o'lcham ustiga olib boring",
+    clearance: "Qizil zona — xizmat ko'rsatish uchun joy kam: {{need}} dan kam",
+    clearanceSplit:
+      "Sariq zona — model va ruletka farq qiladi, ruletka bo'yicha tekshirildi",
     sheet: "Xona rejasi",
     units: "O'lchamlar {{unit}} da",
   },

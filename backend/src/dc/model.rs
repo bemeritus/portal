@@ -216,7 +216,7 @@ pub struct CoolingProps {
     /// The part that lowers air temperature; `None` when the datasheet does
     /// not publish it (§12.2).
     pub cooling_sensible_w: Option<i32>,
-    pub rating_conditions: Option<String>,
+    pub rating_conditions: Option<Text>,
     pub cooling_range_w: Option<[i32; 2]>,
     /// Fan steps, highest first.
     pub airflow_m3h: Vec<i32>,
@@ -237,6 +237,9 @@ pub struct CoolingProps {
     pub source_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish: Option<Finish>,
+    /// Outer diameter of the condensate outlet; `None` = the usual 16 mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condensate_outlet_mm: Option<i32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -396,7 +399,25 @@ pub struct PropSource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
+    pub note: Option<Text>,
+}
+
+/// A note shown to people: as typed (one language), or written by the seed in
+/// each UI language (FEEDBACK-5 §5). The UI shows the user's language and
+/// falls back to English.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Text {
+    Plain(String),
+    Local(LocalText),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalText {
+    pub en: String,
+    pub ru: String,
+    pub uz: String,
 }
 
 /// One object that uses a catalog item, with its room.

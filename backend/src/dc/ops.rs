@@ -163,7 +163,12 @@ pub fn analyse(
             });
         }
     }
-    a.clearances = geometry::clearances(&solids, &room.floor_plan, &room.settings);
+    a.clearances = geometry::clearances(
+        &solids,
+        &room.floor_plan,
+        &room.settings,
+        &room.measurements.entries,
+    );
     let cooling: Vec<&Solid> = solids.iter().filter(|s| s.kind == Kind::Cooling).collect();
     for (o, solid) in s.objects.iter().zip(&solids) {
         if let Some(CatalogProps::Shelf(p)) = items.get(&o.catalog_id).map(|i| &i.props) {
