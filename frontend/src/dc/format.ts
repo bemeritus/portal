@@ -80,3 +80,34 @@ export function makeFmt(
     kg: (v) => t("dc.unit.kg", { v: n(v, 1) }),
   };
 }
+
+/**
+ * When something happened, as people say it (FEEDBACK-6 §5, §6): «сегодня,
+ * 11:40», «вчера, 17:05», else the date — with the time when `withTime`.
+ */
+export function whenText(
+  iso: string,
+  lang: string,
+  t: TFunction,
+  withTime = true,
+  now = new Date(),
+): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const loc = LOCALE[lang.split("-")[0]] ?? "en-US";
+  const time = d.toLocaleTimeString(loc, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const day = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day(now) - day(d)) / 86_400_000);
+  if (days === 0) return t("dc.when.today", { time });
+  if (days === 1) return t("dc.when.yesterday", { time });
+  const date = d.toLocaleDateString(loc, {
+    day: "numeric",
+    month: "short",
+    year: d.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  });
+  return withTime ? `${date}, ${time}` : date;
+}

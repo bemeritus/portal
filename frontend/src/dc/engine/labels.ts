@@ -1,14 +1,24 @@
 /**
  * Constant-size labels as an HTML overlay above the canvas, decluttered by
  * priority: each frame the labels are projected, sorted by priority, and a
- * label whose box would overlap one already placed is hidden. Text stays
- * crisp at any zoom and follows the theme through CSS.
+ * label whose box would overlap one already placed — or a dimension line
+ * other than its own — is hidden (FEEDBACK-6 §1). A hidden label comes back
+ * while its object is hovered or selected (`focus`). Text stays crisp at any
+ * zoom and follows the theme through CSS.
  */
 
 import * as THREE from "three";
 
 export type LabelKind =
-  "name" | "dim" | "warn" | "caution" | "assumed" | "note" | "measure" | "air";
+  | "name"
+  | "dim"
+  | "warn"
+  | "caution"
+  | "assumed"
+  | "note"
+  | "measure"
+  | "air"
+  | "pin";
 
 export interface LabelOptions {
   priority?: number;
@@ -20,6 +30,13 @@ export interface LabelOptions {
   className?: string;
   /** A dimension's two ends: the label hides when they project too close. */
   span?: [THREE.Vector3, THREE.Vector3];
+  /**
+   * The objects the label belongs to (`obj:12`): it wins over others while
+   * one of them is in `focus`.
+   */
+  refs?: string[];
+  /** Clickable (a warning pin): takes the pointer. */
+  onClick?: () => void;
 }
 
 interface Label {
@@ -32,9 +49,47 @@ interface Label {
   h: number;
   group: string;
   span: [THREE.Vector3, THREE.Vector3] | null;
+  refs: string[];
 }
 
 const v = new THREE.Vector3();
+
+/**
+ * The chain a dimension belongs to (`chain:x:3` → `chain:x`): a link's
+ * label may run over its neighbours' lines, which are on the same line.
+ */
+const chainOf = (key: string) =>
+  key.startsWith("chain:") ? key.split(":").slice(0, 2).join(":") : key;
+
+/** Does the segment a–b cross the box [x0, y0, x1, y1] (inset by 2 px)? */
+function segmentHitsRect(
+  a: [number, number],
+  b: [number, number],
+  r: [number, number, number, number],
+): boolean {
+  const [x0, y0, x1, y1] = [r[0] + 2, r[1] + 2, r[2] - 2, r[3] - 2];
+  // Liang–Barsky clipping.
+  let t0 = 0,
+    t1 = 1;
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  for (const [p, q] of [
+    [-dx, a[0] - x0],
+    [dx, x1 - a[0]],
+    [-dy, a[1] - y0],
+    [dy, y1 - a[1]],
+  ]) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
 
 export class Labels {
   readonly root: HTMLDivElement;
@@ -71,6 +126,7 @@ export class Labels {
         h: 0,
         group: key.split(":")[0],
         span: null,
+        refs: [],
       };
       this.labels.set(key, l);
     }
@@ -80,6 +136,14 @@ export class Labels {
     l.kind = kind;
     l.el.className = `dc-label dc-label-${kind}${opts.className ? ` ${opts.className}` : ""}`;
     l.span = opts.span ? [opts.span[0].clone(), opts.span[1].clone()] : null;
+    l.refs = opts.refs ?? [];
+    l.el.onclick = opts.onClick
+      ? (e) => {
+          e.stopPropagation();
+          opts.onClick!();
+        }
+      : null;
+    l.el.dataset.key = key;
     if (l.el.textContent !== text) {
       l.el.textContent = text;
       l.w = 0;
@@ -105,11 +169,38 @@ export class Labels {
     }
   }
 
+  /** The keys of the labels shown in the last frame (tests). */
+  shown(): string[] {
+    return [...this.labels.entries()]
+      .filter(([, l]) => l.el.style.display !== "none")
+      .map(([k]) => k);
+  }
+
   update(camera: THREE.Camera, width: number, height: number) {
     const placed: [number, number, number, number][] = [];
+    const focused = (l: Label, key: string) =>
+      this.focus.has(key.split(":").slice(0, 2).join(":")) ||
+      l.refs.some((r) => this.focus.has(r));
+    const rank = (l: Label, key: string) =>
+      l.priority + (focused(l, key) ? 10 : 0);
     const list = [...this.labels.entries()].sort(
-      (a, b) => b[1].priority - a[1].priority,
+      (a, b) => rank(b[1], b[0]) - rank(a[1], a[0]),
     );
+    // Every dimension line on screen: no label may sit on one but its own.
+    const toScreen = (p: THREE.Vector3): [number, number] => {
+      v.copy(p).project(camera);
+      return [((v.x + 1) / 2) * width, ((1 - v.y) / 2) * height];
+    };
+    const lines: { key: string; a: [number, number]; b: [number, number] }[] =
+      [];
+    if (!this.root.hidden)
+      for (const [key, l] of this.labels)
+        if (l.span) {
+          const a = toScreen(l.span[0]),
+            b = toScreen(l.span[1]);
+          if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 8)
+            lines.push({ key, a, b });
+        }
     for (const [key, l] of list) {
       // Names and assumed-value badges follow the mode (all, or on focus);
       // dimensions, warnings, notes and ruler marks always show.
@@ -148,9 +239,17 @@ export class Labels {
       const x = ((v.x + 1) / 2) * width - l.w / 2;
       const y = ((1 - v.y) / 2) * height - l.h / 2;
       const r: [number, number, number, number] = [x, y, x + l.w, y + l.h];
-      const clash = placed.some(
-        (p) => r[0] < p[2] && p[0] < r[2] && r[1] < p[3] && p[1] < r[3],
-      );
+      const clash =
+        placed.some(
+          (p) => r[0] < p[2] && p[0] < r[2] && r[1] < p[3] && p[1] < r[3],
+        ) ||
+        lines.some(
+          (s) =>
+            s.key !== key &&
+            chainOf(s.key) !== chainOf(key) &&
+            segmentHitsRect(s.a, s.b, r),
+        );
+      // Focus orders the labels; only a high priority of its own exempts one.
       if (clash && l.priority < 9) {
         l.el.style.display = "none";
         continue;

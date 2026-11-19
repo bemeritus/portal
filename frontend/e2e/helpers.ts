@@ -32,6 +32,7 @@ interface Settings {
   dc_theme: Theme | null;
   dc_unit: "mm" | "cm" | "m";
   dc_legend_collapsed: boolean;
+  dc_mode: "schema" | "realistic" | "fill" | "power" | null;
 }
 
 export async function setSettings(page: Page, s: Partial<Settings>) {

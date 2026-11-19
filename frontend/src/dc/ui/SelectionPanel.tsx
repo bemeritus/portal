@@ -52,17 +52,8 @@ export function SelectionPanel(props: Props) {
   const { t } = useTranslation();
   const fmt = useFmt();
   const { data, catalog, selection } = props;
-  if (!selection) {
-    const short = data.analysis.clearances.filter(
-      (c) => clearanceGap(c) < c.required_mm,
-    );
-    return (
-      <div className="space-y-3 text-sm">
-        <p className="text-muted-foreground">{t("dc.selection.none")}</p>
-        <ClearanceList list={short} fmt={fmt} onClearance={props.onClearance} />
-      </div>
-    );
-  }
+  // Nothing selected: the inspector shows the room's summary instead.
+  if (!selection) return null;
   const objId =
     selection.type === "object"
       ? selection.id
@@ -75,10 +66,39 @@ export function SelectionPanel(props: Props) {
     return (
       <p className="text-sm text-muted-foreground">{t("dc.selection.gone")}</p>
     );
+  if (item.kind === "rack") {
+    // A rack: its warnings in full; the rest folded, so the inspector stays
+    // calm (FEEDBACK-6 §2) — open when a device or a capacity pick needs it.
+    const short = data.analysis.clearances.filter(
+      (c) => c.object_id === obj.id && clearanceGap(c) < c.required_mm,
+    );
+    return (
+      <div className="space-y-3 text-sm">
+        <ClearanceList list={short} fmt={fmt} onClearance={props.onClearance} />
+        <details
+          className="dc-more"
+          open={!!props.prefill || selection.type === "device"}
+        >
+          <summary>{t("dc.summary.devicesEdit")}</summary>
+          <div className="space-y-4 pt-2">
+            <ObjectSummary obj={obj} item={item} {...props} hideShort />
+            <RackPanel obj={obj} item={item} {...props} />
+            {props.canEdit && (
+              <ObjectEditor
+                key={obj.id + ":" + data.room.revision}
+                obj={obj}
+                item={item}
+                run={props.run}
+              />
+            )}
+          </div>
+        </details>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4 text-sm">
       <ObjectSummary obj={obj} item={item} {...props} />
-      {item.kind === "rack" && <RackPanel obj={obj} item={item} {...props} />}
       {item.kind === "shelf" && <ShelfPanel obj={obj} item={item} {...props} />}
       {props.canEdit && (
         <ObjectEditor
@@ -183,7 +203,8 @@ function ObjectSummary({
   problemsOf,
   onSelect,
   onClearance,
-}: Props & { obj: DcObject; item: CatalogItem }) {
+  hideShort = false,
+}: Props & { obj: DcObject; item: CatalogItem; hideShort?: boolean }) {
   const { t, i18n } = useTranslation();
   const fmt = useFmt();
   const [w, d, h] = objectDims(item, obj.instance);
@@ -212,11 +233,13 @@ function ObjectSummary({
           ))}
         </ul>
       )}
-      <ClearanceList
-        list={clear.filter((c) => !fine.includes(c))}
-        fmt={fmt}
-        onClearance={onClearance}
-      />
+      {!hideShort && (
+        <ClearanceList
+          list={clear.filter((c) => !fine.includes(c))}
+          fmt={fmt}
+          onClearance={onClearance}
+        />
+      )}
       {fine.length > 0 && (
         <ul className="space-y-0.5">
           {fine.map((c) => (

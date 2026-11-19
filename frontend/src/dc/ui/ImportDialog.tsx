@@ -19,7 +19,21 @@ import { ApiError, errorMessage } from "../../api/client";
 import { ErrorFlash, Flash } from "../../components/Flash";
 import { translateApiError } from "../../i18n/errors";
 import { dcApi } from "../api";
-import type { DeviceFields, ImportResult, ImportRowError } from "../types";
+import {
+  DEVICE_KINDS,
+  DEVICE_STATUSES,
+  type DeviceFields,
+  type ImportResult,
+  type ImportRowError,
+} from "../types";
+
+/** The codes a coded column takes, the same in every language. */
+const ALLOWED: Record<string, string[]> = {
+  face: ["front", "rear", "both"],
+  kind: DEVICE_KINDS,
+  status: DEVICE_STATUSES,
+  power_src: ["nameplate", "measured", "estimated"],
+};
 
 const FIELDS: (keyof DeviceFields)[] = [
   "u_bottom",
@@ -63,7 +77,11 @@ export function ImportDialog({
         : "",
       value: e.value ?? "",
       defaultValue: e.code,
-    });
+    }) +
+    // A coded column: say which values it takes (FEEDBACK-6 §8).
+    (e.code === "bad_value" && e.column && e.column in ALLOWED
+      ? ` — ${t("dc.import.allowed", { values: ALLOWED[e.column].join(", ") })}`
+      : "");
 
   async function check(text: string) {
     setBusy(true);
@@ -118,6 +136,18 @@ export function ImportDialog({
         ) : (
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">{t("dc.import.help")}</p>
+            <p>
+              <a
+                className="text-link underline"
+                href={dcApi.importTemplate(roomId)}
+                download
+              >
+                {t("dc.racks.template")}
+              </a>{" "}
+              <span className="text-muted-foreground">
+                {t("dc.import.templateHint")}
+              </span>
+            </p>
             <input
               type="file"
               accept=".csv,text/csv"

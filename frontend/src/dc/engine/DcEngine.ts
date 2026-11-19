@@ -14,6 +14,7 @@
 
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { mergeStatic } from "./merge";
 import type { PostFx } from "./postfx";
 
@@ -103,8 +104,42 @@ export interface EngineText {
    * model and tape both when they disagree about it.
    */
   clearance: (c: ClearanceCheck) => string;
+  /** A warning pin's short label: «сзади 55,5 см». */
+  pin: (c: ClearanceCheck) => string;
   snap: (k: SnapKind) => string;
 }
+
+/**
+ * What the view draws besides the room (FEEDBACK-6 §1), from the rail's
+ * layers list. By default: the room's overall dimensions, the service zones
+ * that are violated (as pins) and the objects' labels — nothing else.
+ */
+export interface Layers {
+  /** The room's overall dimensions; on the plan, the chains outside it. */
+  room: boolean;
+  /** Gaps between objects (tape measurements that position things). */
+  gaps: boolean;
+  /** Every tape measurement. */
+  tape: boolean;
+  /** Service zones: only violated ones are drawn, each with a pin. */
+  zones: boolean;
+  /** Objects' names. */
+  names: boolean;
+  /** Assumed values outlined and badged. */
+  assumptions: boolean;
+}
+
+export const DEFAULT_LAYERS: Layers = {
+  room: true,
+  gaps: false,
+  tape: false,
+  zones: true,
+  names: true,
+  assumptions: false,
+};
+
+/** A measurement that sizes an object rather than placing it. */
+const SIZE_KEY = /(width|depth|height|length|unit_height|board)/;
 
 /** The marks drawn in the view, for the plan legend (FEEDBACK-5 §2). */
 export interface LegendMarks {
@@ -135,6 +170,13 @@ interface Entry {
   /** Thin outline of the object's box in schema (dashed when overhead). */
   edges: THREE.LineSegments;
 }
+
+/** On the plan: the chains' distance from the walls, mm, and the room's
+ * overall dimensions' distance beyond them. */
+const PLAN_CHAIN_OFFSET = 250;
+const PLAN_CHAIN_GAP = 330;
+/** On the plan, px kept free: the rail on the left, the sheet's band below. */
+const PLAN_INSET = { left: 70, bottom: 250 };
 
 const UP = new THREE.Vector3(0, 1, 0);
 const FLOOR = new THREE.Plane(UP, 0);
@@ -234,6 +276,9 @@ export class DcEngine {
    * `preset` there.
    */
   onLeavePlan: (preset: Preset) => void = () => {};
+  /** A warning pin clicked: the page explains it and frames the gap. */
+  onPin: (objectId: number, side: "front" | "rear") => void = () => {};
+  private layers: Layers = { ...DEFAULT_LAYERS };
   /** The plan: straight down, orbit off — only pan and zoom. */
   private planLock = false;
   /** A right drag started on the plan (where it turns into 3D). */
@@ -255,7 +300,8 @@ export class DcEngine {
     });
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    RectAreaLightUniformsLib.init();
     this.renderer.domElement.className = "dc-canvas";
     this.renderer.domElement.tabIndex = 0;
     host.appendChild(this.renderer.domElement);
@@ -271,7 +317,11 @@ export class DcEngine {
     this.snapMarker.className = "dc-snap";
     this.snapMarker.hidden = true;
     host.appendChild(this.snapMarker);
-    this.cube = new ViewCube(host, (p) => this.preset(p));
+    this.cube = new ViewCube(
+      host,
+      (p) => this.preset(p),
+      (d) => this.viewFrom(d),
+    );
     this.scene.add(
       this.roomGroup,
       this.objectsGroup,
@@ -336,10 +386,14 @@ export class DcEngine {
     if (mode === this.mode) return;
     this.mode = mode;
     this.lib.reset(mode, this.theme);
+    // Realistic is exposed like the renders; schema keeps its flat colours.
+    this.renderer.toneMapping =
+      mode === "realistic" ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     this.ensurePostFx();
     this.scene.environment = mode === "realistic" ? this.env() : null;
     this.applyQuality();
-    this.labels.showNames = mode !== "realistic";
+    this.labels.showNames = this.layers.names;
     this.applyTheme();
     // Shadows and textured fronts are decided at build time.
     this.rebuildAll();
@@ -383,6 +437,46 @@ export class DcEngine {
   /** All labels and dimensions on or off. */
   setLabelsVisible(on: boolean) {
     this.labels.setVisible(on);
+  }
+
+  /** What to draw besides the room (the rail's layers list). */
+  setLayers(l: Layers) {
+    this.layers = { ...l };
+    this.labels.showNames = l.names;
+    if (l.assumptions !== this.showAssumptions)
+      this.setShowAssumptions(l.assumptions);
+    this.refreshOverlays();
+  }
+
+  /** The labels on screen in the last frame, by key (tests). */
+  labelsShown(): string[] {
+    return this.labels.shown();
+  }
+
+  /** Look at the room from `dir` (a view cube edge or corner). */
+  viewFrom(dir: [number, number, number]) {
+    if (this.planLock) {
+      this.onLeavePlan("iso");
+      return;
+    }
+    const m = this.model;
+    if (!m) return;
+    const b = bounds(m.room.floor_plan);
+    const size = Math.max(b.x1 - b.x0, b.z1 - b.z0);
+    const c = new THREE.Vector3((b.x0 + b.x1) / 2, 900, (b.z0 + b.z1) / 2);
+    const d = new THREE.Vector3(...dir);
+    d.y = Math.max(d.y, 0.08);
+    d.normalize();
+    this.rig.go({
+      position: c
+        .clone()
+        .addScaledVector(d, size * 1.5)
+        .toArray() as [number, number, number],
+      target: c.toArray() as [number, number, number],
+      fov: 45,
+      ortho: false,
+    });
+    this.dirty = true;
   }
 
   /** Colour one owner's devices and cells, dim everything else (§11.4). */
@@ -493,6 +587,16 @@ export class DcEngine {
   showClearance(objectId: number, side: "front" | "rear") {
     this.clearanceFocus = { objectId, side };
     this.refreshOverlays();
+    // The camera frames the gap (FEEDBACK-6 §1); the plan stays a plan.
+    const c = this.focusedClearance();
+    if (c && !this.planLock) {
+      const [a, b] = [c.gap.from, c.gap.to];
+      this.rig.focus(
+        new THREE.Vector3((a[0] + b[0]) / 2, 700, (a[1] + b[1]) / 2),
+        Math.max(1100, c.mm * 1.6),
+      );
+      this.dirty = true;
+    }
   }
 
   /** The clearance gap drawn by `showClearance`, mm (tests). */
@@ -576,6 +680,36 @@ export class DcEngine {
     this.refreshOverlays();
   }
 
+  /**
+   * The plan from above, framed like a drawing sheet (`Drawing.png`): the
+   * room with its chains and overall dimensions in the area above the
+   * bottom band — the title block, the legend and the mode bar live there —
+   * and clear of the tool rail on the left.
+   */
+  private framePlan() {
+    const m = this.model!;
+    const b = bounds(m.room.floor_plan);
+    // Room dimensions stand this far out; their labels a little further.
+    const pad = PLAN_CHAIN_OFFSET + PLAN_CHAIN_GAP + 450;
+    const [bw, bh] = [b.x1 - b.x0 + 2 * pad, b.z1 - b.z0 + 2 * pad];
+    const w = Math.max(1, this.host.clientWidth),
+      h = Math.max(1, this.host.clientHeight);
+    const [left, bottom] = [PLAN_INSET.left, PLAN_INSET.bottom];
+    const s = Math.min((w - left - 24) / bw, (h - bottom - 24) / bh);
+    // The usable area's centre, in mm from the viewport's centre.
+    const dx = left / 2 / s,
+      dz = bottom / 2 / s;
+    const cx = (b.x0 + b.x1) / 2 - dx,
+      cz = (b.z0 + b.z1) / 2 + dz;
+    this.rig.go({
+      position: [cx, 12000, cz + 1],
+      target: [cx, 0, cz],
+      fov: 45,
+      ortho: true,
+      halfHeight: h / 2 / s,
+    });
+  }
+
   /** Whether the camera is locked to the plan (tests). */
   planLocked(): boolean {
     return this.planLock;
@@ -626,7 +760,8 @@ export class DcEngine {
           ortho: false,
         });
       }
-    } else this.rig.preset(p);
+    } else if (p === "top" && m) this.framePlan();
+    else this.rig.preset(p);
     if (dur === 0) this.rig.update(performance.now() + 10000, 0, false);
     this.dirty = true;
   }
@@ -739,10 +874,10 @@ export class DcEngine {
         }
       }
     });
-    // The ceiling tubes' point lights cost per pixel; below quality 2 the
+    // The ceiling tubes' area lights cost per pixel; at quality 0 the
     // tubes still glow, the room is lit by the sky and the sun.
     this.roomGroup.traverse((o) => {
-      if ((o as THREE.PointLight).isPointLight) o.visible = this.quality === 2;
+      if (o.userData.areaLight) o.visible = this.quality > 0;
     });
     this.resize();
     this.dirty = true;
@@ -967,9 +1102,12 @@ export class DcEngine {
         tube.userData.role = "light";
         tube.userData.fixedMaterial = true;
         this.roomGroup.add(tube);
-        const light = new THREE.PointLight(0xffffff, 0.5, 0, 0);
-        light.visible = this.quality === 2;
-        light.position.set((b.x0 + b.x1) / 2, H - 120, z);
+        // The tube lights as area lights, as on the renders (FEEDBACK-6 §3).
+        const light = new THREE.RectAreaLight(0xfff3e4, 9, 1200, 160);
+        light.visible = this.quality > 0;
+        light.position.set((b.x0 + b.x1) / 2, H - 60, z);
+        light.lookAt((b.x0 + b.x1) / 2, 0, z);
+        light.userData.areaLight = true;
         this.roomGroup.add(light);
       }
     }
@@ -1233,6 +1371,8 @@ export class DcEngine {
     this.labels.clear("ruler");
     this.labels.clear("meas");
     this.labels.clear("clear");
+    this.labels.clear("pin");
+    this.labels.clear("chain");
     const m = this.model;
     if (!m) return;
     const solids = [...this.entries.values()].map((e) => e.solid);
@@ -1288,10 +1428,11 @@ export class DcEngine {
       }
 
     // Service clearance, decided by the tape where it read the gap: a
-    // violation is a thin red zone on the floor with one label; where model
-    // and tape fall on different sides of the requirement the zone is amber
-    // and says so; zones that are fine show only while editing.
-    if (schema || this.tool === "edit") {
+    // violation is a thin red zone on the floor with a pin — a short label
+    // that opens the explanation (FEEDBACK-6 §1); where model and tape fall
+    // on different sides of the requirement the zone and pin are amber; zones
+    // that are fine show only while editing.
+    if (this.layers.zones || this.tool === "edit") {
       const measured = m.room.measurements.entries;
       for (const c of clearances(solids, poly, m.room.settings, measured)) {
         if (c.ok && !c.split && this.tool !== "edit") continue;
@@ -1337,25 +1478,31 @@ export class DcEngine {
             else lx = mx + Math.sign(mx - ox) * (z.x1 - z.x0) * 0.3;
           }
           this.labels.set(
-            `gap:${c.objectId}:${c.side}`,
-            this.text.clearance(c),
+            `pin:${c.objectId}:${c.side}`,
+            this.text.pin(c),
             new THREE.Vector3(lx, 30, lz),
             {
-              kind: c.split ? "caution" : "warn",
-              priority: 8,
+              kind: c.split ? "caution" : "pin",
+              priority: 9.5,
+              always: true,
+              title: this.text.clearance(c),
+              refs: [`obj:${c.objectId}`],
+              onClick: () => this.onPin(c.objectId, c.side),
             },
           );
         }
       }
     }
 
-    // Schema: every measurement as a dimension, with the value as read (and a
-    // dot where the model disagrees); the selected object's clear distances
-    // to its neighbours, live while it moves.
-    if (schema) legend.tapeDot = this.measurementDims();
+    // Dimensions by layer (FEEDBACK-6 §1), with the value as read (and a dot
+    // where the model disagrees): in schema the room's overall size, gaps or
+    // every tape number as asked; on the plan the chains outside the room;
+    // in every mode the selected object's own dimensions and its clear
+    // distances to its neighbours, live while it moves.
     const sel = this.selectedEntry();
-    if (sel && (schema || this.tool === "edit"))
-      this.gapDims(sel.solid, solids);
+    legend.tapeDot = this.measurementDims(sel?.obj.name ?? null, schema);
+    if (this.planLock && this.layers.room && schema) this.planChains(solids);
+    if (sel) this.gapDims(sel.solid, solids);
 
     // A clicked clearance warning: its gap as a dimension, in every mode.
     const focus = this.focusedClearance();
@@ -1488,7 +1635,7 @@ export class DcEngine {
     b: THREE.Vector3,
     text: string,
     priority = 3,
-    extra: { title?: string; mark?: boolean } = {},
+    extra: { title?: string; mark?: boolean; refs?: string[] } = {},
   ) {
     if (this.planLock) {
       // On the plan every dimension lies on the floor, read from above; a
@@ -1535,34 +1682,128 @@ export class DcEngine {
         title: extra.title,
         className: extra.mark ? "dc-label-mark" : undefined,
         span: [a, b],
+        refs: extra.refs,
       },
     );
   }
 
   /**
-   * Every measurement of the room that has a place to be drawn. Says
-   * whether any of them carries the disagreement dot.
+   * The measurements the layers ask for, as dimensions; the selected
+   * object's own ones always. Says whether any drawn one carries the
+   * disagreement dot. On the plan the room's overall size stands outside
+   * the chains (`planChains`).
    */
-  private measurementDims(): boolean {
+  private measurementDims(selName: string | null, schema: boolean): boolean {
     const m = this.model!;
+    const ids = new Map(
+      [...this.entries.values()].map((e) => [e.obj.name, e.obj.id]),
+    );
+    const b = bounds(m.room.floor_plan);
     let marked = false;
     for (const e of m.room.measurements.entries) {
       if (!e.line) continue;
-      const [p, q] = e.line;
+      const room = e.key.startsWith("room.");
+      const own = selName !== null && e.objects.includes(selName);
+      const wanted =
+        own ||
+        (schema &&
+          (this.layers.tape ||
+            (room && this.layers.room) ||
+            (!room && !SIZE_KEY.test(e.key) && this.layers.gaps)));
+      if (!wanted) continue;
+      let [p, q] = e.line.map((x) => new THREE.Vector3(...x));
+      if (room && this.planLock) {
+        // Outside the chains: further from the walls.
+        const out = new THREE.Vector3(
+          p.x === q.x ? Math.sign(p.x - (b.x0 + b.x1) / 2) : 0,
+          0,
+          p.z === q.z ? Math.sign(p.z - (b.z0 + b.z1) / 2) : 0,
+        ).multiplyScalar(PLAN_CHAIN_GAP);
+        [p, q] = [p.add(out), q.add(out)];
+      }
       const t = this.text.measurement(e);
       // Room-level numbers first, then the ones the drawing marks.
-      const priority = e.key.startsWith("room.") ? 7 : t.mark ? 6 : 4;
-      this.dim(
-        `meas:${e.key}`,
-        new THREE.Vector3(...p),
-        new THREE.Vector3(...q),
-        t.text,
-        priority,
-        { title: t.title, mark: t.mark },
-      );
+      const priority = own ? 8 : room ? 7 : t.mark ? 6 : 4;
+      this.dim(`meas:${e.key}`, p, q, t.text, priority, {
+        title: t.title,
+        mark: t.mark,
+        refs: e.objects.flatMap((n) =>
+          ids.has(n) ? [`obj:${ids.get(n)}`] : [],
+        ),
+      });
       marked ||= t.mark;
     }
     return marked;
+  }
+
+  /**
+   * The plan's chain dimensions outside the outline (FEEDBACK-6 §1, as on
+   * `Drawing.png`): along the bottom, the rack row — wall, racks and the
+   * gaps between them; on the right, the last rack's line across the room —
+   * the shelf, the aisle, the rack and the gap behind it. Each link reads the
+   * tape where a measurement covers it, else the model.
+   */
+  private planChains(solids: Solid[]) {
+    const m = this.model!;
+    const b = bounds(m.room.floor_plan);
+    const racks = solids
+      .filter((x) => x.kind === "rack")
+      .sort((x, y) => x.rect.x0 - y.rect.x0);
+    if (!racks.length) return;
+    const near = (u: number, v: number) => Math.abs(u - v) <= 2;
+    // The tape reading whose line runs along the same stretch.
+    const reading = (axis: 0 | 2, lo: number, hi: number) =>
+      m.room.measurements.entries.find((e) => {
+        if (!e.line) return false;
+        const [p, q] = e.line;
+        const other = axis === 0 ? 2 : 0;
+        if (p[other] !== q[other] || p[1] !== q[1]) return false;
+        const [a, c] = [Math.min(p[axis], q[axis]), Math.max(p[axis], q[axis])];
+        return near(a, lo) && near(c, hi);
+      });
+    const link = (
+      key: string,
+      axis: 0 | 2,
+      lo: number,
+      hi: number,
+      at: number,
+    ) => {
+      if (hi - lo < 1) return;
+      const e = reading(axis, lo, hi);
+      const t = e ? this.text.measurement(e) : null;
+      const [a, c] =
+        axis === 0
+          ? [new THREE.Vector3(lo, 0, at), new THREE.Vector3(hi, 0, at)]
+          : [new THREE.Vector3(at, 0, lo), new THREE.Vector3(at, 0, hi)];
+      this.dim(`chain:${key}`, a, c, t?.text ?? this.text.mm(hi - lo), 7, {
+        title: t?.title,
+        mark: t?.mark,
+      });
+    };
+    // Bottom: the rack row along x.
+    const xs = [b.x0, ...racks.flatMap((r) => [r.rect.x0, r.rect.x1]), b.x1];
+    const zb = b.z1 + PLAN_CHAIN_OFFSET;
+    for (let i = 0; i + 1 < xs.length; i++)
+      link(`x:${i}`, 0, xs[i], xs[i + 1], zb);
+    // Right: the last rack's line across the room, along z.
+    const last = racks[racks.length - 1];
+    const shelf = solids.find(
+      (x) =>
+        x.kind === "shelf" &&
+        x.rect.x0 < last.rect.x1 &&
+        last.rect.x0 < x.rect.x1 &&
+        x.rect.z1 <= last.rect.z0,
+    );
+    const zs = [
+      b.z0,
+      ...(shelf ? [shelf.rect.z1] : []),
+      last.rect.z0,
+      last.rect.z1,
+      b.z1,
+    ];
+    const xr = b.x1 + PLAN_CHAIN_OFFSET;
+    for (let i = 0; i + 1 < zs.length; i++)
+      link(`z:${i}`, 2, zs[i], zs[i + 1], xr);
   }
 
   private gapDims(s: Solid, solids: Solid[]) {

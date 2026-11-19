@@ -61,7 +61,7 @@ test("blocked cells: quiet in realistic, marked on hover and selection", async (
     .toBe(0);
 
   // Schema mode: the red fill instead, no marks.
-  await page.goto(`/dc/${id}?view=3d`);
+  await page.goto(`/dc/${id}?view=3d&mode=schema`);
   await waitForRoom(page);
   expect(await engine(page, (e) => e.blockedMarks().length)).toBe(0);
 });

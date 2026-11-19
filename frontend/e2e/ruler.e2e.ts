@@ -18,7 +18,7 @@ test("ruler: r1 back face to the back wall, and the r3–r4 gap", async ({ page 
   await signIn(page);
   await setLanguage(page, "ru");
   await setSettings(page, { dc_theme: "studio" });
-  await page.goto(`/dc/${await roomId(page)}?view=3d&tool=ruler`);
+  await page.goto(`/dc/${await roomId(page)}?view=3d&mode=schema&tool=ruler`);
   await waitForRoom(page);
   await page.getByRole("radio", { name: "мм", exact: true }).click();
   // From the z = width side ("front" of the room's model axes): the racks'

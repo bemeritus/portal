@@ -384,9 +384,39 @@ export interface Applied {
 
 export interface RevisionSummary {
   revision: number;
+  /** `null` for the revision the room was created with. */
+  author_id: string | null;
   author_name: string;
+  /** As stored, for logs; the UI shows `digest` in words. */
   summary: string;
   created_at: string;
+  digest: Digest;
+}
+
+/** Where a device sits. */
+export interface Place {
+  rack: string;
+  u_bottom: number;
+  u_height: number;
+}
+
+/** What a revision did, against the one before it (FEEDBACK-6 §6). */
+export interface Digest {
+  kind: "created" | "import" | "restore" | "edit";
+  restored?: number;
+  devices_added: ({ name: string; kind: DeviceKind } & Place)[];
+  devices_removed: ({ name: string; kind: DeviceKind } & Place)[];
+  devices_moved: { name: string; kind: DeviceKind; from: Place; to: Place }[];
+  owners: { name: string; before: string; after: string }[];
+  devices_changed: string[];
+  objects_added: string[];
+  objects_removed: string[];
+  objects_moved: string[];
+  objects_changed: string[];
+  notes_added: number;
+  views_added: number;
+  annotations_removed: number;
+  cells_changed: number;
 }
 
 export interface FieldChange {

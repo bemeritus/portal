@@ -9,7 +9,13 @@
  *
  * The URL carries what is on screen — `?mode=`, `?owner=`, `?cam=` and the
  * selection in the hash (`#obj-12`, `#device-7`, `#cell-5-16`) — so a link
- * opens exactly what the sender saw (§11.4).
+ * opens exactly what the sender saw (§11.4). `?rev=N` shows the room at an
+ * older revision, read only (history's «Открыть в 3D на этой ревизии»).
+ *
+ * Calm by default (FEEDBACK-6 §1): realistic in studio and light, the plan
+ * in drawing, then the user's last mode; what is drawn besides the room
+ * comes from the rail's layers list; warnings are pins in the scene; the
+ * bottom bar is grouped — modes, views, undo / redo, export, «⋯».
  */
 
 import type { TFunction } from "i18next";
@@ -28,29 +34,26 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Box,
-  Download,
-  Eye,
-  EyeOff,
-  Footprints,
-  History,
+  ChevronDown,
+  Layers as LayersIcon,
   MapPin,
+  MoreHorizontal,
   MousePointer2,
   Move,
   Redo2,
-  RotateCcw,
   Ruler,
-  Tag,
   Undo2,
-  Upload,
   X,
 } from "lucide-react";
 
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -62,7 +65,9 @@ import { translateApiError } from "../../i18n/errors";
 import { dcApi } from "../api";
 import {
   DcEngine,
+  DEFAULT_LAYERS,
   type EngineModel,
+  type Layers,
   type LegendMarks,
   type Measure,
   type Mode,
@@ -100,7 +105,7 @@ import { clearanceSplitText } from "./SelectionPanel";
 import { hasLegend, PlanLegend } from "./PlanLegend";
 
 const MODES: Mode[] = ["schema", "realistic", "fill", "power"];
-const TOOLS: { tool: Tool; icon: typeof Eye }[] = [
+const TOOLS: { tool: Tool; icon: typeof MousePointer2 }[] = [
   { tool: "view", icon: MousePointer2 },
   { tool: "edit", icon: Move },
   { tool: "ruler", icon: Ruler },
@@ -108,6 +113,36 @@ const TOOLS: { tool: Tool; icon: typeof Eye }[] = [
 ];
 const GRIDS = [5, 10, 50, 100];
 const VIEWS: Preset[] = ["iso", "top", "aisle", "racks"];
+const LAYER_KEYS: (keyof Layers)[] = [
+  "room",
+  "gaps",
+  "tape",
+  "zones",
+  "names",
+  "assumptions",
+];
+
+/** The layers this viewer chose last time (a convenience; may be absent). */
+function loadLayers(): Layers {
+  try {
+    const v = JSON.parse(localStorage.getItem("dc.layers") ?? "null");
+    return { ...DEFAULT_LAYERS, ...(v ?? {}) };
+  } catch {
+    return { ...DEFAULT_LAYERS };
+  }
+}
+function saveLayers(l: Layers) {
+  try {
+    localStorage.setItem("dc.layers", JSON.stringify(l));
+  } catch {
+    // Private windows and blocked storage: the layers just reset.
+  }
+}
+
+/** Where the room opens: the user's last mode, else the theme's default. */
+function defaultMode(s: ReturnType<typeof useDcSettings>): Mode {
+  return s.settings.dc_mode ?? (s.theme === "drawing" ? "schema" : "realistic");
+}
 
 export function parseHash(hash: string): SelRef {
   let m = hash.match(/^#obj-(\d+)$/);
@@ -190,9 +225,30 @@ export function DcRoomPage() {
   const [search, setSearch] = useSearchParams();
   const plan = search.get("view") === "plan";
   const tools = useToolAccess();
-  const canEdit = tools.can("dc_room", "edit");
+  // An older revision is shown read only.
+  const rev = Number(search.get("rev")) || null;
+  const canEdit = tools.can("dc_room", "edit") && rev === null;
   const room = useRoom(roomId);
-  const data = room.data;
+  const past = useQuery({
+    queryKey: ["dc", "revision", roomId, rev],
+    queryFn: ({ signal }) => dcApi.revision(roomId, rev!, signal),
+    enabled: rev !== null,
+  });
+  const data = useMemo(
+    () =>
+      rev !== null && past.data && room.data
+        ? {
+            ...room.data,
+            objects: past.data.snapshot.objects,
+            devices: past.data.snapshot.devices,
+            cells: past.data.snapshot.cells,
+            annotations: past.data.snapshot.annotations,
+            // Today's analysis does not describe that room.
+            analysis: { ...room.data.analysis, clearances: [], problems: [] },
+          }
+        : room.data,
+    [rev, past.data, room.data],
+  );
   const changes = useChanges(roomId, data);
 
   const host = useRef<HTMLDivElement>(null);
@@ -203,11 +259,29 @@ export function DcRoomPage() {
     cam: parseCam(search.get("cam")),
     tool: search.get("tool"),
   });
-  const [mode, setMode] = useState<Mode>(() =>
-    MODES.includes(initial.current.mode as Mode)
-      ? (initial.current.mode as Mode)
-      : "schema",
+  const linkedMode = MODES.includes(initial.current.mode as Mode);
+  const [mode, setModeState] = useState<Mode>(() =>
+    linkedMode ? (initial.current.mode as Mode) : defaultMode(settings),
   );
+  // Settings arriving after the first render decide the mode once.
+  const modeChosen = useRef(linkedMode || settings.ready);
+  useEffect(() => {
+    if (modeChosen.current || !settings.ready) return;
+    modeChosen.current = true;
+    setModeState(defaultMode(settings));
+    // Only the first ready settings matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.ready]);
+  /** A mode picked by the user: remembered for them. */
+  const setMode = useCallback(
+    (m: Mode) => {
+      modeChosen.current = true;
+      setModeState(m);
+      settings.setMode(m);
+    },
+    [settings],
+  );
+  const [layers, setLayers] = useState<Layers>(loadLayers);
   const [tool, setTool] = useState<Tool>(() =>
     initial.current.tool === "ruler" ? "ruler" : "view",
   );
@@ -216,8 +290,6 @@ export function DcRoomPage() {
   const [grid, setGrid] = useState(10);
   const [ortho, setOrtho] = useState(false);
   const [walking, setWalking] = useState(false);
-  const [showAssumptions, setShowAssumptions] = useState(false);
-  const [showLabels, setShowLabels] = useState(true);
   const [owner, setOwner] = useState<string | null>(initial.current.owner);
   const [selection, setSelection] = useState<SelRef>(() =>
     parseHash(window.location.hash),
@@ -291,6 +363,7 @@ export function DcRoomPage() {
         ruler: (r) => String(r.distance),
         snap: (k) => k,
         clearance: (c) => String(c.mm),
+        pin: (c) => String(c.mm),
       },
       TOKENS[settings.theme],
     );
@@ -335,6 +408,10 @@ export function DcRoomPage() {
       measurement: (m) => measurementText(m, fmt, t, i18n.language),
       ruler: (r) => rulerText(r, fmt, t, snapWord),
       snap: snapWord,
+      pin: (c) =>
+        t(c.side === "front" ? "dc.pin.front" : "dc.pin.rear", {
+          gap: fmt.mm(c.mm),
+        }),
       clearance: (c) => {
         const head = t(
           c.side === "front"
@@ -365,14 +442,11 @@ export function DcRoomPage() {
   useEffect(() => engine.current?.setMode(mode), [mode, loaded]);
   useEffect(() => engine.current?.setTool(tool), [tool, loaded]);
   useEffect(() => engine.current?.setGrid(grid), [grid, loaded]);
-  useEffect(
-    () => engine.current?.setShowAssumptions(showAssumptions),
-    [showAssumptions, loaded],
-  );
-  useEffect(
-    () => engine.current?.setLabelsVisible(showLabels),
-    [showLabels, loaded],
-  );
+  useEffect(() => {
+    engine.current?.setLayers(layers);
+    saveLayers(layers);
+  }, [layers, loaded]);
+
   useEffect(() => engine.current?.setRulerMode(rulerMode), [rulerMode, loaded]);
   useEffect(() => engine.current?.setHighlight(owner), [owner, loaded, data]);
 
@@ -469,13 +543,24 @@ export function DcRoomPage() {
     },
     [select],
   );
+  // A warning pin in the scene: the same, from the room's analysis.
+  useEffect(() => {
+    const e = engine.current;
+    if (!e || !data) return;
+    e.onPin = (id, side) => {
+      const c = data.analysis.clearances.find(
+        (x) => x.object_id === id && x.side === side,
+      );
+      if (c) showClearance(c);
+    };
+  }, [data, showClearance, loaded]);
 
   /** The link to exactly this screen. */
   const shareLink = useCallback(() => {
     const e = engine.current;
     const q = new URLSearchParams();
     if (plan) q.set("view", "plan");
-    if (mode !== "schema") q.set("mode", mode);
+    q.set("mode", mode);
     if (owner) q.set("owner", owner);
     if (e) q.set("cam", camParam(e.view()));
     return `${window.location.origin}/dc/${roomId}?${q.toString()}${hashOf(data ? complete(selection, data) : null)}`;
@@ -573,29 +658,32 @@ export function DcRoomPage() {
       setNotice(t("dc.layout.resetDone", { count: ops.length }));
   }, [data, roomId, run, t]);
 
-  const openView = useCallback((v: ViewPayload) => {
-    if (v.mode) setMode(v.mode);
-    setOwner(v.owner ?? null);
-    if (v.selection) setSelection(parseHash(`#${v.selection}`));
-    const view = {
-      position: v.position,
-      target: v.target,
-      fov: v.fov,
-      ortho: v.ortho,
-    };
-    // A saved view wins over the plan: one that is not a plan itself
-    // leaves for 3D, where the camera effect applies it.
-    const fromAbove =
-      v.ortho &&
-      Math.hypot(v.position[0] - v.target[0], v.position[2] - v.target[2]) <
-        0.05 * Math.abs(v.position[1] - v.target[1]);
-    if (plan && !fromAbove) {
-      initial.current.cam = view;
-      const q = new URLSearchParams(search);
-      q.set("view", "3d");
-      navigate({ search: q.toString(), hash: window.location.hash });
-    } else engine.current?.goView(view);
-  }, [plan, search, navigate]);
+  const openView = useCallback(
+    (v: ViewPayload) => {
+      if (v.mode) setMode(v.mode);
+      setOwner(v.owner ?? null);
+      if (v.selection) setSelection(parseHash(`#${v.selection}`));
+      const view = {
+        position: v.position,
+        target: v.target,
+        fov: v.fov,
+        ortho: v.ortho,
+      };
+      // A saved view wins over the plan: one that is not a plan itself
+      // leaves for 3D, where the camera effect applies it.
+      const fromAbove =
+        v.ortho &&
+        Math.hypot(v.position[0] - v.target[0], v.position[2] - v.target[2]) <
+          0.05 * Math.abs(v.position[1] - v.target[1]);
+      if (plan && !fromAbove) {
+        initial.current.cam = view;
+        const q = new URLSearchParams(search);
+        q.set("view", "3d");
+        navigate({ search: q.toString(), hash: window.location.hash });
+      } else engine.current?.goView(view);
+    },
+    [plan, search, navigate, setMode],
+  );
 
   const moveObject = useCallback(
     (id: number, x0: number, z0: number, rotation: number) => {
@@ -643,6 +731,13 @@ export function DcRoomPage() {
       )
         return;
       const mod = e.ctrlKey || e.metaKey;
+      // 1–4: the modes, 5–8: the views, as their tooltips say.
+      if (!mod && !e.altKey && /^Digit[1-8]$/.test(e.code)) {
+        const n = Number(e.code.slice(5));
+        if (n <= 4) setMode(MODES[n - 1]);
+        else engine.current?.preset(VIEWS[n - 5]);
+        return;
+      }
       if (mod && e.code === "KeyZ") {
         e.preventDefault();
         if (!canEdit) return;
@@ -692,7 +787,16 @@ export function DcRoomPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canEdit, changes, data, i18n.language, moveObject, selection, tool]);
+  }, [
+    canEdit,
+    changes,
+    data,
+    i18n.language,
+    moveObject,
+    selection,
+    setMode,
+    tool,
+  ]);
 
   // --- What the command palette can do here ---
   const owners = useMemo(() => {
@@ -815,6 +919,7 @@ export function DcRoomPage() {
     shareLink,
     navigate,
     i18n.language,
+    setMode,
   ]);
 
   if (room.isPending) return <Spinner />;
@@ -869,28 +974,34 @@ export function DcRoomPage() {
         </button>
       ))}
       <hr />
-      <button
-        type="button"
-        aria-pressed={showLabels}
-        title={t("dc.labels.toggle")}
-        aria-label={t("dc.labels.toggle")}
-        onClick={() => setShowLabels((v) => !v)}
-      >
-        <Tag className="size-[18px]" />
-      </button>
-      <button
-        type="button"
-        aria-pressed={showAssumptions}
-        title={`${t("dc.assumptions.toggle")} (${assumedCount})`}
-        aria-label={t("dc.assumptions.toggle")}
-        onClick={() => setShowAssumptions((v) => !v)}
-      >
-        {showAssumptions ? (
-          <Eye className="size-[18px]" />
-        ) : (
-          <EyeOff className="size-[18px]" />
-        )}
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            title={t("dc.layer.button")}
+            aria-label={t("dc.layer.button")}
+            data-testid="layers"
+          >
+            <LayersIcon className="size-[18px]" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start">
+          <DropdownMenuLabel>{t("dc.layer.button")}</DropdownMenuLabel>
+          {LAYER_KEYS.map((k) => (
+            <DropdownMenuCheckboxItem
+              key={k}
+              checked={layers[k]}
+              onCheckedChange={(v) =>
+                setLayers((l) => ({ ...l, [k]: v === true }))
+              }
+              onSelect={(e) => e.preventDefault()}
+            >
+              {t(`dc.layer.${k}`)}
+              {k === "assumptions" && assumedCount > 0 && ` (${assumedCount})`}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 
@@ -924,6 +1035,8 @@ export function DcRoomPage() {
         });
       }}
       onFindSpace={() => setInspector({ open: true, tab: "capacity" })}
+      onImport={() => setImportOpen(true)}
+      past={rev !== null}
       saveView={saveView}
       openView={openView}
       copyLink={() =>
@@ -949,17 +1062,23 @@ export function DcRoomPage() {
       <div ref={host} className="dc-viewport" aria-label={t("dc.canvasLabel")}>
         {!docked && rail}
         <div className="dc-chips no-print">
-          <div className="dc-chip dc-panel">
-            <button type="button" onClick={() => select(null, false)}>
-              {data.room.name}
-            </button>
-            {selName && (
-              <>
-                <span style={{ color: "var(--dc-muted)" }}>›</span>
-                <b>{selName}</b>
-              </>
-            )}
-          </div>
+          {selName && (
+            <div className="dc-chip dc-panel" data-testid="breadcrumb">
+              <button type="button" onClick={() => select(null, false)}>
+                {data.room.name}
+              </button>
+              <span style={{ color: "var(--dc-muted)" }}>›</span>
+              <b>{selName}</b>
+            </div>
+          )}
+          {rev !== null && (
+            <div className="dc-chip dc-panel" role="status">
+              {t("dc.past.chip", { n: rev })}
+              <Link className="underline" to={`/dc/${roomId}?view=3d`}>
+                {t("dc.past.back")}
+              </Link>
+            </div>
+          )}
           {owner && (
             <div className="dc-chip dc-panel" role="status">
               {t("dc.highlight.label")}
@@ -1054,11 +1173,11 @@ export function DcRoomPage() {
           </>
         )}
 
-        <div className="dc-coords">
-          {cursor
-            ? `x ${fmt.mm(cursor.x)} · z ${fmt.mm(cursor.z)}`
-            : t("dc.revision", { n: data.room.revision })}
-        </div>
+        {cursor && (
+          <div className="dc-coords">
+            x {fmt.mm(cursor.x)} · z {fmt.mm(cursor.z)}
+          </div>
+        )}
 
         {hover && hoverText && (
           <div
@@ -1107,12 +1226,16 @@ export function DcRoomPage() {
             role="radiogroup"
             aria-label={t("dc.mode.label")}
           >
-            {MODES.map((m) => (
+            {MODES.map((m, i) => (
               <button
                 key={m}
                 type="button"
                 role="radio"
                 aria-checked={mode === m}
+                title={t("dc.bar.key", {
+                  label: t(`dc.mode.${m}`),
+                  key: i + 1,
+                })}
                 onClick={() => setMode(m)}
               >
                 {t(`dc.mode.${m}`)}
@@ -1125,31 +1248,20 @@ export function DcRoomPage() {
             role="group"
             aria-label={t("dc.view.presets")}
           >
-            {VIEWS.map((p) => (
+            {VIEWS.map((p, i) => (
               <button
                 key={p}
                 type="button"
+                title={t("dc.bar.key", {
+                  label: t(`dc.view.${p}`),
+                  key: i + 5,
+                })}
                 onClick={() => engine.current?.preset(p)}
               >
                 {t(`dc.view.${p}`)}
               </button>
             ))}
           </div>
-          <span className="sep" />
-          <IconButton
-            label={`${ortho ? t("dc.view.ortho") : t("dc.view.persp")} — ${t("dc.view.projectionHint")}`}
-            pressed={ortho}
-            onClick={() => engine.current?.setOrtho(!ortho)}
-          >
-            <Box className="size-4" />
-          </IconButton>
-          <IconButton
-            label={`${t("dc.walk.label")} — ${t("dc.walk.hint")}`}
-            pressed={walking}
-            onClick={() => engine.current?.setWalk(!walking)}
-          >
-            <Footprints className="size-4" />
-          </IconButton>
           {tool === "edit" && (
             <select
               className="rounded bg-transparent px-1 py-1 text-xs"
@@ -1166,12 +1278,14 @@ export function DcRoomPage() {
           )}
           {canEdit && (
             <>
+              <span className="sep" />
               <IconButton
-                label={
-                  changes.undoLabel
+                label={t("dc.bar.key", {
+                  label: changes.undoLabel
                     ? t("dc.undo", { what: changes.undoLabel })
-                    : t("dc.undoNothing")
-                }
+                    : t("dc.undoNothing"),
+                  key: "Ctrl+Z",
+                })}
                 disabled={!changes.canUndo || changes.pending}
                 onClick={() =>
                   void changes
@@ -1187,11 +1301,12 @@ export function DcRoomPage() {
                 <Undo2 className="size-4" />
               </IconButton>
               <IconButton
-                label={
-                  changes.redoLabel
+                label={t("dc.bar.key", {
+                  label: changes.redoLabel
                     ? t("dc.redo", { what: changes.redoLabel })
-                    : t("dc.redoNothing")
-                }
+                    : t("dc.redoNothing"),
+                  key: "Ctrl+Shift+Z",
+                })}
                 disabled={!changes.canRedo || changes.pending}
                 onClick={() =>
                   void changes
@@ -1208,18 +1323,19 @@ export function DcRoomPage() {
               </IconButton>
             </>
           )}
+          <span className="sep" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="grid size-8 place-items-center"
-                title={t("dc.export.label")}
-                aria-label={t("dc.export.label")}
-              >
-                <Download className="size-4" />
+              <button type="button" className="dc-bar-btn">
+                {t("dc.bar.export")} <ChevronDown className="size-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => savePng(engine.current, data.room.name)}
+              >
+                {t("dc.export.png")}
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a href={dcApi.exportDxf(roomId)} download>
                   {t("dc.export.dxf")}
@@ -1230,42 +1346,59 @@ export function DcRoomPage() {
                   {t("dc.export.csv")}
                 </a>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => savePng(engine.current, data.room.name)}
-              >
-                {t("dc.export.png")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link to={`/dc/${roomId}/labels`}>{t("dc.qr.all")}</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {canEdit && (
-            <IconButton
-              label={t("dc.layout.reset")}
-              disabled={changes.pending}
-              onClick={() => void resetLayout()}
-            >
-              <RotateCcw className="size-4" />
-            </IconButton>
-          )}
-          {canEdit && (
-            <IconButton
-              label={t("dc.import.button")}
-              onClick={() => setImportOpen(true)}
-            >
-              <Upload className="size-4" />
-            </IconButton>
-          )}
-          <Link
-            to={`/dc/${roomId}/history`}
-            className="grid size-8 place-items-center"
-            title={t("dc.history.button")}
-            aria-label={t("dc.history.button")}
-          >
-            <History className="size-4" />
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="dc-bar-btn"
+                title={t("dc.bar.more")}
+                aria-label={t("dc.bar.more")}
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canEdit && (
+                <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                  {t("dc.bar.importCsv")}
+                </DropdownMenuItem>
+              )}
+              {canEdit && (
+                <DropdownMenuItem
+                  disabled={changes.pending}
+                  onSelect={() => void resetLayout()}
+                >
+                  {t("dc.bar.reset")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem asChild>
+                <Link to={`/dc/${roomId}/history`}>{t("dc.bar.history")}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => setInspector({ open: true, tab: "views" })}
+              >
+                {t("dc.bar.views")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={ortho}
+                onCheckedChange={(v) => engine.current?.setOrtho(v === true)}
+              >
+                {t("dc.bar.ortho")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={walking}
+                onCheckedChange={(v) => engine.current?.setWalk(v === true)}
+              >
+                {t("dc.bar.walk")}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {docked && inspectorEl}
