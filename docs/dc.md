@@ -249,7 +249,11 @@ allows, and none of it is in the room's revisions.
   owner; outlined in the view. `H` highlights its owner: that owner's
   equipment keeps its colour, the rest dims.
 - **Doors**: double-click a rack opens its front door; Shift+double-click
-  turns the camera to its rear and opens that. A view setting.
+  turns the camera to its rear and opens that. A door swings outwards, into
+  the aisle, 110°; its hinge side is the rack's (`door_hinge`, left by
+  default, seen from the face; in the rack's editor and details). Where the
+  swing would pass through a neighbour or a wall it opens as far as it can
+  and a hint names what is in the way. A view setting.
 - **Status bar** (24 px, under the bottom bar): the tool's hint, the
   selection («Стойка 3 · 31/42U · 9 кВт»), the scene and the cursor's
   floor coordinates.
@@ -657,8 +661,8 @@ Adjusted to the house style or the data:
    import in about 0.05 s here, one revision (`e2e/phase1-design.e2e.ts`).
 
 The browser checks run on a scratch database of their own (`just e2e`);
-before/after screenshots of every screen in three themes are in
-`docs/dc/screenshots/feedback-6/`, with the example inventory
+before/after screenshots of every screen in three themes are on the
+[`screenshots` branch](https://github.com/bemeritus/portal/tree/screenshots/docs/dc/screenshots/feedback-6) (never merged into `main`), with the example inventory
 (`frontend/e2e/inventory.ts`, example data, not the room's).
 
 ### FEEDBACK-7 (the last phase 1 pass; the design is frozen after it)
@@ -696,8 +700,9 @@ before/after screenshots of every screen in three themes are in
 Tests: `e2e/phase1-finish.e2e.ts`; `engine/dimensions.test.ts`,
 `model/owners.test.ts`, the client's `blockedCells` against the server's,
 and `dc::ops` tests for both sides of the blocked-cell rule. Migration 0029
-lets `owners` be a user's last mode. Before/after screenshots:
-`docs/dc/screenshots/feedback-7/`.
+lets `owners` be a user's last mode. Before/after screenshots are on the
+`screenshots` branch: [FEEDBACK-7](https://github.com/bemeritus/portal/tree/screenshots/docs/dc/screenshots/feedback-7) and [its
+follow-up](https://github.com/bemeritus/portal/tree/screenshots/docs/dc/screenshots/feedback-7-followup).
 
 Not in the data, so not shown: datasheet page numbers (sources link to the
 datasheet without a page).
