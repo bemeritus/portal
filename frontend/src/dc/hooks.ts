@@ -139,6 +139,22 @@ function inverseOf(
           if (created[i] !== null)
             inv.push({ op: "annotation_delete", id: created[i]! });
           break;
+        case "annotation_update": {
+          const a = before.annotations.find((x) => x.id === op.id);
+          if (a)
+            inv.push({
+              op: "annotation_update",
+              id: a.id,
+              annotation:
+                a.kind === "note"
+                  ? { kind: "note", payload: a.payload }
+                  : { kind: "view", payload: a.payload },
+            });
+          break;
+        }
+        case "room_settings":
+          inv.push({ op: "room_settings", settings: before.room.settings });
+          break;
         case "annotation_delete": {
           const a = before.annotations.find((x) => x.id === op.id);
           if (a)
@@ -194,6 +210,7 @@ export function stillValid(op: Op, data: RoomData): boolean {
       return data.cells.some(
         (c) => c.shelf_id === op.shelf_id && c.cell_no === op.cell_no,
       );
+    case "annotation_update":
     case "annotation_delete":
       return data.annotations.some((a) => a.id === op.id);
     default:
@@ -272,6 +289,7 @@ export function useChanges(roomId: number, data: RoomData | undefined) {
         };
       case "cell_delete":
         return { ...op, shelf_id: resolve("object", op.shelf_id) };
+      case "annotation_update":
       case "annotation_delete":
         return { ...op, id: resolve("annotation", op.id) };
       default:

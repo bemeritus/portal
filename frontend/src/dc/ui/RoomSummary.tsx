@@ -13,6 +13,7 @@
  * - `OwnDims`: an object's own measurements, compactly.
  */
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
@@ -25,26 +26,35 @@ import type {
   CatalogItem,
   Clearance,
   DcObject,
+  Op,
   Device,
   RackProps,
   RoomData,
 } from "../types";
 import { clearanceGap, localText } from "../types";
+import { Input } from "@/components/ui/input";
+import { LengthInput } from "./LengthInput";
 import { measureLabel } from "./measureLabel";
 import { KIND_GROUP } from "./RackPanel";
 
 export function RoomSummary({
   data,
   canEdit,
-  onRack,
+  onObject,
   onClearance,
   onImport,
+  run,
+  settingsOpen,
+  onSettingsOpen,
 }: {
   data: RoomData;
   canEdit: boolean;
-  onRack: (id: number) => void;
+  onObject: (id: number) => void;
   onClearance: (c: Clearance) => void;
   onImport: () => void;
+  run: (ops: Op[], label: string) => Promise<boolean>;
+  settingsOpen: boolean;
+  onSettingsOpen: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
   const fmt = useFmt();
@@ -90,7 +100,7 @@ export function RoomSummary({
             const share = r.stats.known ? r.stats.used / r.stats.units : 0;
             return (
               <li key={r.id}>
-                <button type="button" onClick={() => onRack(r.id)}>
+                <button type="button" onClick={() => onObject(r.id)}>
                   <b>{r.name}</b>
                   <i className="dc-fill">
                     <i style={{ width: `${share * 100}%` }} />
@@ -112,8 +122,21 @@ export function RoomSummary({
           })}
         </ul>
       )}
-      {f.short.length > 0 && (
+      {(f.short.length > 0 || data.analysis.cooling_over_cells.length > 0) && (
         <ul className="dc-summary-warnings" data-testid="summary-warnings">
+          {data.analysis.cooling_over_cells.map((c) => (
+            <li key={`cool-${c.object_id}-${c.shelf_id}`}>
+              <button type="button" onClick={() => onObject(c.object_id)}>
+                <AlertTriangle className="size-4" />
+                <span>
+                  <b>{t("dc.condensate.title")}</b>
+                  {c.object}:{" "}
+                  {t("dc.condensate.text", { cells: c.cells.join(", ") })}{" "}
+                  <u>{t("dc.summary.show")}</u>
+                </span>
+              </button>
+            </li>
+          ))}
           {f.short.map((c) => (
             <li key={`${c.object_id}-${c.side}`}>
               <button type="button" onClick={() => onClearance(c)}>
@@ -137,6 +160,14 @@ export function RoomSummary({
             </li>
           ))}
         </ul>
+      )}
+      {canEdit && (
+        <RoomSettingsForm
+          data={data}
+          run={run}
+          open={settingsOpen}
+          onOpen={onSettingsOpen}
+        />
       )}
     </div>
   );
@@ -210,7 +241,11 @@ export function RackSummary({
   );
 }
 
-/** A thin elevation: devices by kind, the rest free. */
+/**
+ * The rack's elevation beside its figures (FEEDBACK-7 §3): wide enough to
+ * read — U ticks every 5U, devices by kind with their name on hover, the
+ * free runs dashed.
+ */
 function MiniElevation({
   units,
   devices,
@@ -221,29 +256,56 @@ function MiniElevation({
   known: boolean;
 }) {
   const { t } = useTranslation();
-  const H = units * 6;
+  const U = 4;
+  const H = units * U;
+  const [x0, w] = [16, 54];
+  const front = devices.filter((d) => d.face !== "rear");
+  const y = (u: number) => H - u * U;
   return (
     <svg
       className="dc-mini-elev"
-      viewBox={`0 0 20 ${H}`}
-      preserveAspectRatio="none"
+      viewBox={`0 0 ${x0 + w + 1} ${H + 1}`}
+      width={x0 + w + 1}
+      height={H + 1}
       role="img"
       aria-label={t("dc.rack.elevation", { face: t("dc.face.front") })}
       data-known={known || undefined}
+      data-testid="mini-elevation"
     >
-      <rect className="dc-mini-elev-bg" x={0} y={0} width={20} height={H} />
-      {devices
-        .filter((d) => d.face !== "rear")
-        .map((d) => (
-          <g key={d.id} className="dc-elev-dev" data-group={KIND_GROUP[d.kind]}>
-            <rect
-              x={1.5}
-              y={H - (d.u_bottom + d.u_height - 1) * 6 + 0.5}
-              width={17}
-              height={d.u_height * 6 - 1}
-            />
+      <rect className="dc-mini-elev-bg" x={x0} y={0.5} width={w} height={H} />
+      {Array.from({ length: Math.floor(units / 5) }, (_, i) => (i + 1) * 5).map(
+        (u) => (
+          <g key={u} className="dc-mini-elev-tick">
+            <line x1={x0 - 3} x2={x0} y1={y(u) + 0.5} y2={y(u) + 0.5} />
+            <text x={x0 - 4} y={y(u) + 3}>
+              {u}
+            </text>
           </g>
+        ),
+      )}
+      {known &&
+        freeRuns(devices, units, "front").map((r) => (
+          <rect
+            key={`free-${r.from}`}
+            className="dc-mini-elev-free"
+            x={x0 + 2}
+            y={y(r.to) + 1.5}
+            width={w - 4}
+            height={(r.to - r.from + 1) * U - 2}
+          />
         ))}
+      {front.map((d) => (
+        <g key={d.id} className="dc-elev-dev" data-group={KIND_GROUP[d.kind]}>
+          <rect
+            x={x0 + 1.5}
+            y={y(d.u_bottom + d.u_height - 1) + 1}
+            width={w - 3}
+            height={d.u_height * U - 1}
+          >
+            <title>{`${d.name} · U${d.u_bottom}${d.u_height > 1 ? `–${d.u_bottom + d.u_height - 1}` : ""}`}</title>
+          </rect>
+        </g>
+      ))}
     </svg>
   );
 }
@@ -306,5 +368,98 @@ export function Figure({
       <span>{label}</span>
       {sub && <small>{sub}</small>}
     </div>
+  );
+}
+
+/**
+ * The room's settings (FEEDBACK-7 §1.7): the per-rack power budget the power
+ * mode judges against, and the service clearances. Saved as a change set,
+ * so it has a revision and can be undone.
+ */
+function RoomSettingsForm({
+  data,
+  run,
+  open,
+  onOpen,
+}: {
+  data: RoomData;
+  run: (ops: Op[], label: string) => Promise<boolean>;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const fmt = useFmt();
+  const s = data.room.settings;
+  const [budget, setBudget] = useState(
+    s.rack_power_budget_w === null ? "" : String(s.rack_power_budget_w / 1000),
+  );
+  const [front, setFront] = useState<number | null>(s.clearance_front_mm);
+  const [rear, setRear] = useState<number | null>(s.clearance_rear_mm);
+  const kw = Number(budget.replace(",", "."));
+  const budgetOk = budget.trim() === "" || (Number.isFinite(kw) && kw > 0);
+  return (
+    <details
+      className="dc-more"
+      open={open}
+      onToggle={(e) => onOpen((e.target as HTMLDetailsElement).open)}
+      data-testid="room-settings"
+    >
+      <summary>{t("dc.roomSettings.title")}</summary>
+      <form
+        className="space-y-2 pt-2 text-sm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!budgetOk || front === null || rear === null) return;
+          void run(
+            [
+              {
+                op: "room_settings",
+                settings: {
+                  ...s,
+                  rack_power_budget_w:
+                    budget.trim() === "" ? null : Math.round(kw * 1000),
+                  clearance_front_mm: front,
+                  clearance_rear_mm: rear,
+                },
+              },
+            ],
+            t("dc.roomSettings.change"),
+          );
+        }}
+      >
+        <label className="block">
+          <span className="text-xs">{t("dc.roomSettings.budget")}</span>
+          <Input
+            id="room-budget"
+            inputMode="decimal"
+            placeholder={t("dc.roomSettings.budgetHint")}
+            value={budget}
+            aria-invalid={!budgetOk || undefined}
+            onChange={(e) => setBudget(e.target.value)}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-xs">
+              {t("dc.roomSettings.front", { unit: fmt.unitWord })}
+            </span>
+            <LengthInput id="room-front" value={front} onChange={setFront} />
+          </label>
+          <label className="block">
+            <span className="text-xs">
+              {t("dc.roomSettings.rear", { unit: fmt.unitWord })}
+            </span>
+            <LengthInput id="room-rear" value={rear} onChange={setRear} />
+          </label>
+        </div>
+        <button
+          type="submit"
+          className="dc-btn dc-btn-primary"
+          disabled={!budgetOk || front === null || rear === null}
+        >
+          {t("dc.roomSettings.save")}
+        </button>
+      </form>
+    </details>
   );
 }

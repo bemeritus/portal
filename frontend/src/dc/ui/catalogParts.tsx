@@ -6,7 +6,7 @@
  */
 
 import type { TFunction } from "i18next";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -107,23 +107,51 @@ export function thumbSize(): ThumbSize {
   };
 }
 
-/** An item's card picture, drawn once per session and theme. */
+/**
+ * An item's card picture, drawn once per session and theme. Until it is
+ * drawn, a skeleton with the item's silhouette (its front, to scale); cards
+ * on screen are drawn first (FEEDBACK-7 §3).
+ */
 export function Thumb({ item }: { item: CatalogItem }) {
   const tokens = TOKENS[useDcSettings().theme];
   const [src, setSrc] = useState<string | null>(() =>
     cachedThumbnail(item, tokens, thumbSize()),
   );
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (src) return;
     let live = true;
-    void thumbnail(item, tokens, thumbSize()).then((u) => live && setSrc(u));
+    const done = (u: string) => live && setSrc(u);
+    void thumbnail(item, tokens, thumbSize()).then(done);
+    const el = box.current;
+    const seen = el
+      ? new IntersectionObserver((es) => {
+          if (es.some((e) => e.isIntersecting))
+            void thumbnail(item, tokens, thumbSize(), true).then(done);
+        })
+      : null;
+    if (el) seen!.observe(el);
     return () => {
       live = false;
+      seen?.disconnect();
     };
-  }, [item, tokens]);
-  return src ? (
-    <img src={src} alt="" className="dc-cat-pic" data-thumb={item.id} />
-  ) : (
-    <div className="dc-cat-pic dc-skel" aria-hidden />
+  }, [item, tokens, src]);
+  if (src)
+    return <img src={src} alt="" className="dc-cat-pic" data-thumb={item.id} />;
+  // The silhouette: the item's front, scaled to the picture's 4:3.
+  const s = Math.min(240 / item.width_mm, 160 / item.height_mm);
+  const [w, h] = [item.width_mm * s, item.height_mm * s];
+  return (
+    <div
+      ref={box}
+      className="dc-cat-pic dc-skel"
+      aria-hidden
+      data-skeleton={item.id}
+    >
+      <svg viewBox="0 0 320 240" className="dc-skel-shape">
+        <rect x={160 - w / 2} y={200 - h} width={w} height={h} rx={4} />
+      </svg>
+    </div>
   );
 }
 
@@ -429,4 +457,18 @@ export function keyFigures(
       { label: t("dc.catalog.tileDims"), value: dimsText(item, fmt) },
     ];
   return [{ label: t("dc.catalog.tileDims"), value: dimsText(item, fmt) }];
+}
+
+/**
+ * A comfort air conditioner's limits, in one line on its card and page
+ * (FEEDBACK-7 §7). It will link to SPEC §12 once those calculations exist.
+ */
+export function ComfortNote({ item }: { item: CatalogItem }) {
+  const { t } = useTranslation();
+  if (item.kind !== "cooling" || isPrecision(item)) return null;
+  return (
+    <p className="dc-comfort-note" data-testid="comfort-note">
+      {t("dc.catalog.comfortNote")}
+    </p>
+  );
 }

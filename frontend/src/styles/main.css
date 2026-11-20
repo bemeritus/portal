@@ -436,34 +436,49 @@
   background: var(--panel);
   border: 1px solid var(--line);
 }
+/* The view cube: drawn without perspective (its own orthographic view), in a
+   box the cube fits at any angle (FEEDBACK-7 §2.3). */
 .dc-cube-wrap {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 60px;
-  height: 60px;
-  perspective: 300px;
+  width: 96px;
+  height: 96px;
   z-index: 4;
 }
 .dc-cube {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
   transform-style: preserve-3d;
 }
 .dc-cube-face {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 60px;
-  height: 60px;
+  left: -26px;
+  top: -26px;
+  width: 52px;
+  height: 52px;
   margin: 0;
-  font-size: 9px;
-  line-height: 1.1;
+  padding: 0;
+  font-size: 0;
   color: var(--ink);
   background: color-mix(in srgb, var(--panel) 85%, transparent);
   border: 1px solid var(--line);
   backface-visibility: hidden;
   cursor: pointer;
+}
+.dc-cube-name {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: 64px;
+  font-size: 9px;
+  line-height: 1.05;
+  text-align: center;
+  pointer-events: none;
+  white-space: normal;
 }
 .dc-cube-face:hover,
 .dc-cube-face:focus-visible {

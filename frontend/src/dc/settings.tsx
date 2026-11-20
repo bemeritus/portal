@@ -21,7 +21,7 @@ export interface DcSettings {
   /** The plan legend is folded to its button. */
   dc_legend_collapsed: boolean;
   /** The room view's last mode; `null` = the theme's default. */
-  dc_mode: "schema" | "realistic" | "fill" | "power" | null;
+  dc_mode: "schema" | "realistic" | "fill" | "power" | "owners" | null;
 }
 
 interface Ctx {

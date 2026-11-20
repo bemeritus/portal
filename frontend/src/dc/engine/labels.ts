@@ -53,6 +53,8 @@ interface Label {
 }
 
 const v = new THREE.Vector3();
+/** A screen rectangle, px: [x0, y0, x1, y1]. */
+export type Box = [number, number, number, number];
 
 /**
  * The chain a dimension belongs to (`chain:x:3` → `chain:x`): a link's
@@ -97,6 +99,13 @@ export class Labels {
   /** Names shown for everything (schema mode), or only for `focus`. */
   showNames = true;
   focus = new Set<string>();
+  /** Objects hidden in the viewport (`obj:12`): their labels go too. */
+  hiddenRefs = new Set<string>();
+  /**
+   * The section box (FEEDBACK-7 §4.4): a label outside it is hidden; one
+   * above its top stands at the cut instead.
+   */
+  clip: THREE.Box3 | null = null;
 
   /** Hide or show every label at once (the rail's labels toggle). */
   setVisible(on: boolean) {
@@ -176,8 +185,19 @@ export class Labels {
       .map(([k]) => k);
   }
 
-  update(camera: THREE.Camera, width: number, height: number) {
-    const placed: [number, number, number, number][] = [];
+  /**
+   * Place the labels for this frame. `panels` are the viewport's panels
+   * (px): a label whose anchor falls under one, or whose box a panel would
+   * cut, is hidden (FEEDBACK-7 §1.3). `avoid` is the selected object's
+   * silhouette: a dimension's label never sits on it (§1.4).
+   */
+  update(
+    camera: THREE.Camera,
+    width: number,
+    height: number,
+    panels: Box[] = [],
+  ) {
+    const placed: Box[] = [];
     const focused = (l: Label, key: string) =>
       this.focus.has(key.split(":").slice(0, 2).join(":")) ||
       l.refs.some((r) => this.focus.has(r));
@@ -201,6 +221,11 @@ export class Labels {
           if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 8)
             lines.push({ key, a, b });
         }
+    const hits = (a: Box, b: Box) =>
+      a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    const inside = (x: number, y: number, b: Box) =>
+      x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3];
+    const avoid = this.avoid;
     for (const [key, l] of list) {
       // Names and assumed-value badges follow the mode (all, or on focus);
       // dimensions, warnings, notes and ruler marks always show.
@@ -219,14 +244,31 @@ export class Labels {
         longEnough =
           Math.hypot(((a.x - b.x) * width) / 2, ((a.y - b.y) * height) / 2) > 8;
       }
-      v.copy(l.pos).project(camera);
+      const c = this.clip;
+      v.copy(l.pos);
+      if (c && v.y > c.max.y) v.y = c.max.y - 40;
+      const clipped =
+        !!c &&
+        (v.x < c.min.x ||
+          v.x > c.max.x ||
+          v.z < c.min.z ||
+          v.z > c.max.z ||
+          v.y < c.min.y);
+      v.project(camera);
+      const ax = ((v.x + 1) / 2) * width,
+        ay = ((1 - v.y) / 2) * height;
       const visible =
         wanted &&
         longEnough &&
         v.z > -1 &&
         v.z < 1 &&
         Math.abs(v.x) < 1.2 &&
-        Math.abs(v.y) < 1.2;
+        Math.abs(v.y) < 1.2 &&
+        !this.hiddenRefs.has(key.split(":").slice(0, 2).join(":")) &&
+        !l.refs.some((r) => this.hiddenRefs.has(r)) &&
+        !clipped &&
+        // Its anchor under a panel: hidden, not cut.
+        !panels.some((p) => inside(ax, ay, p));
       if (!visible) {
         l.el.style.display = "none";
         continue;
@@ -236,28 +278,73 @@ export class Labels {
         l.w = l.el.offsetWidth;
         l.h = l.el.offsetHeight;
       }
-      const x = ((v.x + 1) / 2) * width - l.w / 2;
-      const y = ((1 - v.y) / 2) * height - l.h / 2;
-      const r: [number, number, number, number] = [x, y, x + l.w, y + l.h];
-      const clash =
-        placed.some(
-          (p) => r[0] < p[2] && p[0] < r[2] && r[1] < p[3] && p[1] < r[3],
-        ) ||
-        lines.some(
-          (s) =>
-            s.key !== key &&
-            chainOf(s.key) !== chainOf(key) &&
-            segmentHitsRect(s.a, s.b, r),
-        );
+      // Where it may stand: a dimension's label slides along its line, or
+      // just past its ends; any other label may step up or down by its height.
+      const spots: [number, number][] = [];
+      if (l.span) {
+        const a = toScreen(l.span[0]),
+          b = toScreen(l.span[1]);
+        const [mx, my] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const [dx, dy] = [ax - mx, ay - my];
+        for (const t of [0.5, 0.3, 0.7, 0.15, 0.85, -0.2, 1.2])
+          spots.push([
+            a[0] + (b[0] - a[0]) * t + dx,
+            a[1] + (b[1] - a[1]) * t + dy,
+          ]);
+      } else {
+        spots.push([ax, ay]);
+        if (l.priority < 9)
+          spots.push(
+            [ax, ay - l.h - 2],
+            [ax, ay + l.h + 2],
+            [ax, ay - 2 * l.h - 4],
+          );
+        else spots.push([ax, ay - l.h - 2]);
+      }
+      let at: Box | null = null;
+      let clashFree = false;
+      for (const [cx, cy] of spots) {
+        const x = cx - l.w / 2,
+          y = cy - l.h / 2;
+        const r: Box = [x, y, x + l.w, y + l.h];
+        // Cut by a panel or the canvas edge: not here.
+        if (
+          r[0] < 0 ||
+          r[1] < 0 ||
+          r[2] > width ||
+          r[3] > height ||
+          panels.some((p) => hits(r, p))
+        )
+          continue;
+        if (!at) at = r;
+        const clash =
+          placed.some((p) => hits(r, p)) ||
+          lines.some(
+            (s) =>
+              s.key !== key &&
+              chainOf(s.key) !== chainOf(key) &&
+              segmentHitsRect(s.a, s.b, r),
+          ) ||
+          // A dimension's label is never on the selected object.
+          (l.kind === "dim" && !!avoid && hits(r, avoid));
+        if (!clash) {
+          at = r;
+          clashFree = true;
+          break;
+        }
+      }
       // Focus orders the labels; only a high priority of its own exempts one.
-      if (clash && l.priority < 9) {
+      if (!at || (!clashFree && l.priority < 9)) {
         l.el.style.display = "none";
         continue;
       }
-      placed.push(r);
-      l.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      placed.push(at);
+      l.el.style.transform = `translate(${Math.round(at[0])}px, ${Math.round(at[1])}px)`;
     }
   }
+
+  /** The selected object's silhouette on screen, px, or null. */
+  avoid: Box | null = null;
 
   dispose() {
     this.root.remove();

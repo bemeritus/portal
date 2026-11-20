@@ -98,6 +98,11 @@ export function SelectionPanel(props: Props) {
   }
   return (
     <div className="space-y-4 text-sm">
+      <CondensateNote
+        cells={data.analysis.cooling_over_cells
+          .filter((c) => c.object_id === obj.id)
+          .flatMap((c) => c.cells)}
+      />
       <ObjectSummary obj={obj} item={item} {...props} />
       {item.kind === "shelf" && <ShelfPanel obj={obj} item={item} {...props} />}
       {props.canEdit && (
@@ -148,6 +153,27 @@ export function clearanceSplitText(
 export const clearanceSplit = (c: Clearance) =>
   c.measured_mm !== null &&
   c.measured_mm >= c.required_mm !== c.model_mm >= c.required_mm;
+
+/**
+ * A cooling unit over occupied shelf cells (FEEDBACK-7 §1.1): allowed, but
+ * the equipment under it risks condensate.
+ */
+function CondensateNote({ cells }: { cells: number[] }) {
+  const { t } = useTranslation();
+  if (!cells.length) return null;
+  return (
+    <div
+      className="rounded-md border border-destructive/40 p-2"
+      data-testid="condensate-warning"
+    >
+      <div className="mb-1 font-medium">{t("dc.condensate.title")}</div>
+      <p>{t("dc.condensate.text", { cells: cells.join(", ") })}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t("dc.condensate.note")}
+      </p>
+    </div>
+  );
+}
 
 /** Shortfalls, each a button that selects the rack and draws its gap. */
 export function ClearanceList({

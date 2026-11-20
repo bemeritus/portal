@@ -1,5 +1,8 @@
 /**
- * Racks: frame, rails with a numbered U strip, devices by unit and face, and
+ * Racks: frame on levelling feet, side panels in two with a seam, rails with
+ * square holes and a U strip numbered every 5U, devices by unit and face —
+ * servers with fans and power supplies at the back and a cable bundle to the
+ * cable manager — and
  * doors (glass: one leaf; perforated: two; solid: one; none). A rack whose
  * contents were never recorded shows a hatched panel instead of equipment —
  * never decorative devices.
@@ -15,7 +18,7 @@ import type {
   DoorType,
   RackProps,
 } from "../../types";
-import { freeRuns, TYPICAL_DEPTH } from "../../model/devices";
+import { TYPICAL_DEPTH } from "../../model/devices";
 import { U_MM } from "../../model/geometry";
 import { perfPitch, rbox, seam } from "./parts";
 import {
@@ -155,13 +158,37 @@ export const rackRenderer: ObjectRenderer = {
     // The body's colour and surface come from the item (FEEDBACK-4 §2).
     const frame = surface("rackFrame", p.finish);
     const cap = surface("rackCap", p.finish);
-    // Frame: side panels (not on an open frame), posts, top cap, plinth.
+    const realistic = ctx.mode === "realistic";
+    /** The plinth stands on levelling feet this high. */
+    const FEET = 25;
+    // Frame: side panels (not on an open frame), posts, top cover, plinth
+    // on levelling feet (FEEDBACK-7 §5).
     if (!obj.instance.open_frame) {
-      g.add(box(ctx, frame, t, h, d, -w / 2 + t / 2, 0, 0, pick));
-      g.add(box(ctx, frame, t, h, d, w / 2 - t / 2, 0, 0, pick));
-      // Each side is two panels: a seam half way along.
-      for (const sx of [-1, 1])
-        seam(ctx, g, "vent", 3, h - 120, sx * (w / 2 + 1), 60, 0);
+      // Each side is two panels, a seam at mid-height between them, and a
+      // small gap at the floor.
+      const mid = h / 2;
+      for (const sx of [-1, 1]) {
+        const x = sx * (w / 2 - t / 2);
+        g.add(box(ctx, frame, t, mid - 2 - FEET, d - 4, x, FEET, 0, pick));
+        g.add(box(ctx, frame, t, h - 15 - mid - 2, d - 4, x, mid + 2, 0, pick));
+        if (realistic) seam(ctx, g, "vent", t + 2, 4, x, mid - 2, 0);
+      }
+      // Inside, the panels are lighter: a free unit reads as open space
+      // with the rails in front, never a black void.
+      if (realistic)
+        for (const sx of [-1, 1])
+          g.add(
+            box(
+              ctx,
+              "rackInterior",
+              2,
+              h - 120,
+              d - 80,
+              sx * (w / 2 - t - 2),
+              60,
+              0,
+            ),
+          );
     } else {
       // Side rails top and bottom tie the posts of an open frame.
       for (const sx of [-1, 1])
@@ -169,22 +196,23 @@ export const rackRenderer: ObjectRenderer = {
           g.add(box(ctx, frame, 30, 30, d, sx * (w / 2 - 25), y, 0, pick));
     }
     g.add(box(ctx, cap, w + 6, 15, d + 6, 0, h - 15, 0, pick));
-    g.add(box(ctx, cap, w, 50, d, 0, 0, 0, pick));
-    // The top cable entry: a brushed slot towards the rear. Realistic only:
-    // flat, from above, it read as a stray white plate (FEEDBACK-6 §3).
-    if (ctx.mode === "realistic")
-      g.add(box(ctx, "opening", w * 0.5, 2, 90, 0, h, d / 2 - 160));
-    if (ctx.detail > 0)
-      for (const sx of [-1, 1])
-        for (const sz of [-1, 1]) {
-          const foot = new THREE.Mesh(
-            new THREE.CylinderGeometry(20, 24, 10, 16),
-            ctx.lib.role("foot"),
-          );
-          foot.position.set(sx * (w / 2 - 45), 5, sz * (d / 2 - 45));
-          foot.userData.role = "foot";
-          g.add(foot);
-        }
+    g.add(box(ctx, cap, w, 50, d, 0, FEET, 0, pick));
+    // The top cover's cable entry: a brush strip towards the rear. Realistic
+    // only: flat, from above, it read as a stray white plate (FEEDBACK-6 §3).
+    if (realistic) {
+      g.add(box(ctx, "rackCap", w * 0.56, 3, 110, 0, h, d / 2 - 160));
+      g.add(box(ctx, "opening", w * 0.5, 4, 70, 0, h, d / 2 - 160));
+    }
+    for (const sx of [-1, 1])
+      for (const sz of [-1, 1]) {
+        const foot = new THREE.Mesh(
+          new THREE.CylinderGeometry(16, 22, FEET, 12),
+          ctx.lib.role("foot"),
+        );
+        foot.position.set(sx * (w / 2 - 45), FEET / 2, sz * (d / 2 - 45));
+        foot.userData.role = "foot";
+        g.add(foot);
+      }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1])
         g.add(
@@ -206,14 +234,23 @@ export const rackRenderer: ObjectRenderer = {
     const zf = -d / 2 + RAIL_SETBACK,
       zr = d / 2 - RAIL_SETBACK;
     const fw = Math.min(MOUNT_W - 10, w - 90);
-    for (const sx of [-1, 1]) {
+    // Four rails with square holes, three to a unit (FEEDBACK-7 §5).
+    for (const sx of [-1, 1])
+      for (const z of [zf + 6, zr - 6]) {
+        const rail = new THREE.Mesh(
+          new THREE.BoxGeometry(34, units * U_MM, 12),
+          ctx.lib.railHoles(units),
+        );
+        rail.position.set(sx * (fw / 2 + 21), y1 + (units * U_MM) / 2, z);
+        rail.userData.role = "rail";
+        rail.userData.fixedMaterial = true;
+        g.add(rail);
+      }
+    // The vertical cable manager, inside at the rear left.
+    if (realistic)
       g.add(
-        box(ctx, "rail", 34, units * U_MM, 12, sx * (fw / 2 + 21), y1, zf + 6),
+        box(ctx, "rail", 50, units * U_MM, 40, -(fw / 2 + 21), y1, zr - 40),
       );
-      g.add(
-        box(ctx, "rail", 34, units * U_MM, 12, sx * (fw / 2 + 21), y1, zr - 6),
-      );
-    }
     const strip = new THREE.Mesh(
       new THREE.PlaneGeometry(26, units * U_MM),
       ctx.lib.uStrip(units),
@@ -239,26 +276,15 @@ export const rackRenderer: ObjectRenderer = {
       g.add(m);
     }
     const inner = d - 2 * RAIL_SETBACK;
+    // What only shows up close (the rear's cable bundles): the engine shows
+    // it within 4 m of the camera (FEEDBACK-7 §5).
+    const near = new THREE.Group();
+    near.userData.near = true;
     for (const dv of ctx.devices)
-      addDevice(ctx, g, dv, fw, y1, zf, zr, inner, leds);
-    // A recorded rack's free units carry blanking panels, as in the room —
-    // an empty rack shows its rails and the panels (FEEDBACK-6 §3).
-    if (obj.contents_known && ctx.mode === "realistic")
-      for (const r of freeRuns(ctx.devices, units, "front")) {
-        const ph = (r.to - r.from + 1) * U_MM - 2;
-        const panel = box(
-          ctx,
-          "blankPanel",
-          fw,
-          ph,
-          3,
-          0,
-          y1 + (r.from - 1) * U_MM + 1,
-          zf - 2,
-        );
-        panel.userData.blank = true;
-        g.add(panel);
-      }
+      addDevice(ctx, g, dv, fw, y1, zf, zr, inner, leds, near);
+    // Free units: a blanking panel only where the record has one (a
+    // `blank` device, drawn above); otherwise open, the rails in view.
+    if (near.children.length) g.add(near);
 
     const rack = item.kind === "rack" ? p : null;
     const front = obj.instance.door_front ?? rack?.door_front ?? null;
@@ -286,6 +312,7 @@ function addDevice(
   zr: number,
   inner: number,
   leds: Built["leds"],
+  near: THREE.Group,
 ) {
   const depth =
     dv.face === "both"
@@ -299,7 +326,15 @@ function addDevice(
   // BoxGeometry faces: +x, −x, +y, −y, +z, −z. The panel faces out of its
   // face; a deep device (a server, storage, a UPS) shows a panel at its back
   // too, so a rack seen from behind shows its contents (FEEDBACK-6 §3).
-  const back = depth >= inner * 0.6 ? front : side;
+  const deep = depth >= inner * 0.6;
+  // Servers and storage show their fans and power supplies at the back
+  // (FEEDBACK-7 §5).
+  const back = !deep
+    ? side
+    : ctx.mode === "realistic" &&
+        (dv.kind === "server" || dv.kind === "storage")
+      ? ctx.lib.deviceRear(dv.kind, dv.u_height)
+      : front;
   const mats = [
     side,
     side,
@@ -322,6 +357,23 @@ function addDevice(
   m.userData.pick = { type: "device", id: dv.id, rackId: dv.rack_id };
   m.castShadow = ctx.mode === "realistic";
   g.add(m);
+  // A cable bundle from a deep device's back to the vertical cable manager
+  // at the rear left: a plain swept tube, no routing (that is phase 6).
+  if (deep && !rearMounted && ctx.mode === "realistic" && ctx.detail > 0) {
+    const yc = yb + bh / 2;
+    const z0 = zf + depth + 6;
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(fw / 4, yc, z0),
+      new THREE.Vector3(-fw / 8, yc - 10, (z0 + zr) / 2),
+      new THREE.Vector3(-(fw / 2 + 10), yc - 40, zr - 40),
+    ]);
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 10, Math.min(9, 3 + dv.u_height * 2), 6),
+      ctx.lib.role("cable"),
+    );
+    tube.userData.role = "cable";
+    near.add(tube);
+  }
   // One status LED per device, at the top right of its panel.
   const led = LED[dv.status];
   const zLed = rearMounted ? zr + 1 : zf - 1;

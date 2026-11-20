@@ -39,7 +39,27 @@ export function lighter(color: string, by = 0.18): string {
   return `#${c.getHexString()}`;
 }
 
-export type Mode = "schema" | "realistic" | "fill" | "power";
+/**
+ * The power mode's sequential scale at `k` (0–1), as HSL: the accent's hue,
+ * from faint to strong on the theme's background (FEEDBACK-7 §1.7).
+ */
+export function sequentialHsl(
+  theme: DcTheme,
+  k: number,
+): [number, number, number] {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(theme.accent).getHSL(hsl);
+  const s = 0.2 + 0.65 * k;
+  const l = theme.dark ? 0.24 + 0.38 * k : 0.86 - 0.5 * k;
+  return [hsl.h, s, l];
+}
+
+/** The same, as a CSS colour (the legend's scale). */
+export function sequentialCss(theme: DcTheme, k: number): string {
+  return `#${new THREE.Color().setHSL(...sequentialHsl(theme, k)).getHexString()}`;
+}
+
+export type Mode = "schema" | "realistic" | "fill" | "power" | "owners";
 
 /** Device colours by kind, from the prototype. */
 export const DEVICE_COLOR: Record<DeviceKind, string> = {
@@ -407,19 +427,70 @@ function hatch(color: string): HTMLCanvasElement {
   return c;
 }
 
+/** The U strip on the front left post: a tick every U, a number every 5U. */
 function uStrip(units: number): HTMLCanvasElement {
   const [c, g] = canvas(28, units * 24);
   g.fillStyle = "#30343a";
   g.fillRect(0, 0, 28, units * 24);
-  g.font = "600 13px monospace";
+  g.font = "700 15px monospace";
   g.textAlign = "center";
   g.textBaseline = "middle";
   for (let u = 1; u <= units; u++) {
     const y = (units - u) * 24;
     g.fillStyle = "#16181b";
     g.fillRect(0, y, 28, 1);
-    g.fillStyle = "#c9cfd6";
-    g.fillText(String(u), 14, y + 13);
+    if (u % 5 === 0 || u === 1) {
+      g.fillStyle = "#e3e7ec";
+      g.fillText(String(u), 14, y + 13);
+    } else {
+      g.fillStyle = "#6b727b";
+      g.fillRect(9, y + 12, 10, 1);
+    }
+  }
+  return c;
+}
+
+/** One unit of a rail: three square holes on the post's face. */
+function railUnit(): HTMLCanvasElement {
+  const [c, g] = canvas(16, 24);
+  g.fillStyle = "#3a3d42";
+  g.fillRect(0, 0, 16, 24);
+  g.fillStyle = "#050506";
+  for (const y of [2, 10, 18]) g.fillRect(5, y, 5, 5);
+  return c;
+}
+
+/**
+ * The back of a server or storage box, `units` high: fans on the left, two
+ * power supplies with their own fans and handles on the right.
+ */
+function deviceRear(units: number): HTMLCanvasElement {
+  const H = Math.max(1, units) * 22;
+  const [c, g] = canvas(256, H);
+  g.fillStyle = "#1a1c20";
+  g.fillRect(0, 0, 256, H);
+  const r = Math.min(H / 2 - 3, 9);
+  g.strokeStyle = "#596069";
+  g.lineWidth = 1.5;
+  for (let x = 18; x < 140; x += 2 * r + 6) {
+    g.beginPath();
+    g.arc(x, H / 2, r, 0, Math.PI * 2);
+    g.stroke();
+    g.beginPath();
+    g.arc(x, H / 2, r * 0.3, 0, Math.PI * 2);
+    g.stroke();
+  }
+  for (const x of [150, 204]) {
+    g.fillStyle = "#2a2d33";
+    g.fillRect(x, 3, 48, H - 6);
+    g.strokeStyle = "#596069";
+    g.beginPath();
+    g.arc(x + 14, H / 2, Math.min(H / 2 - 5, 7), 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = "#b8bec6";
+    g.fillRect(x + 36, 5, 4, H - 10);
+    g.fillStyle = "#3dff78";
+    g.fillRect(x + 26, 5, 3, 3);
   }
   return c;
 }
@@ -437,6 +508,10 @@ const PBR: Record<
   rackFrame: { color: "#141518", metalness: 0.35, roughness: 0.6 },
   rackCap: { color: "#17181b", metalness: 0.35, roughness: 0.55 },
   rail: { color: "#2a2c30", metalness: 0.6, roughness: 0.45 },
+  /** Inside a rack's side panels: lighter, so a free unit is not a void. */
+  rackInterior: { color: "#4a4e56", metalness: 0.2, roughness: 0.8 },
+  /** Cable bundles behind the equipment. */
+  cable: { color: "#2f4a6b", metalness: 0.05, roughness: 0.7 },
   /** Blanking panels in a rack's free units: matt black steel. */
   blankPanel: { color: "#17181b", metalness: 0.35, roughness: 0.6 },
   // The shelf is black metal.
@@ -571,6 +646,9 @@ export class MaterialLibrary {
           metalness: 0.45,
           roughness: 0.5,
           alphaMap: t,
+          // The holes in relief, so the sheet reads as perforated from 3 m.
+          bumpMap: t,
+          bumpScale: 1.5,
           transparent: true,
           alphaTest: 0.02,
           depthWrite: false,
@@ -587,6 +665,17 @@ export class MaterialLibrary {
       if (fin && this.realistic()) return this.finish(baseRole(role), fin);
       // The schema modes and bodies without a finish: the base role.
       if (fin) return this.role(baseRole(role));
+      // The drawing theme: blocked shelf cells as grey dots, not a pink fill
+      // (FEEDBACK-7 §6).
+      if (role === "cellBlocked" && this.theme.tokens.name === "drawing") {
+        const t = this.pattern("dots", "#77766f");
+        t.repeat.set(3, 4);
+        return new THREE.MeshBasicMaterial({
+          map: t,
+          transparent: true,
+          depthWrite: false,
+        });
+      }
       if (role === "glass")
         return this.realistic()
           ? new THREE.MeshPhysicalMaterial({
@@ -756,6 +845,35 @@ export class MaterialLibrary {
     );
   }
 
+  /** A rail with square holes, `units` high (realistic; plain otherwise). */
+  railHoles(units: number): THREE.Material {
+    if (!this.realistic()) return this.role("rail");
+    return this.memo(`railholes|${units}`, () => {
+      const t = this.tex("railunit", railUnit).clone();
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(1, units);
+      t.needsUpdate = true;
+      const p = PBR.rail;
+      return new THREE.MeshStandardMaterial({
+        map: t,
+        metalness: p.metalness,
+        roughness: p.roughness,
+      });
+    });
+  }
+
+  /** The back of a deep server or storage box (realistic). */
+  deviceRear(kind: DeviceKind, units: number): THREE.Material {
+    return this.memo(`rear|${kind}|${units}`, () => {
+      const t = this.tex(`rear|${units}`, () => deviceRear(units));
+      return new THREE.MeshStandardMaterial({
+        map: t,
+        metalness: 0.3,
+        roughness: 0.6,
+      });
+    });
+  }
+
   uStrip(units: number): THREE.Material {
     return this.memo(
       `ustrip|${units}`,
@@ -775,6 +893,18 @@ export class MaterialLibrary {
         0.75,
         this.theme.dark ? 0.42 : 0.52,
       );
+      return new THREE.MeshLambertMaterial({ color: c });
+    });
+  }
+
+  /**
+   * A one-hue sequential scale, 0 → 1 (FEEDBACK-7 §1.7): the theme's
+   * accent, from faint to strong — more power reads as more ink.
+   */
+  sequential(f: number): THREE.Material {
+    const k = Math.round(Math.min(1, Math.max(0, f)) * 20) / 20;
+    return this.memo(`seq|${k}`, () => {
+      const c = new THREE.Color().setHSL(...sequentialHsl(this.theme, k));
       return new THREE.MeshLambertMaterial({ color: c });
     });
   }
@@ -817,6 +947,54 @@ export class MaterialLibrary {
     return this.memo(
       "highlight",
       () => new THREE.MeshBasicMaterial({ color: this.theme.accent }),
+    );
+  }
+
+  /**
+   * `m` drawn see-through at `alpha` (X-ray 30 %, an occluder 15 %;
+   * FEEDBACK-7 §4.3): no depth write, so what is behind shows.
+   */
+  faded(m: THREE.Material, alpha: number): THREE.Material {
+    const a = Math.round(alpha * 20) / 20;
+    return this.memo(`faded|${m.uuid}|${a}`, () => {
+      const c = m.clone();
+      c.transparent = true;
+      c.opacity = (m.transparent ? m.opacity : 1) * a;
+      c.depthWrite = false;
+      return c;
+    });
+  }
+
+  /** A cut face of the section box: the object's colour with a hatch. */
+  cap(color: string): THREE.Material {
+    return this.memo(`cap|${color}`, () => {
+      const t = this.tex(`cap|${color}`, () => {
+        const [c, g] = canvas(32, 32);
+        g.fillStyle = color;
+        g.fillRect(0, 0, 32, 32);
+        g.strokeStyle = this.theme.dark
+          ? "rgba(255,255,255,0.35)"
+          : "rgba(0,0,0,0.35)";
+        g.lineWidth = 2;
+        for (let k = -32; k <= 32; k += 8) {
+          g.beginPath();
+          g.moveTo(k, 32);
+          g.lineTo(k + 32, 0);
+          g.stroke();
+        }
+        return c;
+      });
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(20, 20);
+      return new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide });
+    });
+  }
+
+  /** A flat colour (the owners mode's categories). */
+  flat(color: string): THREE.Material {
+    return this.memo(
+      `flat|${color}`,
+      () => new THREE.MeshLambertMaterial({ color }),
     );
   }
 
@@ -875,21 +1053,72 @@ export class MaterialLibrary {
    * sides of the requirement (amber).
    */
   zone(state: "ok" | "short" | "split"): THREE.Material {
+    const color =
+      state === "ok"
+        ? this.theme.good
+        : state === "split"
+          ? this.theme.assumed
+          : this.theme.warn;
+    // The drawing theme draws zones as hatching, not fills (FEEDBACK-7 §6):
+    // red 45° for a shortfall, amber cross-hatch where model and tape
+    // disagree. The zone's UVs run in room millimetres / 150.
+    if (this.theme.tokens.name === "drawing")
+      return this.memo(`zone|${state}|drawing`, () => {
+        const t = this.pattern(state === "split" ? "cross" : "hatch", color);
+        return new THREE.MeshBasicMaterial({
+          map: t,
+          transparent: true,
+          opacity: state === "ok" ? 0.5 : 1,
+          depthWrite: false,
+        });
+      });
     return this.memo(
       `zone|${state}`,
       () =>
         new THREE.MeshBasicMaterial({
-          color:
-            state === "ok"
-              ? this.theme.good
-              : state === "split"
-                ? this.theme.assumed
-                : this.theme.warn,
+          color,
           transparent: true,
           opacity: state === "ok" ? 0.14 : 0.3,
           depthWrite: false,
         }),
     );
+  }
+
+  /**
+   * A see-through pattern tile in `color`: 45° hatch, cross-hatch or dots
+   * (the drawing theme's zones and blocked cells).
+   */
+  pattern(kind: "hatch" | "cross" | "dots", color: string): THREE.Texture {
+    const t = this.tex(`pattern|${kind}|${color}`, () => {
+      const [c, g] = canvas(32, 32);
+      g.strokeStyle = color;
+      g.fillStyle = color;
+      g.lineWidth = 2;
+      const diag = (dir: 1 | -1) => {
+        for (let k = -32; k <= 64; k += 16) {
+          g.beginPath();
+          g.moveTo(k, dir > 0 ? 32 : 0);
+          g.lineTo(k + 32, dir > 0 ? 0 : 32);
+          g.stroke();
+        }
+      };
+      if (kind === "dots")
+        for (const [x, y] of [
+          [8, 8],
+          [24, 24],
+        ]) {
+          g.beginPath();
+          g.arc(x, y, 2.4, 0, Math.PI * 2);
+          g.fill();
+        }
+      else {
+        diag(1);
+        if (kind === "cross") diag(-1);
+      }
+      return c;
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
   }
 
   line(color: string, dashed = false): THREE.LineBasicMaterial {

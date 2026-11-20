@@ -31,6 +31,8 @@ export interface DcTokens {
   muted: string;
   accent: string;
   accentText: string;
+  /** Data bars (units used, fill): neutral; red is only for problems (FEEDBACK-7 §1.9). */
+  fill: string;
   warn: string;
   good: string;
   /** Assumed / photo values (shown with the "show assumptions" toggle). */
@@ -75,6 +77,7 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
     muted: "#9a9ca3",
     accent: "#3d8bfd",
     accentText: "#ffffff",
+    fill: "#3d8bfd",
     warn: "#ff5f57",
     good: "#32d583",
     assumed: "#e0af68",
@@ -95,35 +98,37 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
   drawing: {
     name: "drawing",
     dark: false,
-    bg: "#f6f5f1",
-    viewport: "#f6f5f1",
-    preview: ["#f6f5f1", "#f6f5f1"],
-    panel: "#f6f5f1",
+    bg: "#f6f4ee",
+    viewport: "#f6f4ee",
+    preview: ["#f6f4ee", "#f6f4ee"],
+    panel: "#fbfaf6",
     blur: 0,
     floating: false,
     framed: false,
-    line: "#1b1b1b",
-    rule: "#1b1b1b",
+    // The chrome: 1 px #2B2B2B at 60 %, not solid black (FEEDBACK-7 §6).
+    line: "rgba(43, 43, 43, 0.6)",
+    rule: "rgba(43, 43, 43, 0.6)",
     text: "#141414",
     muted: "#5b5b57",
     accent: "#c8321f",
     accentText: "#ffffff",
+    fill: "#4a4a46",
     warn: "#c8321f",
     good: "#1b1b1b",
     assumed: "#8a6d1c",
-    dim: "#141414",
+    dim: "#4a4a45",
     radius: 0,
     shadow: "none",
     fontUi: '"Fira Sans", system-ui, sans-serif',
     fontHeading: '"Fira Sans Condensed", "Fira Sans", sans-serif',
     headingUpper: true,
     fontMono: MONO,
-    floor: "#f6f5f1",
+    floor: "#f6f4ee",
     wall: "#d9d7d0",
-    objectFill: "#fbfaf7",
+    objectFill: "#fbfaf6",
     objectEdge: "#1b1b1b",
-    rackFill: "#fbfaf7",
-    coolingFill: "#fbfaf7",
+    rackFill: "#fbfaf6",
+    coolingFill: "#fbfaf6",
   },
   light: {
     name: "light",
@@ -141,6 +146,7 @@ export const TOKENS: Record<DcThemeName, DcTokens> = {
     muted: "#6e6e73",
     accent: "#0a84ff",
     accentText: "#ffffff",
+    fill: "#0a84ff",
     warn: "#ff3b30",
     good: "#34c759",
     assumed: "#b7791f",
@@ -175,6 +181,7 @@ export function applyTokens(el: HTMLElement, t: DcTokens) {
     muted: t.muted,
     accent: t.accent,
     "accent-text": t.accentText,
+    fill: t.fill,
     warn: t.warn,
     good: t.good,
     assumed: t.assumed,
