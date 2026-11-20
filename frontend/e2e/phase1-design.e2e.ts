@@ -113,12 +113,17 @@ test("the room: last mode remembered, layers, pins, chains, no overlaps, the bar
   for (const name of [
     "Размеры комнаты",
     "Зазоры между объектами",
-    "Все замеры рулеткой",
+    "Цепочки размеров (план)",
+    "Остальные замеры рулеткой",
+    "Размеры выбранного",
     "Зоны обслуживания",
     "Подписи объектов",
+    "Освещение",
     "Допущения",
   ])
-    await expect(page.getByRole("menuitemcheckbox", { name: new RegExp(`^${name}`) })).toBeVisible();
+    await expect(
+      page.getByRole("menuitemcheckbox", { name: new RegExp(`^${name.replace(/[()]/g, "\\$&")}`) }),
+    ).toBeVisible();
   await page.getByRole("menuitemcheckbox", { name: "Зазоры между объектами" }).click();
   await page.keyboard.press("Escape");
   await expect.poll(async () => (await labels(page)).some((k) => k.startsWith("meas:racks.gap."))).toBe(true);
@@ -131,7 +136,9 @@ test("the room: last mode remembered, layers, pins, chains, no overlaps, the bar
   await expect
     .poll(async () => (await labels(page)).filter((k) => /^meas:racks\.(width|depth|height)\.r3$/.test(k)).length)
     .toBeGreaterThan(0);
-  expect((await labels(page)).some((k) => k.startsWith("gap:sel:"))).toBe(true);
+  // Its gaps to the neighbours: as the tape reads them where the tape has
+  // them (drawn once, FEEDBACK-7 §1.4), else measured in the model.
+  expect((await labels(page)).some((k) => /^(gap:sel:|meas:racks\.gap)/.test(k))).toBe(true);
   await expect(page.getByTestId("breadcrumb")).toHaveText("Серверная›Стойка 3");
 
   // No two labels on top of each other.
@@ -156,8 +163,9 @@ test("the room: last mode remembered, layers, pins, chains, no overlaps, the bar
   // The bar: modes · views · undo/redo · Экспорт ▾ · ⋯, every icon titled.
   const bar = page.locator(".dc-modebar");
   await expect(bar.getByRole("radiogroup")).toHaveCount(1);
-  await expect(bar.getByRole("radio", { name: "Схема" })).toHaveAttribute("title", "Схема (1)");
-  await expect(bar.getByRole("button", { name: "Общий" })).toHaveAttribute("title", "Общий (5)");
+  await expect(bar.getByRole("radio", { name: "Схема" })).toHaveAttribute("title", "Схема");
+  await expect(bar.getByRole("button", { name: "Общий" })).toHaveAttribute("title", "Общий");
+  await expect(bar.getByRole("button", { name: "Сверху" })).toHaveAttribute("title", "Сверху (7)");
   for (const b of await bar.locator("button:not([role=radio])").all())
     expect(((await b.getAttribute("title")) ?? (await b.textContent()) ?? "").trim().length).toBeGreaterThan(0);
   await bar.getByRole("button", { name: "Экспорт" }).click();
@@ -168,9 +176,10 @@ test("the room: last mode remembered, layers, pins, chains, no overlaps, the bar
     await expect(page.getByRole("menuitem", { name })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // The view cube: 64 px, bottom left above the bar, clear of the legend.
+  // The view cube: in a 96 px box it fits at any angle (FEEDBACK-7 §2.3),
+  // bottom left above the bar, clear of the legend.
   const cube = (await page.locator(".dc-cube-wrap").boundingBox())!;
-  expect(Math.round(cube.width)).toBe(64);
+  expect(Math.round(cube.width)).toBe(96);
   const barBox = (await bar.boundingBox())!;
   expect(cube.y + cube.height).toBeLessThanOrEqual(barBox.y);
   const legend = await page.locator(".dc-legend-sheet").boundingBox();
