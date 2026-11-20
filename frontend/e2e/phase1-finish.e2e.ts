@@ -4,6 +4,7 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
+import { importExample } from "./inventory";
 import {
   change,
   engine,
@@ -31,6 +32,12 @@ interface Room {
 
 const getRoom = async (page: Page, id: number) =>
   (await (await page.request.get(`/api/dc/rooms/${id}`)).json()) as Room;
+
+/** The example inventory, unless a file before this one imported it. */
+async function ensureInventory(page: Page, id: number) {
+  const room = (await (await page.request.get(`/api/dc/rooms/${id}`)).json()) as { devices: unknown[] };
+  if (!room.devices.length) await importExample(page, id);
+}
 
 const labels = (page: Page) =>
   engine(page, (e) => (e as unknown as { labelsShown(): string[] }).labelsShown());
@@ -271,6 +278,7 @@ test("§4.2 the outliner and the view share the selection", async ({ page }) => 
   await setLanguage(page, "ru");
   await setSettings(page, { dc_theme: "studio", dc_unit: "cm" });
   const id = await roomId(page);
+  await ensureInventory(page, id);
   const room = await getRoom(page, id);
   const idOf = (n: string) => room.objects.find((o) => o.name === n)!.id;
   await page.goto(`/dc/${id}?view=3d&mode=schema`);
@@ -376,4 +384,114 @@ test("§4.8 a tour of two saved views plays in order and ends on Esc", async ({ 
     const ours = room.annotations.filter((a) => a.kind === "view" && a.payload.name?.startsWith("Тур "));
     if (ours.length) await change(page, id, ours.map((a) => ({ op: "annotation_delete", id: a.id })));
   }
+});
+
+interface Doors {
+  toggleDoor(id: number, side: "front" | "rear"): void;
+  doorEdges(id: number): {
+    rect: { x0: number; z0: number; x1: number; z1: number };
+    edges: { side: string; x: number; z: number; angle: number }[];
+  } | null;
+}
+const doorsOf = (page: Page, id: number) =>
+  page.evaluate((i) => (window as unknown as { __dcEngine: Doors }).__dcEngine.doorEdges(i), id);
+
+test("rack doors swing outwards into the aisle, and stop short of a wall", async ({ page }) => {
+  await signIn(page);
+  await setLanguage(page, "ru");
+  await setSettings(page, { dc_theme: "studio", dc_unit: "cm" });
+  const id = await roomId(page);
+  const room = await getRoom(page, id);
+  const idOf = (n: string) => room.objects.find((o) => o.name === n)!.id;
+  await page.goto(`/dc/${id}?view=3d&mode=realistic`);
+  await waitForRoom(page);
+  const outside = (d: NonNullable<Awaited<ReturnType<typeof doorsOf>>>, side: string) =>
+    d.edges
+      .filter((e) => e.side === side)
+      .every((e) => e.x < d.rect.x0 || e.x > d.rect.x1 || e.z < d.rect.z0 || e.z > d.rect.z1);
+
+  // Стойка 3's front door: 110°, its free edge out in the aisle.
+  const r3 = idOf("Стойка 3");
+  await page.evaluate((i) => (window as unknown as { __dcEngine: Doors }).__dcEngine.toggleDoor(i, "front"), r3);
+  await expect.poll(async () => (await doorsOf(page, r3))!.edges.find((e) => e.side === "front")!.angle).toBeGreaterThan(109);
+  expect(outside((await doorsOf(page, r3))!, "front")).toBe(true);
+
+  // Hinged on the right instead: the same door, mirrored.
+  const left = (await doorsOf(page, r3))!.edges.find((e) => e.side === "front")!;
+  const o3 = room.objects.find((o) => o.id === r3)!;
+  const { id: _r3, ...f3 } = o3;
+  void _r3;
+  // Стойка 2's rear door as one glass leaf (570 mm) for the test: the wall
+  // is 55,5 cm behind it, the tray above it: it opens as far as it can, still
+  // outwards, and
+  // says why.
+  const r2 = idOf("Стойка 2");
+  const o2 = room.objects.find((o) => o.id === r2)!;
+  const { id: _r2, ...f2 } = o2;
+  void _r2;
+  const inst = (o: { [k: string]: unknown }) => (o.instance ?? {}) as Record<string, unknown>;
+  await change(page, id, [
+    { op: "object_update", id: r3, object: { ...f3, instance: { ...inst(o3), door_hinge: "right" } } },
+    { op: "object_update", id: r2, object: { ...f2, instance: { ...inst(o2), door_rear: "glass" } } },
+  ]);
+  try {
+    await page.goto(`/dc/${id}?view=3d&mode=realistic`);
+    await waitForRoom(page);
+    await page.evaluate((i) => (window as unknown as { __dcEngine: Doors }).__dcEngine.toggleDoor(i, "front"), r3);
+    await expect.poll(async () => (await doorsOf(page, r3))!.edges.find((e) => e.side === "front")!.angle).toBeGreaterThan(109);
+    const right = (await doorsOf(page, r3))!.edges.find((e) => e.side === "front")!;
+    const d3 = (await doorsOf(page, r3))!;
+    const mid = (d3.rect.x0 + d3.rect.x1) / 2;
+    expect(Math.sign(right.x - mid)).toBe(-Math.sign(left.x - mid));
+    expect(outside(d3, "front")).toBe(true);
+
+    await page.evaluate((i) => (window as unknown as { __dcEngine: Doors }).__dcEngine.toggleDoor(i, "rear"), r2);
+    await expect(page.locator(".dc-chips")).toContainText("Задняя дверь «Стойка 2» открывается только на");
+    // What is in the way is named: the wall, or the cable tray, whose
+    // underside (1990 mm, an assumed side height) is just below the leaf's top.
+    await expect(page.locator(".dc-chips")).toContainText(/дальше мешает (стена|«Лоток за стойками»)/);
+    await page.waitForTimeout(1500);
+    const d2 = (await doorsOf(page, r2))!;
+    const rear = d2.edges.filter((e) => e.side === "rear");
+    expect(rear.length).toBe(1);
+    expect(rear[0].angle).toBeGreaterThan(10);
+    expect(rear[0].angle).toBeLessThan(110);
+    expect(outside(d2, "rear")).toBe(true);
+    // The rack's details say how it is hinged.
+    await page.goto(`/dc/${id}?view=3d&mode=schema#obj-${r3}`);
+    await waitForRoom(page);
+    await page.locator(".dc-inspector details").first().evaluate((d) => ((d as HTMLDetailsElement).open = true));
+    await expect(page.getByTestId("door-hinge")).toHaveText("справа");
+  } finally {
+    await change(page, id, [
+      { op: "object_update", id: r3, object: f3 },
+      { op: "object_update", id: r2, object: f2 },
+    ]);
+  }
+});
+
+test("power mode: every rack keeps its compact label, nothing overlaps", async ({ page }) => {
+  await signIn(page);
+  await setLanguage(page, "ru");
+  await setSettings(page, { dc_theme: "studio", dc_unit: "cm" });
+  const id = await roomId(page);
+  const racks = (await getRoom(page, id)).objects.filter((o) => /^Стойка \d$/.test(o.name));
+  await ensureInventory(page, id);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/dc/${id}?view=3d&mode=power`);
+  await waitForRoom(page);
+  await page.waitForTimeout(2000);
+  const shown = await labels(page);
+  for (const r of racks) expect(shown, r.name).toContain(`obj:${r.id}:name`);
+  const boxes = await page.locator(".dc-labels > div").evaluateAll((els) =>
+    els
+      .filter((e) => (e as HTMLElement).style.display !== "none")
+      .map((e) => ({ ...(e.getBoundingClientRect().toJSON() as DOMRect), text: e.textContent })),
+  );
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++) {
+      const [a, b] = [boxes[i], boxes[j]];
+      const overlap = a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+      expect(overlap, `«${a.text}» and «${b.text}»`).toBe(false);
+    }
 });

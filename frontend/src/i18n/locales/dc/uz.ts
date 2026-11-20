@@ -157,6 +157,14 @@ export const dcUz = {
     perforated: "teshikli",
     solid: "yaxlit",
     none: "yo'q",
+    hinge: "Eshik oshiqlari",
+    hingeLeft: "chapda",
+    hingeRight: "o'ngda",
+    frontSide: "old",
+    rearSide: "orqa",
+    wall: "devor",
+    limited:
+      "«{{name}}»ning {{side}} eshigi faqat {{deg}}° ochiladi: {{what}} xalaqit beradi.",
   },
   rack: {
     notRecorded: "tarkibi yozilmagan",
@@ -168,9 +176,7 @@ export const dcUz = {
     unknownPowerCount_other: "quvvati noma'lum {{count}} ta qurilma",
     elevation: "Stoyka fasadi, {{face}}",
     freeUnit: "U{{u}} — bo'sh, qo'shish uchun bosing",
-    powerKnown: "{{kw}} ma'lum",
-    noData_one: "{{count}} ta qurilmada ma'lumot yo'q",
-    noData_other: "{{count}} ta qurilmada ma'lumot yo'q",
+    noDataShort: "{{count}} tasida ma'lumot yo'q",
   },
   face: { front: "old tomon", rear: "orqa tomon", both: "to'liq chuqurlikda" },
   device: {

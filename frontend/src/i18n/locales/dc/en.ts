@@ -157,6 +157,14 @@ export const dcEn = {
     perforated: "perforated",
     solid: "solid",
     none: "none",
+    hinge: "Door hinges",
+    hingeLeft: "left",
+    hingeRight: "right",
+    frontSide: "The front",
+    rearSide: "The rear",
+    wall: "the wall",
+    limited:
+      "{{side}} door of «{{name}}» opens only {{deg}}°: {{what}} is in the way.",
   },
   rack: {
     notRecorded: "contents not recorded",
@@ -168,9 +176,7 @@ export const dcEn = {
     unknownPowerCount_other: "{{count}} devices of unknown power",
     elevation: "Rack elevation, {{face}}",
     freeUnit: "U{{u}} — free, click to add",
-    powerKnown: "{{kw}} known",
-    noData_one: "{{count}} device without data",
-    noData_other: "{{count}} devices without data",
+    noDataShort: "{{count}} without data",
   },
   face: { front: "front", rear: "rear", both: "full depth" },
   device: {

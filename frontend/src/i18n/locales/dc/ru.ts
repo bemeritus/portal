@@ -156,6 +156,14 @@ export const dcRu = {
     perforated: "перфорированная",
     solid: "глухая",
     none: "нет",
+    hinge: "Петли дверей",
+    hingeLeft: "слева",
+    hingeRight: "справа",
+    frontSide: "Передняя",
+    rearSide: "Задняя",
+    wall: "стена",
+    limited:
+      "{{side}} дверь «{{name}}» открывается только на {{deg}}°: дальше мешает {{what}}.",
   },
   rack: {
     notRecorded: "содержимое не записано",
@@ -170,11 +178,7 @@ export const dcRu = {
     unknownPowerCount_other: "{{count}} устройства с неизвестной мощностью",
     elevation: "Фасад стойки, {{face}}",
     freeUnit: "U{{u}} — свободен, щёлкните, чтобы добавить",
-    powerKnown: "{{kw}} известно",
-    noData_one: "у {{count}} устройства нет данных",
-    noData_few: "у {{count}} устройств нет данных",
-    noData_many: "у {{count}} устройств нет данных",
-    noData_other: "у {{count}} устройства нет данных",
+    noDataShort: "{{count}} без данных",
   },
   face: { front: "спереди", rear: "сзади", both: "на всю глубину" },
   device: {

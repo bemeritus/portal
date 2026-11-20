@@ -292,14 +292,12 @@ export class Labels {
             a[1] + (b[1] - a[1]) * t + dy,
           ]);
       } else {
-        spots.push([ax, ay]);
-        if (l.priority < 9)
-          spots.push(
-            [ax, ay - l.h - 2],
-            [ax, ay + l.h + 2],
-            [ax, ay - 2 * l.h - 4],
-          );
-        else spots.push([ax, ay - l.h - 2]);
+        // Where it is, then above, below, higher, and beside each: every
+        // label tries them in turn before it gives way (a warning pin is
+        // never hidden, so it settles where it clashes least).
+        for (const k of [0, -1, 1, -2, -3, -4])
+          for (const s of [0, -0.6, 0.6])
+            spots.push([ax + s * l.w, ay + k * (l.h + 2)]);
       }
       let at: Box | null = null;
       let clashFree = false;
@@ -319,12 +317,15 @@ export class Labels {
         if (!at) at = r;
         const clash =
           placed.some((p) => hits(r, p)) ||
-          lines.some(
-            (s) =>
-              s.key !== key &&
-              chainOf(s.key) !== chainOf(key) &&
-              segmentHitsRect(s.a, s.b, r),
-          ) ||
+          // A rack's contents label (fill, power) stands by its rack even
+          // across a dimension line; it never sits on another label.
+          (l.priority < 8.5 &&
+            lines.some(
+              (s) =>
+                s.key !== key &&
+                chainOf(s.key) !== chainOf(key) &&
+                segmentHitsRect(s.a, s.b, r),
+            )) ||
           // A dimension's label is never on the selected object.
           (l.kind === "dim" && !!avoid && hits(r, avoid));
         if (!clash) {

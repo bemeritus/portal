@@ -489,6 +489,15 @@ export function DcRoomPage() {
           : head;
       },
     };
+    e.onDoorLimited = (name, side, deg, by) =>
+      setNotice(
+        t("dc.door.limited", {
+          name,
+          deg,
+          side: t(side === "front" ? "dc.door.frontSide" : "dc.door.rearSide"),
+          what: by ? `«${by}»` : t("dc.door.wall"),
+        }),
+      );
     e.setCubeLabels({
       top: t("dc.view.top"),
       bottom: t("dc.view.bottom"),
@@ -1945,8 +1954,9 @@ function savePng(engine: DcEngine | null, name: string) {
 
 /**
  * A rack's compact label in the fill and power modes (FEEDBACK-7 §1.4,
- * §1.7): «31/42U · 9 кВт»; in power the known kilowatts, and how many
- * devices have no data on a line of its own — never a sum that looks whole.
+ * §1.7): «31/42U · 9 кВт»; in power, where some devices have no data,
+ * the known kilowatts and how many lack it — «6,8 кВт · 5 без данных» —
+ * never a sum that looks whole; two lines with the name, so all four fit.
  */
 export function rackLabel(
   s: RackStats,
@@ -1959,7 +1969,7 @@ export function rackLabel(
   if (mode === "fill")
     return `${s.used}/${s.units}U${s.powerW ? ` · ${kw}` : ""}`;
   if (!s.unknownPower) return `${s.used}/${s.units}U · ${kw}`;
-  return `${t("dc.rack.powerKnown", { kw })}\n${t("dc.rack.noData", { count: s.unknownPower })}`;
+  return `${kw} · ${t("dc.rack.noDataShort", { count: s.unknownPower })}`;
 }
 
 /**

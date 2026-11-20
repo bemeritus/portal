@@ -61,14 +61,19 @@ import { freeRuns, rackStats, type RackStats } from "../model/devices";
 import { U_MM } from "../model/geometry";
 import { CameraRig, type Preset, type View } from "./camera";
 import { Labels } from "./labels";
-import { MaterialLibrary, type Mode } from "./materials";
+import { DEVICE_COLOR, MaterialLibrary, type Mode } from "./materials";
 import { RENDERERS } from "./renderers";
-import { baseRole, type Built, type Pick } from "./renderers/types";
+import {
+  baseRole,
+  type Built,
+  type DoorLeaf,
+  type Pick,
+} from "./renderers/types";
 import { categorical, themeFromTokens, type DcTheme } from "./theme";
 import { ownerSlots } from "../model/owners";
 import type { DcTokens } from "../theme/tokens";
 import { ViewCube } from "./viewCube";
-import { allDims, PLAN_CHAIN_GAP, PLAN_CHAIN_OFFSET } from "./dimensions";
+import { allDims } from "./dimensions";
 import { makeGrid, updateGrid } from "./grid";
 
 export type { Mode } from "./materials";
@@ -218,7 +223,8 @@ export const POWER_SCALE_W = 10000;
 
 const UP = new THREE.Vector3(0, 1, 0);
 const FLOOR = new THREE.Plane(UP, 0);
-const OPEN_ANGLE = 1.85;
+/** How far a rack door opens, outwards into the aisle: 110°. */
+const OPEN_ANGLE = (110 * Math.PI) / 180;
 
 /** Which door a leaf (or a part of it) belongs to: its pivot says outward. */
 function doorSide(o: THREE.Object3D): "front" | "rear" {
@@ -363,6 +369,16 @@ export class DcEngine {
   private occludersAt = 0;
   /** The view state changed in the view (a door, the section box). */
   onViewState: () => void = () => {};
+  /**
+   * A door opened less than 110°: the rack, which door, how far, and the
+   * object in the way (null: a wall).
+   */
+  onDoorLimited: (
+    rack: string,
+    side: "front" | "rear",
+    deg: number,
+    by: string | null,
+  ) => void = () => {};
 
   constructor(
     private readonly host: HTMLElement,
@@ -375,6 +391,8 @@ export class DcEngine {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
+      // The section box's caps count cuts in the stencil buffer.
+      stencil: true,
     });
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -948,12 +966,36 @@ export class DcEngine {
   private framePlan(flip = false) {
     const m = this.model!;
     const b = bounds(m.room.floor_plan);
-    // Room dimensions stand this far out; their labels a little further.
-    const pad = PLAN_CHAIN_OFFSET + PLAN_CHAIN_GAP + 450;
-    const [bw, bh] = [b.x1 - b.x0 + 2 * pad, b.z1 - b.z0 + 2 * pad];
-    const cx = (b.x0 + b.x1) / 2,
-      cz = (b.z0 + b.z1) / 2;
-    this.updateSafe({ w: bw, h: bh });
+    // The drawing's real extent (FEEDBACK-7 follow-up): the room, its chains
+    // and its overall dimensions as the layers draw them; then fitted to
+    // the visible rectangle and centred in it.
+    const ext = { x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1 };
+    const specs = allDims(
+      {
+        floorPlan: m.room.floor_plan,
+        measurements: m.room.measurements.entries,
+        solids: [...this.entries.values()].map((e) => e.solid),
+        selected: null,
+        plan: true,
+        schema: true,
+        measurement: this.text.measurement,
+        mm: this.text.mm,
+      },
+      null,
+      null,
+    );
+    for (const sp of specs)
+      if (this.layers[sp.layer])
+        for (const p of [sp.a, sp.b]) {
+          ext.x0 = Math.min(ext.x0, p[0]);
+          ext.x1 = Math.max(ext.x1, p[0]);
+          ext.z0 = Math.min(ext.z0, p[2]);
+          ext.z1 = Math.max(ext.z1, p[2]);
+        }
+    const [bw, bh] = [ext.x1 - ext.x0, ext.z1 - ext.z0];
+    const cx = (ext.x0 + ext.x1) / 2,
+      cz = (ext.z0 + ext.z1) / 2;
+    this.updateSafe({ w: bw, h: bh }, 44);
     this.rig.go({
       position: [cx, 12000, cz + (flip ? -1 : 1)],
       target: [cx, 0, cz],
@@ -995,7 +1037,7 @@ export class DcEngine {
    * minus the inspector, the rail and outliner, the bottom bar (and the plan's
    * sheet corner) and the chips at the top left. Every framing fits into it.
    */
-  private updateSafe(fit?: { w: number; h: number }) {
+  private updateSafe(fit?: { w: number; h: number }, margin = 0) {
     const w = Math.max(1, this.host.clientWidth),
       h = Math.max(1, this.host.clientHeight);
     const s = { x0: 0, y0: 0, x1: w, y1: h };
@@ -1022,13 +1064,36 @@ export class DcEngine {
     // The plan's sheet corner (title block, legend), bottom right: the room
     // stands above it or beside it, whichever draws it larger.
     if (corner) {
-      const above = { ...s, y1: Math.min(s.y1, corner.z0 - gapPx) };
-      const beside = { ...s, x1: Math.min(s.x1, corner.x0 - gapPx) };
+      // The whole visible rectangle, unless the fitted drawing would run
+      // under the corner; then above it or beside it, whichever draws larger.
+      const c = corner;
       const scale = (r: typeof s) =>
         fit
           ? Math.min((r.x1 - r.x0) / fit.w, (r.y1 - r.y0) / fit.h)
           : (r.x1 - r.x0) * (r.y1 - r.y0);
-      Object.assign(s, scale(above) >= scale(beside) ? above : beside);
+      const clear = (r: typeof s) => {
+        if (!fit) return false;
+        const k = scale(r);
+        const [mx, my] = [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2];
+        const [hw, hh] = [(fit.w * k) / 2, (fit.h * k) / 2];
+        return (
+          mx + hw <= c.x0 ||
+          mx - hw >= c.x1 ||
+          my + hh <= c.z0 ||
+          my - hh >= c.z1
+        );
+      };
+      const above = { ...s, y1: Math.min(s.y1, c.z0 - gapPx) };
+      const beside = { ...s, x1: Math.min(s.x1, c.x0 - gapPx) };
+      if (!clear(s))
+        Object.assign(s, scale(above) >= scale(beside) ? above : beside);
+    }
+    // Room for the outermost labels, which stand past their lines.
+    if (fit && margin) {
+      s.x0 += margin;
+      s.x1 -= margin;
+      s.y0 += margin;
+      s.y1 -= margin;
     }
     this.rig.setSafe(s);
   }
@@ -1167,7 +1232,13 @@ export class DcEngine {
         this.rig.controls.target,
         Math.max(1, this.host.clientHeight),
       );
-    if (this.mode === "realistic" && this.quality === 2 && this.composer)
+    // The section's caps need the stencil buffer, which the post pass lacks.
+    if (
+      this.mode === "realistic" &&
+      this.quality === 2 &&
+      this.composer &&
+      !this.section
+    )
       this.composer.render(this.rig.cam);
     else this.renderer.render(this.scene, this.rig.cam);
   }
@@ -1613,6 +1684,20 @@ export class DcEngine {
     disposeTree(this.sectionGroup);
     this.sectionGroup.clear();
     const s = this.section;
+    // What the box cuts away casts no shadow either: shadow maps are not
+    // clipped unless asked, and the cut-away ceiling and lights left a
+    // speckle of shadow on the walls below the cut.
+    this.scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const mat of Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material])
+        if (mat.clipShadows !== !!s) {
+          mat.clipShadows = !!s;
+          mat.needsUpdate = true;
+        }
+    });
     this.labels.clip = s
       ? new THREE.Box3(new THREE.Vector3(...s.min), new THREE.Vector3(...s.max))
       : null;
@@ -1642,50 +1727,7 @@ export class DcEngine {
     );
     outline.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     this.sectionGroup.add(outline);
-    // Caps: where a face cuts an object, its cross-section in the object's
-    // colour with a hatch, so a cut rack reads as cut, not hollow.
-    for (const e of this.entries.values()) {
-      if (!this.visibleEntry(e)) continue;
-      const b = this.box3(e);
-      for (const axis of [0, 1, 2] as const)
-        for (const end of ["min", "max"] as const) {
-          const at = s[end][axis];
-          if (
-            at <= b.min.getComponent(axis) + 1 ||
-            at >= b.max.getComponent(axis) - 1
-          )
-            continue;
-          const lo = [0, 1, 2].map((k) =>
-            Math.max(b.min.getComponent(k), s.min[k]),
-          );
-          const hi = [0, 1, 2].map((k) =>
-            Math.min(b.max.getComponent(k), s.max[k]),
-          );
-          const [u, v] = axis === 0 ? [2, 1] : axis === 1 ? [0, 2] : [0, 1];
-          if (hi[u] - lo[u] < 1 || hi[v] - lo[v] < 1) continue;
-          const geo = new THREE.PlaneGeometry(hi[u] - lo[u], hi[v] - lo[v]);
-          const cap = new THREE.Mesh(
-            geo,
-            this.lib.cap(capColour(e.item.kind, this.theme)),
-          );
-          const inward = end === "min" ? 1 : -1;
-          const c = [
-            (lo[0] + hi[0]) / 2,
-            (lo[1] + hi[1]) / 2,
-            (lo[2] + hi[2]) / 2,
-          ];
-          c[axis] = at + inward * 1.5;
-          cap.position.set(c[0], c[1], c[2]);
-          // Face out of the box.
-          if (axis === 0)
-            cap.rotation.y = (inward > 0 ? -1 : 1) * (Math.PI / 2);
-          else if (axis === 1)
-            cap.rotation.x = (inward > 0 ? 1 : -1) * (Math.PI / 2);
-          else if (inward > 0) cap.rotation.y = Math.PI;
-          cap.userData.sectionCap = e.obj.id;
-          this.sectionGroup.add(cap);
-        }
-    }
+    this.capSection(s);
     // Handles at the face centres, while the section tool is on.
     if (this.tool === "section")
       for (const axis of [0, 1, 2] as const)
@@ -1712,6 +1754,124 @@ export class DcEngine {
       (k) =>
         p.getComponent(k) >= s.min[k] - 1 && p.getComponent(k) <= s.max[k] + 1,
     );
+  }
+
+  /**
+   * Cap what the section box cuts (FEEDBACK-7 §4.4): for every object — a
+   * rack's frame, each device in it, the shelf, the units — and every face
+   * of the box that cuts it, its meshes are drawn into the stencil buffer
+   * (back faces count up, front faces down, both clipped by the box), then
+   * a hatched quad in the object's colour fills the cut where the count is
+   * not zero, and resets it. So a cut rack shows its devices in section, not
+   * a lid. The room's walls, planes in realistic, get a hatched strip along
+   * their cut.
+   */
+  private capSection(s: SectionBox) {
+    const m = this.model!;
+    const H = m.room.height_mm;
+    const b = bounds(m.room.floor_plan);
+    const planes: { axis: 0 | 1 | 2; end: "min" | "max"; at: number }[] = [];
+    const roomMin = [b.x0, 0, b.z0],
+      roomMax = [b.x1, H, b.z1];
+    for (const axis of [0, 1, 2] as const) {
+      if (s.min[axis] > roomMin[axis] + 1)
+        planes.push({ axis, end: "min", at: s.min[axis] });
+      if (s.max[axis] < roomMax[axis] - 1)
+        planes.push({ axis, end: "max", at: s.max[axis] });
+    }
+    if (!planes.length) return;
+    // What gets a cap of its own, and in which colour.
+    type Unit = { meshes: THREE.Mesh[]; box: THREE.Box3; color: string };
+    const units: Unit[] = [];
+    for (const e of this.entries.values()) {
+      if (!this.visibleEntry(e)) continue;
+      e.built.group.updateMatrixWorld(true);
+      const own: THREE.Mesh[] = [];
+      e.built.group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.visible) return;
+        if (mesh.userData.role === "hit" || mesh.userData.door) return;
+        let p: THREE.Object3D | null = mesh.parent;
+        while (p && p !== e.built.group) {
+          if (!p.visible || p.userData.near) return;
+          p = p.parent;
+        }
+        if (mesh.userData.device) {
+          const kind = (mesh.userData.device as { kind: Device["kind"] }).kind;
+          units.push({
+            meshes: [mesh],
+            box: new THREE.Box3().setFromObject(mesh),
+            color: DEVICE_COLOR[kind],
+          });
+        } else own.push(mesh);
+      });
+      if (own.length)
+        units.push({
+          meshes: own,
+          box: this.box3(e),
+          color: capColour(e.item.kind, this.theme),
+        });
+    }
+    let order = 20000;
+    for (const pl of planes)
+      for (const u of units) {
+        const lo = u.box.min.getComponent(pl.axis),
+          hi = u.box.max.getComponent(pl.axis);
+        if (pl.at <= lo + 0.5 || pl.at >= hi - 0.5) continue;
+        // The cut's extent on the plane: the object's box within the box.
+        const a = [0, 1, 2].map((k) =>
+          Math.max(u.box.min.getComponent(k), s.min[k]),
+        );
+        const z = [0, 1, 2].map((k) =>
+          Math.min(u.box.max.getComponent(k), s.max[k]),
+        );
+        const [p, q] = pl.axis === 0 ? [2, 1] : pl.axis === 1 ? [0, 2] : [0, 1];
+        if (z[p] - a[p] < 1 || z[q] - a[q] < 1) continue;
+        for (const mesh of u.meshes)
+          for (const side of [THREE.BackSide, THREE.FrontSide] as const) {
+            const st = new THREE.Mesh(mesh.geometry, this.lib.stencil(side));
+            st.matrixAutoUpdate = false;
+            st.matrix.copy(mesh.matrixWorld);
+            st.renderOrder = order;
+            st.userData.capPass = true;
+            this.sectionGroup.add(st);
+          }
+        const inward = pl.end === "min" ? 1 : -1;
+        const c = [(a[0] + z[0]) / 2, (a[1] + z[1]) / 2, (a[2] + z[2]) / 2];
+        c[pl.axis] = pl.at + inward * 0.5;
+        const cap = new THREE.Mesh(
+          planeOn(pl.axis, z[p] - a[p], z[q] - a[q], c),
+          this.lib.cap(u.color),
+        );
+        cap.renderOrder = order + 1;
+        cap.userData.sectionCap = true;
+        this.sectionGroup.add(cap);
+        order += 2;
+      }
+    // Realistic walls are planes: a hatched strip outside each, along the
+    // top cut.
+    const top = planes.find((pl) => pl.axis === 1 && pl.end === "max");
+    if (top && this.mode === "realistic") {
+      const poly = m.room.floor_plan;
+      for (let i = 0; i < poly.length; i++) {
+        const [ax, az] = poly[i],
+          [bx, bz] = poly[(i + 1) % poly.length];
+        const len = Math.hypot(bx - ax, bz - az);
+        // Outwards from the room: the left of a counter-clockwise outline.
+        const nx = (bz - az) / len,
+          nz = -(bx - ax) / len;
+        const cx = (ax + bx) / 2 + nx * 60,
+          cz = (az + bz) / 2 + nz * 60;
+        const w = Math.abs(bx - ax) > 1 ? len : 120;
+        const d = Math.abs(bx - ax) > 1 ? 120 : len;
+        const strip = new THREE.Mesh(
+          planeOn(1, w, d, [cx, top.at - 0.5, cz]),
+          this.lib.cap(this.theme.tokens.wall, false),
+        );
+        strip.userData.sectionCap = true;
+        this.sectionGroup.add(strip);
+      }
+    }
   }
 
   /** A section box handle under the pointer, if any. */
@@ -1774,6 +1934,9 @@ export class DcEngine {
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.radius = 4;
     sun.shadow.bias = -0.0004;
+    // Along the normal, mm: no acne on the walls where light grazes them
+    // (the section box cuts the ceiling away and lets the sun in).
+    sun.shadow.normalBias = 25;
     Object.assign(sun.shadow.camera, {
       left: -6000,
       right: 6000,
@@ -2829,8 +2992,94 @@ export class DcEngine {
    */
   private aimDoors(e: Entry, deviceSelected: boolean) {
     const open = this.openDoors.get(e.obj.id);
-    e.doorTarget.front = deviceSelected || open === "front" ? OPEN_ANGLE : 0;
-    e.doorTarget.rear = open === "rear" ? OPEN_ANGLE : 0;
+    e.doorTarget.front =
+      deviceSelected || open === "front" ? this.doorLimit(e, "front").angle : 0;
+    e.doorTarget.rear = open === "rear" ? this.doorLimit(e, "rear").angle : 0;
+  }
+
+  /**
+   * Where a leaf's free edge stands at `angle`, on the floor (x, z): from its
+   * hinge, turned outwards, in the rack's own orientation.
+   */
+  private leafEdge(e: Entry, leaf: DoorLeaf, angle: number, t = 1) {
+    e.built.group.updateMatrixWorld(true);
+    const hinge = new THREE.Vector3();
+    leaf.pivot.getWorldPosition(hinge);
+    const local = new THREE.Vector3(
+      leaf.along * leaf.width * t,
+      0,
+      0,
+    ).applyAxisAngle(UP, leaf.dir * angle);
+    const q = new THREE.Quaternion();
+    e.built.group.getWorldQuaternion(q);
+    return hinge.add(local.applyQuaternion(q));
+  }
+
+  /**
+   * How far a rack's door on `side` may open: 110°, or less where a leaf
+   * would pass through a neighbour or a wall — and what stops it.
+   */
+  private doorLimit(
+    e: Entry,
+    side: "front" | "rear",
+  ): { angle: number; by: string | null } {
+    const m = this.model;
+    const leaves = e.built.doors.filter((l) => doorSide(l.pivot) === side);
+    if (!m || !leaves.length) return { angle: OPEN_ANGLE, by: null };
+    const room = bounds(m.room.floor_plan);
+    const others = [...this.entries.values()].filter(
+      (o) =>
+        o !== e &&
+        !o.solid.swing &&
+        // Within the leaf's height: it stops 40 mm short of the rack's top.
+        o.solid.y0 < e.solid.y1 - 40 &&
+        e.solid.y0 + 100 < o.solid.y1,
+    );
+    const step = (2 * Math.PI) / 180;
+    let last = 0;
+    for (let a = step; a <= OPEN_ANGLE + 1e-6; a += step) {
+      for (const leaf of leaves)
+        for (const t of [0.25, 0.5, 0.75, 1]) {
+          const p = this.leafEdge(e, leaf, a, t);
+          if (p.x < room.x0 || p.x > room.x1 || p.z < room.z0 || p.z > room.z1)
+            return { angle: last, by: null };
+          const hit = others.find(
+            (o) =>
+              p.x > o.solid.rect.x0 &&
+              p.x < o.solid.rect.x1 &&
+              p.z > o.solid.rect.z0 &&
+              p.z < o.solid.rect.z1,
+          );
+          if (hit) return { angle: last, by: hit.obj.name };
+        }
+      last = a;
+    }
+    return { angle: OPEN_ANGLE, by: null };
+  }
+
+  /**
+   * The free edges of a rack's door leaves where they stand now, on the
+   * floor, and the rack's footprint (tests).
+   */
+  doorEdges(id: number): {
+    rect: Rect;
+    edges: { side: string; x: number; z: number; angle: number }[];
+  } | null {
+    const e = this.entries.get(id);
+    if (!e) return null;
+    return {
+      rect: { ...e.solid.rect },
+      edges: e.built.doors.map((l) => {
+        const side = doorSide(l.pivot);
+        const p = this.leafEdge(e, l, e.doorAngle[side]);
+        return {
+          side,
+          x: p.x,
+          z: p.z,
+          angle: (e.doorAngle[side] * 180) / Math.PI,
+        };
+      }),
+    };
   }
 
   /**
@@ -2845,6 +3094,17 @@ export class DcEngine {
     else this.openDoors.set(id, side);
     const sel = this.selection;
     this.aimDoors(e, sel?.type === "device" && sel.rackId === id);
+    // Not as far as it should: say what is in the way.
+    if (this.openDoors.get(id) === side) {
+      const lim = this.doorLimit(e, side);
+      if (lim.angle < OPEN_ANGLE - 1e-3)
+        this.onDoorLimited(
+          e.obj.name,
+          side,
+          Math.round((lim.angle * 180) / Math.PI),
+          lim.by,
+        );
+    }
     if (side === "rear" && this.openDoors.get(id) === "rear") {
       this.updateSafe();
       const r = e.solid.rect;
@@ -3554,3 +3814,28 @@ export class DcEngine {
 }
 
 export type { Rect, View, Preset };
+
+/**
+ * A rectangle on the plane square to `axis` through `centre`, `w` × `h`
+ * along the other two axes (x→z→y order), facing both ways, with UVs in
+ * room millimetres / 60 so a hatch keeps its pitch on any cut.
+ */
+function planeOn(
+  axis: 0 | 1 | 2,
+  w: number,
+  h: number,
+  centre: number[],
+): THREE.BufferGeometry {
+  const geo = new THREE.PlaneGeometry(w, h);
+  if (axis === 0) geo.rotateY(Math.PI / 2);
+  else if (axis === 1) geo.rotateX(-Math.PI / 2);
+  geo.translate(centre[0], centre[1], centre[2]);
+  const pos = geo.getAttribute("position");
+  const uv = geo.getAttribute("uv");
+  const [p, q] = axis === 0 ? [2, 1] : axis === 1 ? [0, 2] : [0, 1];
+  const get = (i: number, k: number) =>
+    k === 0 ? pos.getX(i) : k === 1 ? pos.getY(i) : pos.getZ(i);
+  for (let i = 0; i < pos.count; i++)
+    uv.setXY(i, get(i, p) / 60, get(i, q) / 60);
+  return geo;
+}

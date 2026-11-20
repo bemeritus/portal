@@ -468,6 +468,14 @@ pub enum Hinge {
     High,
 }
 
+/// Which side a rack's doors are hinged on, seen from the face they close.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RackHinge {
+    Left,
+    Right,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct RackInstance {
@@ -478,6 +486,10 @@ pub struct RackInstance {
     /// An open frame: no side panels (rack 1 on the photos).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_frame: Option<bool>,
+    /// The side the doors hang on, as seen standing at that face: left (the
+    /// default) or right (FEEDBACK-7 follow-up).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub door_hinge: Option<RackHinge>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

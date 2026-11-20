@@ -151,6 +151,8 @@ export interface Instance {
   hinge?: "low" | "high";
   /** Racks: an open frame, no side panels. */
   open_frame?: boolean;
+  /** Racks: the doors' hinge side, seen from the face they close; left by default. */
+  door_hinge?: "left" | "right";
   /** Cooling: supply outlets aimed by hand (§14.1); empty = subtype default. */
   supply_outlets?: SupplyOutlet[];
 }

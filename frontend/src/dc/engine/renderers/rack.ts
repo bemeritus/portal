@@ -61,6 +61,7 @@ function doors(
   h: number,
   z: number,
   outward: number,
+  hinge: "left" | "right",
 ): DoorLeaf[] {
   if (!type || type === "none") return [];
   const fw = w - 30,
@@ -71,7 +72,12 @@ function doors(
           [-fw / 2, 1, fw / 2],
           [fw / 2, -1, fw / 2],
         ]
-      : [[-fw / 2, 1, fw]];
+      : // One leaf, hinged on the left or right as seen standing at this
+        // face: at the front (facing −z) the viewer's left is +x.
+        (() => {
+          const dir = outward * (hinge === "left" ? 1 : -1);
+          return [[(-dir * fw) / 2, dir, fw]] as [number, number, number][];
+        })();
   return leaves.map(([hx, dir, lw]) => {
     const pivot = new THREE.Group();
     pivot.position.set(hx, 0, z + outward * 5);
@@ -144,7 +150,8 @@ function doors(
     );
     handle.userData.door = true;
     pivot.add(handle);
-    return { pivot, dir: dir * outward };
+    // The leaf swings outwards, into the aisle (FEEDBACK-7 follow-up).
+    return { pivot, dir: -dir * outward, along: dir, width: lw };
   });
 }
 
@@ -289,9 +296,10 @@ export const rackRenderer: ObjectRenderer = {
     const rack = item.kind === "rack" ? p : null;
     const front = obj.instance.door_front ?? rack?.door_front ?? null;
     const rear = obj.instance.door_rear ?? rack?.door_rear ?? null;
+    const hinge = obj.instance.door_hinge ?? "left";
     const leaves = [
-      ...doors(ctx, g, frame, front, w, h, -d / 2, -1),
-      ...doors(ctx, g, frame, rear, w, h, d / 2, 1),
+      ...doors(ctx, g, frame, front, w, h, -d / 2, -1, hinge),
+      ...doors(ctx, g, frame, rear, w, h, d / 2, 1, hinge),
     ];
     return {
       group: g,

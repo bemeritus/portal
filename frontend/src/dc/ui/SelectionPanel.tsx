@@ -251,6 +251,16 @@ function ObjectSummary({
         </dd>
         <dt className="text-muted-foreground">{t("dc.dims.rotation")}</dt>
         <dd>{obj.rotation_deg}°</dd>
+        {item.kind === "rack" && (
+          <>
+            <dt className="text-muted-foreground">{t("dc.door.hinge")}</dt>
+            <dd data-testid="door-hinge">
+              {obj.instance.door_hinge === "right"
+                ? t("dc.door.hingeRight")
+                : t("dc.door.hingeLeft")}
+            </dd>
+          </>
+        )}
       </dl>
       {problems.length > 0 && (
         <ul className="rounded-md border border-destructive/50 p-2 text-destructive">
@@ -358,6 +368,13 @@ function ObjectEditor({
       else inst[k] = v as DoorType;
       return { ...x, instance: inst };
     });
+  const hinge = (v: string) =>
+    setF((x) => {
+      const inst = { ...x.instance };
+      if (v === "left") delete inst.door_hinge;
+      else inst.door_hinge = "right";
+      return { ...x, instance: inst };
+    });
   return (
     <form
       className="space-y-2 rounded-md border p-2"
@@ -437,6 +454,19 @@ function ObjectEditor({
                 </select>
               </div>
             ))}
+          </div>
+          {/* The doors' hinge side, seen from the face they close. */}
+          <div>
+            <Label htmlFor="o-door_hinge">{t("dc.door.hinge")}</Label>
+            <select
+              id="o-door_hinge"
+              className="w-full rounded-md border bg-background px-2 py-1.5"
+              value={f.instance.door_hinge ?? "left"}
+              onChange={(e) => hinge(e.target.value)}
+            >
+              <option value="left">{t("dc.door.hingeLeft")}</option>
+              <option value="right">{t("dc.door.hingeRight")}</option>
+            </select>
           </div>
           <label className="flex items-center gap-2">
             <Checkbox

@@ -40,7 +40,7 @@ export function lighter(color: string, by = 0.18): string {
 }
 
 /**
- * The power mode's sequential scale at `k` (0–1), as HSL: the accent's hue,
+ * The power mode's sequential scale at `k` (0–1), as HSL: the data colour's hue,
  * from faint to strong on the theme's background (FEEDBACK-7 §1.7).
  */
 export function sequentialHsl(
@@ -48,9 +48,12 @@ export function sequentialHsl(
   k: number,
 ): [number, number, number] {
   const hsl = { h: 0, s: 0, l: 0 };
-  new THREE.Color(theme.accent).getHSL(hsl);
-  const s = 0.2 + 0.65 * k;
-  const l = theme.dark ? 0.24 + 0.38 * k : 0.86 - 0.5 * k;
+  // The theme's data colour: the accent, graphite in drawing (red is only
+  // for problems).
+  new THREE.Color(theme.tokens.fill).getHSL(hsl);
+  // A grey stays grey: only a coloured base gains saturation with the value.
+  const s = hsl.s < 0.15 ? hsl.s : 0.2 + 0.65 * k;
+  const l = theme.dark ? 0.24 + 0.38 * k : 0.86 - 0.6 * k;
   return [hsl.h, s, l];
 }
 
@@ -966,27 +969,65 @@ export class MaterialLibrary {
   }
 
   /** A cut face of the section box: the object's colour with a hatch. */
-  cap(color: string): THREE.Material {
-    return this.memo(`cap|${color}`, () => {
+  cap(color: string, stencil = true): THREE.Material {
+    return this.memo(`cap|${color}|${stencil}`, () => {
       const t = this.tex(`cap|${color}`, () => {
-        const [c, g] = canvas(32, 32);
+        // One 60 mm tile (the cap's UVs run in mm / 60): two 45° strokes,
+        // seamless, lighter on a dark fill and darker on a light one.
+        const [c, g] = canvas(64, 64);
         g.fillStyle = color;
-        g.fillRect(0, 0, 32, 32);
-        g.strokeStyle = this.theme.dark
-          ? "rgba(255,255,255,0.35)"
-          : "rgba(0,0,0,0.35)";
-        g.lineWidth = 2;
-        for (let k = -32; k <= 32; k += 8) {
+        g.fillRect(0, 0, 64, 64);
+        const l = new THREE.Color(color).getHSL({ h: 0, s: 0, l: 0 }).l;
+        g.strokeStyle = l < 0.45 ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)";
+        g.lineWidth = 3;
+        for (let k = -64; k <= 128; k += 32) {
           g.beginPath();
-          g.moveTo(k, 32);
-          g.lineTo(k + 32, 0);
+          g.moveTo(k, 64);
+          g.lineTo(k + 64, 0);
           g.stroke();
         }
         return c;
       });
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(20, 20);
-      return new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide });
+      return new THREE.MeshBasicMaterial({
+        map: t,
+        side: THREE.DoubleSide,
+        // Only where the stencil passes counted a cut, and reset it there.
+        ...(stencil
+          ? {
+              stencilWrite: true,
+              stencilRef: 0,
+              stencilFunc: THREE.NotEqualStencilFunc,
+              stencilFail: THREE.ReplaceStencilOp,
+              stencilZFail: THREE.ReplaceStencilOp,
+              stencilZPass: THREE.ReplaceStencilOp,
+            }
+          : {}),
+      });
+    });
+  }
+
+  /**
+   * A section stencil pass: back faces count up, front faces count down,
+   * nothing drawn — where the count is left above zero, the box cut a solid.
+   */
+  stencil(side: THREE.Side): THREE.Material {
+    return this.memo(`stencil|${side}`, () => {
+      const op =
+        side === THREE.BackSide
+          ? THREE.IncrementWrapStencilOp
+          : THREE.DecrementWrapStencilOp;
+      return new THREE.MeshBasicMaterial({
+        side,
+        colorWrite: false,
+        depthWrite: false,
+        depthTest: false,
+        stencilWrite: true,
+        stencilFunc: THREE.AlwaysStencilFunc,
+        stencilFail: op,
+        stencilZFail: op,
+        stencilZPass: op,
+      });
     });
   }
 
