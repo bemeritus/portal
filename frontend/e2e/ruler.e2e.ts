@@ -21,9 +21,10 @@ test("ruler: r1 back face to the back wall, and the r3–r4 gap", async ({ page 
   await page.goto(`/dc/${await roomId(page)}?view=3d&mode=schema&tool=ruler`);
   await waitForRoom(page);
   await page.getByRole("radio", { name: "мм", exact: true }).click();
-  // From the z = width side ("front" of the room's model axes): the racks'
+  // From the z = width side — behind the racks, whose fronts face the shelf
+  // (FEEDBACK-7 §2.1: «front» is the racks' front now): the racks'
   // back faces and the wall behind them face the camera.
-  await engine(page, (e) => e.preset("front", 0));
+  await engine(page, (e) => e.preset("back", 0));
   await page.waitForTimeout(300);
 
   const r1 = await boxOf(page, "Стойка 1");

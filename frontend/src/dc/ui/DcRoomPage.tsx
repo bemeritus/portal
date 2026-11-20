@@ -36,14 +36,18 @@ import {
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Check,
   ChevronDown,
   Layers as LayersIcon,
+  ListTree,
   MapPin,
   MoreHorizontal,
   MousePointer2,
   Move,
   Redo2,
   Ruler,
+  ScanEye,
+  Scissors,
   Undo2,
   X,
 } from "lucide-react";
@@ -51,10 +55,12 @@ import {
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
+  DropdownMenuGroup,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { errorMessage } from "../../api/client";
@@ -78,7 +84,7 @@ import {
 import type { Preset, View } from "../engine/camera";
 import type { Fmt } from "../format";
 import { useChanges, useRoom } from "../hooks";
-import { rackStats } from "../model/devices";
+import { rackStats, type RackStats } from "../model/devices";
 import { difference, disagrees, isRange } from "../model/measure";
 import type { SnapKind } from "../model/ruler";
 import { useDcSettings, useFmt } from "../settings";
@@ -97,6 +103,10 @@ import type { CapacityRequest } from "./CapacityPanel";
 import type { PaletteObject } from "./CommandPalette";
 import { useShell } from "./DcShell";
 import { ImportDialog } from "./ImportDialog";
+import { ModeLegend } from "./ModeLegend";
+import { Outliner } from "./Outliner";
+import { KeymapHelp, SectionPanel, StatusBar, Tour } from "./viewport";
+import { viewsInOrder } from "./ViewsPanel";
 import { Inspector, type InspectorTab } from "./Inspector";
 import { planByDefault } from "./landing";
 import { assumedByObject, objectFields } from "../model/objects";
@@ -104,21 +114,25 @@ import { measureLabel } from "./measureLabel";
 import { clearanceSplitText } from "./SelectionPanel";
 import { hasLegend, PlanLegend } from "./PlanLegend";
 
-const MODES: Mode[] = ["schema", "realistic", "fill", "power"];
-const TOOLS: { tool: Tool; icon: typeof MousePointer2 }[] = [
+const MODES: Mode[] = ["schema", "realistic", "fill", "power", "owners"];
+const TOOLS: { tool: Tool; icon: typeof MousePointer2; key?: string }[] = [
   { tool: "view", icon: MousePointer2 },
   { tool: "edit", icon: Move },
-  { tool: "ruler", icon: Ruler },
+  { tool: "ruler", icon: Ruler, key: "M" },
   { tool: "note", icon: MapPin },
+  { tool: "section", icon: Scissors, key: "Shift+B" },
 ];
 const GRIDS = [5, 10, 50, 100];
 const VIEWS: Preset[] = ["iso", "top", "aisle", "racks"];
 const LAYER_KEYS: (keyof Layers)[] = [
   "room",
+  "chains",
   "gaps",
   "tape",
+  "selection",
   "zones",
   "names",
+  "lights",
   "assumptions",
 ];
 
@@ -136,6 +150,23 @@ function saveLayers(l: Layers) {
     localStorage.setItem("dc.layers", JSON.stringify(l));
   } catch {
     // Private windows and blocked storage: the layers just reset.
+  }
+}
+
+/** Object ids this viewer hid or locked in a room (a convenience). */
+function loadIds(key: string): number[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "number") : [];
+  } catch {
+    return [];
+  }
+}
+function saveIds(key: string, ids: Set<number>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...ids]));
+  } catch {
+    // Private windows and blocked storage: they just reset.
   }
 }
 
@@ -244,7 +275,12 @@ export function DcRoomPage() {
             cells: past.data.snapshot.cells,
             annotations: past.data.snapshot.annotations,
             // Today's analysis does not describe that room.
-            analysis: { ...room.data.analysis, clearances: [], problems: [] },
+            analysis: {
+              ...room.data.analysis,
+              clearances: [],
+              problems: [],
+              cooling_over_cells: [],
+            },
           }
         : room.data,
     [rev, past.data, room.data],
@@ -300,6 +336,28 @@ export function DcRoomPage() {
     y: number;
   } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; z: number } | null>(null);
+  // The viewport as a 3D tool (FEEDBACK-7 §4): view state for this viewer,
+  // saved with views, never in the room's revisions.
+  const [outliner, setOutliner] = useState(false);
+  const [hidden, setHidden] = useState<Set<number>>(
+    () => new Set(loadIds(`dc.hidden.${roomId}`)),
+  );
+  const [locked, setLocked] = useState<Set<number>>(
+    () => new Set(loadIds(`dc.locked.${roomId}`)),
+  );
+  /** The objects shown alone («Только выбранное»), or null. */
+  const [isolated, setIsolated] = useState<number[] | null>(null);
+  const [xray, setXray] = useState(false);
+  const [fade, setFade] = useState(true);
+  const [sectionOn, setSectionOn] = useState(false);
+  const [keymap, setKeymap] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
+  /** The device tooltip, shown after the pointer rests 300 ms. */
+  const [devTip, setDevTip] = useState<{
+    id: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const [inspector, setInspector] = useState<{
     open: boolean;
     tab: InspectorTab;
@@ -312,6 +370,10 @@ export function DcRoomPage() {
   const [conflict, setConflict] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  /** The room settings opened from the power legend («задать»). */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The presentation tour of the saved views (FEEDBACK-7 §4.8). */
+  const [tour, setTour] = useState(false);
   const [notePos, setNotePos] = useState<[number, number, number] | null>(null);
   const [prefill, setPrefill] = useState<{
     rackId: number;
@@ -352,11 +414,8 @@ export function DcRoomPage() {
     const e = new DcEngine(
       host.current,
       {
-        notRecorded: "",
         assumed: "",
-        units: () => "",
-        powerW: () => "",
-        unknownPower: "",
+        rack: () => "",
         mm: String,
         range: (a, b) => `${a}–${b}`,
         measurement: (m) => ({ text: String(m.value), title: "", mark: false }),
@@ -364,6 +423,7 @@ export function DcRoomPage() {
         snap: (k) => k,
         clearance: (c) => String(c.mm),
         pin: (c) => String(c.mm),
+        condensate: (cells) => ({ pin: cells.join(), title: "" }),
       },
       TOKENS[settings.theme],
     );
@@ -398,11 +458,8 @@ export function DcRoomPage() {
     if (!e) return;
     const snapWord = (k: SnapKind): string => t(`dc.snap.${k}`);
     e.text = {
-      notRecorded: t("dc.rack.notRecorded"),
       assumed: t("dc.measure.assumedShort"),
-      units: (used, total) => t("dc.rack.unitsUsed", { used, total }),
-      powerW: (w) => fmt.w(w),
-      unknownPower: t("dc.rack.someUnknown"),
+      rack: (s, m) => rackLabel(s, m, fmt, t),
       mm: fmt.mm,
       range: fmt.range,
       measurement: (m) => measurementText(m, fmt, t, i18n.language),
@@ -412,6 +469,10 @@ export function DcRoomPage() {
         t(c.side === "front" ? "dc.pin.front" : "dc.pin.rear", {
           gap: fmt.mm(c.mm),
         }),
+      condensate: (cells) => ({
+        pin: t("dc.condensate.pin", { cells: cells.join(", ") }),
+        title: t("dc.condensate.text", { cells: cells.join(", ") }),
+      }),
       clearance: (c) => {
         const head = t(
           c.side === "front"
@@ -428,6 +489,15 @@ export function DcRoomPage() {
           : head;
       },
     };
+    e.onDoorLimited = (name, side, deg, by) =>
+      setNotice(
+        t("dc.door.limited", {
+          name,
+          deg,
+          side: t(side === "front" ? "dc.door.frontSide" : "dc.door.rearSide"),
+          what: by ? `«${by}»` : t("dc.door.wall"),
+        }),
+      );
     e.setCubeLabels({
       top: t("dc.view.top"),
       bottom: t("dc.view.bottom"),
@@ -448,6 +518,33 @@ export function DcRoomPage() {
   }, [layers, loaded]);
 
   useEffect(() => engine.current?.setRulerMode(rulerMode), [rulerMode, loaded]);
+  useEffect(() => {
+    engine.current?.setHidden([...hidden]);
+    saveIds(`dc.hidden.${roomId}`, hidden);
+  }, [hidden, roomId, loaded]);
+  useEffect(() => {
+    engine.current?.setLocked([...locked]);
+    saveIds(`dc.locked.${roomId}`, locked);
+  }, [locked, roomId, loaded]);
+  useEffect(() => engine.current?.setXray(xray), [xray, loaded]);
+  useEffect(() => engine.current?.setOccluderFade(fade), [fade, loaded]);
+  // What the view changed itself: a door, the section box.
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    e.onViewState = () => setSectionOn(e.sectionBox() !== null);
+  }, [loaded]);
+  // The device tooltip waits for the pointer to rest (FEEDBACK-7 §4.6).
+  useEffect(() => {
+    const ref = hover?.ref;
+    if (ref?.type !== "device") {
+      setDevTip(null);
+      return;
+    }
+    const at = { id: ref.id, x: hover!.x, y: hover!.y };
+    const timer = window.setTimeout(() => setDevTip(at), 300);
+    return () => window.clearTimeout(timer);
+  }, [hover]);
   useEffect(() => engine.current?.setHighlight(owner), [owner, loaded, data]);
 
   // Where the room opens: in the drawing theme on the plan, unless the link
@@ -497,6 +594,19 @@ export function DcRoomPage() {
       navigate({ search: q.toString(), hash: window.location.hash });
     };
   }, [search, navigate, loaded]);
+
+  // The plan is framed round its sheet corner, which shows once the legend
+  // knows what is drawn: frame it again then, once per visit.
+  const framedWithLegend = useRef(false);
+  useEffect(() => {
+    if (!plan) {
+      framedWithLegend.current = false;
+      return;
+    }
+    if (!legend || framedWithLegend.current) return;
+    framedWithLegend.current = true;
+    requestAnimationFrame(() => engine.current?.preset("top", 0));
+  }, [plan, legend]);
 
   // Selection → engine, URL hash.
   useEffect(() => {
@@ -548,12 +658,16 @@ export function DcRoomPage() {
     const e = engine.current;
     if (!e || !data) return;
     e.onPin = (id, side) => {
+      if (side === "cooling") {
+        select({ type: "object", id }, false);
+        return;
+      }
       const c = data.analysis.clearances.find(
         (x) => x.object_id === id && x.side === side,
       );
       if (c) showClearance(c);
     };
-  }, [data, showClearance, loaded]);
+  }, [data, showClearance, select, loaded]);
 
   /** The link to exactly this screen. */
   const shareLink = useCallback(() => {
@@ -582,31 +696,68 @@ export function DcRoomPage() {
     [changes, i18n.language],
   );
 
-  /** Save what is on screen — camera, mode, highlight, selection. */
+  /**
+   * What is on screen as a view: camera, mode, highlight, selection, and the
+   * view state — layers, X-ray, hidden and locked objects, isolation, the
+   * section box, open doors (FEEDBACK-7 §4).
+   */
+  const currentView = useCallback((): Omit<ViewPayload, "name" | "shared"> => {
+    const e = engine.current;
+    const v = e?.view() ?? {
+      position: [0, 0, 0] as [number, number, number],
+      target: [0, 0, 0] as [number, number, number],
+      fov: 45,
+      ortho: false,
+    };
+    const r = (a: number[]) => a.map(Math.round) as [number, number, number];
+    const sel = hashOf(data ? complete(selection, data) : null).slice(1);
+    return {
+      position: r(v.position),
+      target: r(v.target),
+      fov: Math.round(v.fov),
+      ortho: v.ortho,
+      mode,
+      ...(owner ? { owner } : {}),
+      ...(sel ? { selection: sel } : {}),
+      state: { layers: { ...layers }, ...(e?.viewState() ?? {}) },
+    };
+  }, [mode, owner, selection, data, layers]);
+
+  /** Save what is on screen, last in the tour's order. */
   const saveView = useCallback(
     async (name: string, shared: boolean) => {
-      const e = engine.current;
-      if (!e) return false;
-      const v = e.view();
-      const r = (a: number[]) => a.map(Math.round) as [number, number, number];
-      const sel = hashOf(data ? complete(selection, data) : null).slice(1);
-      const payload: ViewPayload = {
-        name,
-        position: r(v.position),
-        target: r(v.target),
-        fov: Math.round(v.fov),
-        ortho: v.ortho,
-        mode,
-        shared,
-        ...(owner ? { owner } : {}),
-        ...(sel ? { selection: sel } : {}),
-      };
+      if (!engine.current) return false;
+      const order =
+        Math.max(
+          0,
+          ...(data?.annotations ?? []).map((a) =>
+            a.kind === "view" ? (a.payload.order ?? 0) : 0,
+          ),
+        ) + 1;
+      const payload: ViewPayload = { ...currentView(), name, shared, order };
       return run(
         [{ op: "annotation_create", annotation: { kind: "view", payload } }],
         t("dc.change.view", { name }),
       );
     },
-    [run, mode, owner, selection, data, t],
+    [run, currentView, data, t],
+  );
+
+  /** Small renders of the saved views, by view and revision. */
+  const thumbs = useRef(new Map<string, string>());
+  const viewThumb = useCallback(
+    (id: number, v: ViewPayload) => {
+      const e = engine.current;
+      if (!e || !data) return null;
+      const key = `${id}:${data.room.revision}:${mode}:${JSON.stringify([v.position, v.target, v.fov, v.ortho])}`;
+      let src = thumbs.current.get(key);
+      if (!src) {
+        src = e.thumbnail({ ...v });
+        thumbs.current.set(key, src);
+      }
+      return src;
+    },
+    [data, mode],
   );
 
   /**
@@ -658,11 +809,26 @@ export function DcRoomPage() {
       setNotice(t("dc.layout.resetDone", { count: ops.length }));
   }, [data, roomId, run, t]);
 
+  /**
+   * Open a saved view: its camera (flown to in `dur` ms), mode, highlight,
+   * selection, and its view state — layers, X-ray, hidden and locked
+   * objects, isolation, the section box, open doors (FEEDBACK-7 §4).
+   */
   const openView = useCallback(
-    (v: ViewPayload) => {
+    (v: ViewPayload, dur?: number) => {
       if (v.mode) setMode(v.mode);
       setOwner(v.owner ?? null);
-      if (v.selection) setSelection(parseHash(`#${v.selection}`));
+      setSelection(v.selection ? parseHash(`#${v.selection}`) : null);
+      const s = v.state;
+      if (s) {
+        if (s.layers) setLayers({ ...DEFAULT_LAYERS, ...s.layers });
+        setXray(!!s.xray);
+        setHidden(new Set(s.hidden ?? []));
+        setLocked(new Set(s.locked ?? []));
+        setIsolated(s.isolate?.length ? s.isolate : null);
+        engine.current?.setViewState(s);
+        setSectionOn(!!s.section);
+      }
       const view = {
         position: v.position,
         target: v.target,
@@ -680,7 +846,7 @@ export function DcRoomPage() {
         const q = new URLSearchParams(search);
         q.set("view", "3d");
         navigate({ search: q.toString(), hash: window.location.hash });
-      } else engine.current?.goView(view);
+      } else engine.current?.goView(view, dur);
     },
     [plan, search, navigate, setMode],
   );
@@ -713,6 +879,120 @@ export function DcRoomPage() {
       engine.current.onMoveCommit = canEdit ? moveObject : () => {};
   }, [moveObject, canEdit, loaded]);
 
+  useEffect(() => engine.current?.setIsolate(isolated), [isolated, loaded]);
+
+  /** The section tool on or off; on, with the room's box if there is none. */
+  const toggleSection = useCallback(() => {
+    if (tool === "section") return setTool("view");
+    setTool("section");
+    if (!engine.current?.sectionBox())
+      engine.current?.setSection({ kind: "room" });
+  }, [tool]);
+
+  /**
+   * The navigation keys (FEEDBACK-7 §4.5), as `?` lists them: the number
+   * row and the numpad alike. The caller has already let a focused text
+   * field keep its keys. True when the key was one of these.
+   */
+  const navKey = useCallback(
+    (e: KeyboardEvent): boolean => {
+      const en = engine.current;
+      if (!en || !data) return false;
+      const mod = e.ctrlKey || e.metaKey;
+      const done = () => {
+        e.preventDefault();
+        return true;
+      };
+      const digit = /^(?:Digit|Numpad)([1357])$/.exec(e.code)?.[1];
+      if (digit && !e.altKey && !e.shiftKey) {
+        if (digit === "5") {
+          if (!mod) en.setOrtho(!ortho);
+          return done();
+        }
+        const views: Record<string, [Preset, Preset]> = {
+          "1": ["front", "back"],
+          "3": ["right", "left"],
+          "7": ["top", "bottom"],
+        };
+        en.preset(views[digit][mod ? 1 : 0]);
+        return done();
+      }
+      if (mod) return false;
+      if (e.altKey) {
+        if (e.code !== "KeyZ") return false;
+        setXray((x) => !x);
+        return done();
+      }
+      if (e.key === "?") {
+        setKeymap((k) => !k);
+        return done();
+      }
+      if (e.key === "Escape") {
+        // Walking ends in the engine; then one thing at a time.
+        if (walking) return false;
+        if (keymap) setKeymap(false);
+        else if (isolated) setIsolated(null);
+        else if (tool !== "view") setTool("view");
+        else if (selection) {
+          setSelection(null);
+        } else return false;
+        return done();
+      }
+      if (e.shiftKey) {
+        if (e.code !== "KeyB") return false;
+        toggleSection();
+        return done();
+      }
+      const sel = complete(selection, data);
+      switch (e.code) {
+        case "KeyF":
+        case "Period":
+        case "NumpadDecimal":
+          en.frameSelection();
+          return done();
+        case "Home":
+          en.frameAll();
+          return done();
+        case "Slash":
+        case "NumpadDivide": {
+          if (isolated) setIsolated(null);
+          else if (sel)
+            setIsolated([
+              sel.type === "object"
+                ? sel.id
+                : sel.type === "device"
+                  ? sel.rackId
+                  : sel.shelfId,
+            ]);
+          return done();
+        }
+        case "KeyO":
+          setOutliner((o) => !o);
+          return done();
+        case "KeyL":
+          setLayersOpen((o) => !o);
+          return done();
+        case "KeyM":
+          if (tool === "ruler") setTool("view");
+          else {
+            setTool("ruler");
+            setInspector({ open: true, tab: "ruler" });
+          }
+          return done();
+        case "KeyH": {
+          // The owner of the device under the pointer (or the selected one).
+          const id =
+            en.hoveredDevice() ?? (sel?.type === "device" ? sel.id : null);
+          const who = data.devices.find((d) => d.id === id)?.owner;
+          if (who) setOwner((o) => (o === who ? null : who));
+          return done();
+        }
+      }
+      return false;
+    },
+    [data, ortho, walking, keymap, isolated, tool, selection, toggleSection],
+  );
+
   // Keyboard: undo/redo; in edit mode, arrows nudge and R rotates.
   const nudge = useRef<{
     id: number;
@@ -726,18 +1006,12 @@ export function DcRoomPage() {
       const target = e.target as HTMLElement;
       if (
         target.closest(
-          "input, textarea, select, [contenteditable=true], [role=dialog]",
+          "input, textarea, select, [contenteditable=true], [role=dialog]:not(.dc-keymap)",
         )
       )
         return;
       const mod = e.ctrlKey || e.metaKey;
-      // 1–4: the modes, 5–8: the views, as their tooltips say.
-      if (!mod && !e.altKey && /^Digit[1-8]$/.test(e.code)) {
-        const n = Number(e.code.slice(5));
-        if (n <= 4) setMode(MODES[n - 1]);
-        else engine.current?.preset(VIEWS[n - 5]);
-        return;
-      }
+      if (navKey(e)) return;
       if (mod && e.code === "KeyZ") {
         e.preventDefault();
         if (!canEdit) return;
@@ -794,7 +1068,7 @@ export function DcRoomPage() {
     i18n.language,
     moveObject,
     selection,
-    setMode,
+    navKey,
     tool,
   ]);
 
@@ -957,15 +1231,20 @@ export function DcRoomPage() {
       aria-label={t("dc.tool.label")}
     >
       {TOOLS.filter(
-        (x) => canEdit || x.tool === "view" || x.tool === "ruler",
-      ).map(({ tool: tl, icon: Icon }) => (
+        (x) =>
+          canEdit ||
+          x.tool === "view" ||
+          x.tool === "ruler" ||
+          x.tool === "section",
+      ).map(({ tool: tl, icon: Icon, key }) => (
         <button
           key={tl}
           type="button"
           aria-pressed={tool === tl}
-          title={`${t(`dc.tool.${tl}`)} — ${t(`dc.tool.${tl}Hint`)}`}
+          title={`${t(`dc.tool.${tl}`)}${key ? ` (${key})` : ""} — ${t(`dc.tool.${tl}Hint`)}`}
           aria-label={t(`dc.tool.${tl}`)}
           onClick={() => {
+            if (tl === "section") return toggleSection();
             setTool(tl);
             if (tl === "ruler") setInspector({ open: true, tab: "ruler" });
           }}
@@ -974,11 +1253,30 @@ export function DcRoomPage() {
         </button>
       ))}
       <hr />
-      <DropdownMenu>
+      <button
+        type="button"
+        aria-pressed={outliner}
+        title={`${t("dc.rail.outliner")} (O)`}
+        aria-label={t("dc.rail.outliner")}
+        data-testid="outliner-button"
+        onClick={() => setOutliner((o) => !o)}
+      >
+        <ListTree className="size-[18px]" />
+      </button>
+      <button
+        type="button"
+        aria-pressed={xray}
+        title={`${t("dc.rail.xray")} (Alt+Z)`}
+        aria-label={t("dc.rail.xray")}
+        onClick={() => setXray((x) => !x)}
+      >
+        <ScanEye className="size-[18px]" />
+      </button>
+      <DropdownMenu open={layersOpen} onOpenChange={setLayersOpen}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            title={t("dc.layer.button")}
+            title={`${t("dc.layer.button")} (L)`}
             aria-label={t("dc.layer.button")}
             data-testid="layers"
           >
@@ -1036,9 +1334,14 @@ export function DcRoomPage() {
       }}
       onFindSpace={() => setInspector({ open: true, tab: "capacity" })}
       onImport={() => setImportOpen(true)}
+      settingsOpen={settingsOpen}
+      onSettingsOpen={setSettingsOpen}
       past={rev !== null}
       saveView={saveView}
       openView={openView}
+      currentView={currentView}
+      viewThumb={viewThumb}
+      startTour={() => setTour(true)}
       copyLink={() =>
         void navigator.clipboard?.writeText(shareLink()).then(
           () => setNotice(t("dc.views.linkCopied")),
@@ -1057,9 +1360,20 @@ export function DcRoomPage() {
   );
 
   return (
-    <div className="dc-body" data-plan={plan}>
+    <div
+      className="dc-body"
+      data-plan={plan}
+      data-docked={docked}
+      data-tour={tour}
+    >
       {docked && rail}
-      <div ref={host} className="dc-viewport" aria-label={t("dc.canvasLabel")}>
+      <div
+        ref={host}
+        className="dc-viewport"
+        aria-label={t("dc.canvasLabel")}
+        data-outliner={outliner}
+        data-inspector={inspector.open}
+      >
         {!docked && rail}
         <div className="dc-chips no-print">
           {selName && (
@@ -1095,20 +1409,42 @@ export function DcRoomPage() {
               </button>
             </div>
           )}
+          {isolated && (
+            <div
+              className="dc-chip dc-panel dc-banner"
+              role="status"
+              data-testid="isolate-banner"
+            >
+              {t("dc.isolate.banner")}
+            </div>
+          )}
+          {(tool === "section" || sectionOn) && (
+            <SectionPanel
+              fmt={fmt}
+              on={sectionOn}
+              onSection={(s) => {
+                engine.current?.setSection(s);
+                if (s === null && tool === "section") setTool("view");
+              }}
+            />
+          )}
           {walking && (
             <div className="dc-chip dc-panel">{t("dc.walk.help")}</div>
           )}
-          {(mode === "fill" || mode === "power") && (
-            <div className="dc-chip dc-panel">
-              {mode === "fill"
-                ? t("dc.legend.fill")
-                : data.room.settings.rack_power_budget_w === null
-                  ? t("dc.legend.powerNoBudget")
-                  : t("dc.legend.power", {
-                      w: fmt.w(data.room.settings.rack_power_budget_w),
-                    })}
-            </div>
-          )}
+          <ModeLegend
+            mode={mode}
+            data={data}
+            tokens={tokens}
+            fmt={fmt}
+            onSetBudget={
+              canEdit
+                ? () => {
+                    select(null, false);
+                    setSettingsOpen(true);
+                  }
+                : undefined
+            }
+          />
           {(error || conflict || changes.notice || notice) && (
             <div className="max-w-[460px]">
               {conflict && (
@@ -1173,20 +1509,72 @@ export function DcRoomPage() {
           </>
         )}
 
-        {cursor && (
-          <div className="dc-coords">
-            x {fmt.mm(cursor.x)} · z {fmt.mm(cursor.z)}
-          </div>
+        {devTip ? (
+          <DeviceTip
+            id={devTip.id}
+            x={devTip.x}
+            y={devTip.y}
+            data={data}
+            fmt={fmt}
+          />
+        ) : (
+          hover &&
+          hover.ref?.type !== "device" &&
+          hoverText && (
+            <div
+              className="dc-tooltip"
+              style={{ left: hover.x + 14, top: hover.y + 14 }}
+            >
+              {hoverText}
+            </div>
+          )
         )}
-
-        {hover && hoverText && (
-          <div
-            className="dc-tooltip"
-            style={{ left: hover.x + 14, top: hover.y + 14 }}
-          >
-            {hoverText}
-          </div>
+        {outliner && (
+          <Outliner
+            data={data}
+            catalog={catalog}
+            selection={selected}
+            hidden={hidden}
+            locked={locked}
+            onSelect={(ref) => select(ref, true)}
+            onHidden={(id) =>
+              setHidden((s) => {
+                const n = new Set(s);
+                if (n.has(id)) n.delete(id);
+                else n.add(id);
+                return n;
+              })
+            }
+            onLocked={(id) =>
+              setLocked((s) => {
+                const n = new Set(s);
+                if (n.has(id)) n.delete(id);
+                else n.add(id);
+                return n;
+              })
+            }
+            onHighlight={(o) => setOwner((cur) => (cur === o ? null : o))}
+            onClose={() => setOutliner(false)}
+          />
         )}
+        {keymap && <KeymapHelp onClose={() => setKeymap(false)} />}
+        {tour && (
+          <Tour
+            views={viewsInOrder(data).map((x) => x.v)}
+            show={(v) => openView(v, 1200)}
+            onEnd={() => setTour(false)}
+          />
+        )}
+        <StatusBar
+          data={data}
+          catalog={catalog}
+          selection={selected}
+          tool={tool}
+          plan={plan}
+          walking={walking}
+          cursor={cursor}
+          fmt={fmt}
+        />
         {notePos && (
           <NotePrompt
             onCancel={() => setNotePos(null)}
@@ -1226,16 +1614,13 @@ export function DcRoomPage() {
             role="radiogroup"
             aria-label={t("dc.mode.label")}
           >
-            {MODES.map((m, i) => (
+            {MODES.map((m) => (
               <button
                 key={m}
                 type="button"
                 role="radio"
                 aria-checked={mode === m}
-                title={t("dc.bar.key", {
-                  label: t(`dc.mode.${m}`),
-                  key: i + 1,
-                })}
+                title={t(`dc.mode.${m}`)}
                 onClick={() => setMode(m)}
               >
                 {t(`dc.mode.${m}`)}
@@ -1248,14 +1633,15 @@ export function DcRoomPage() {
             role="group"
             aria-label={t("dc.view.presets")}
           >
-            {VIEWS.map((p, i) => (
+            {VIEWS.map((p) => (
               <button
                 key={p}
                 type="button"
-                title={t("dc.bar.key", {
-                  label: t(`dc.view.${p}`),
-                  key: i + 5,
-                })}
+                title={
+                  p === "top"
+                    ? t("dc.bar.key", { label: t(`dc.view.${p}`), key: 7 })
+                    : t(`dc.view.${p}`)
+                }
                 onClick={() => engine.current?.preset(p)}
               >
                 {t(`dc.view.${p}`)}
@@ -1385,18 +1771,30 @@ export function DcRoomPage() {
                 {t("dc.bar.views")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={ortho}
-                onCheckedChange={(v) => engine.current?.setOrtho(v === true)}
-              >
-                {t("dc.bar.ortho")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={walking}
-                onCheckedChange={(v) => engine.current?.setWalk(v === true)}
-              >
-                {t("dc.bar.walk")}
-              </DropdownMenuCheckboxItem>
+              <DropdownMenuGroup>
+                <ToggleItem
+                  checked={ortho}
+                  label={t("dc.bar.ortho")}
+                  shortcut="5"
+                  onToggle={() => engine.current?.setOrtho(!ortho)}
+                />
+                <ToggleItem
+                  checked={walking}
+                  label={t("dc.bar.walk")}
+                  onToggle={() => engine.current?.setWalk(!walking)}
+                />
+                <ToggleItem
+                  checked={xray}
+                  label={t("dc.rail.xray")}
+                  shortcut="Alt+Z"
+                  onToggle={() => setXray((x) => !x)}
+                />
+                <ToggleItem
+                  checked={fade}
+                  label={t("dc.fade")}
+                  onToggle={() => setFade((f) => !f)}
+                />
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1552,4 +1950,103 @@ function savePng(engine: DcEngine | null, name: string) {
   a.href = engine.snapshotPng();
   a.download = `${name}.png`;
   a.click();
+}
+
+/**
+ * A rack's compact label in the fill and power modes (FEEDBACK-7 §1.4,
+ * §1.7): «31/42U · 9 кВт»; in power, where some devices have no data,
+ * the known kilowatts and how many lack it — «6,8 кВт · 5 без данных» —
+ * never a sum that looks whole; two lines with the name, so all four fit.
+ */
+export function rackLabel(
+  s: RackStats,
+  mode: "fill" | "power",
+  fmt: Fmt,
+  t: TFunction,
+): string {
+  if (!s.known) return t("dc.rack.notRecorded");
+  const kw = fmt.kw(s.powerW);
+  if (mode === "fill")
+    return `${s.used}/${s.units}U${s.powerW ? ` · ${kw}` : ""}`;
+  if (!s.unknownPower) return `${s.used}/${s.units}U · ${kw}`;
+  return `${kw} · ${t("dc.rack.noDataShort", { count: s.unknownPower })}`;
+}
+
+/**
+ * The tooltip of a device under the pointer (FEEDBACK-7 §4.6): name, kind,
+ * U range, power with its source, owner; `H` highlights the owner.
+ */
+function DeviceTip({
+  id,
+  x,
+  y,
+  data,
+  fmt,
+}: {
+  id: number;
+  x: number;
+  y: number;
+  data: RoomData;
+  fmt: Fmt;
+}) {
+  const { t } = useTranslation();
+  const d = data.devices.find((v) => v.id === id);
+  if (!d) return null;
+  const units =
+    d.u_height > 1
+      ? `U${d.u_bottom}–${d.u_bottom + d.u_height - 1}`
+      : `U${d.u_bottom}`;
+  return (
+    <div
+      className="dc-tooltip dc-devtip"
+      style={{ left: x + 14, top: y + 14 }}
+      data-testid="device-tip"
+    >
+      <b>{d.name}</b>
+      <span>
+        {t(`dc.deviceKind.${d.kind}`)} · {units} · {t(`dc.face.${d.face}`)}
+      </span>
+      <span>
+        {d.power_w !== null
+          ? `${fmt.w(d.power_w)}${d.power_src ? ` · ${t(`dc.powerSrc.${d.power_src}`)}` : ""}`
+          : t("dc.hoverDevice.noPower")}
+      </span>
+      {d.owner && <span>{d.owner}</span>}
+      {d.owner && <small>{t("dc.hoverDevice.highlight")}</small>}
+    </div>
+  );
+}
+
+/**
+ * A toggle in the «⋯» menu (FEEDBACK-7 §1.6): a real check mark when on,
+ * the label, and its shortcut on the right — set apart from the actions.
+ */
+function ToggleItem({
+  checked,
+  label,
+  shortcut,
+  onToggle,
+}: {
+  checked: boolean;
+  label: string;
+  shortcut?: string;
+  onToggle: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      className="dc-toggle-item"
+      onSelect={(e) => {
+        e.preventDefault();
+        onToggle();
+      }}
+    >
+      <span className="dc-toggle-check">
+        {checked && <Check className="size-4" />}
+      </span>
+      {label}
+      {shortcut && <DropdownMenuShortcut>{shortcut}</DropdownMenuShortcut>}
+    </DropdownMenuItem>
+  );
 }

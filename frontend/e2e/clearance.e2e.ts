@@ -121,20 +121,23 @@ test("plan legend: in the title block's corner, plain words, folds per user", as
   await page.goto(`/dc/${id}?view=plan&mode=schema`);
   await waitForRoom(page);
 
-  // Only what is drawn: no tape dimension by default, so no dot entry.
+  // Only what is drawn: the plan's chain carries a tape reading the model
+  // disagrees with (149,5–150 •), so the dot is explained.
   const legend = page.locator(".dc-legend-sheet");
+  const dot =
+    "Точка у размера — замер рулеткой и модель расходятся больше чем на 0,5 см. Наведите на размер, чтобы увидеть оба значения";
   await expect(legend.locator("li")).toHaveText([
     "Пунктир — висит над полом: кондиционеры, кабельный лоток",
+    dot,
     "Красная зона — мало места для обслуживания: меньше 60 см",
     "Жёлтая зона — модель и рулетка расходятся, проверка по рулетке",
   ]);
-  // Every tape number on: the dot that marks a disagreement appears.
+  // The chains off: no dimension carries a dot, so no dot entry.
   await page.getByTestId("layers").click();
-  await page.getByRole("menuitemcheckbox", { name: "Все замеры рулеткой" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Цепочки размеров (план)" }).click();
   await page.keyboard.press("Escape");
   await expect(legend.locator("li")).toHaveText([
     "Пунктир — висит над полом: кондиционеры, кабельный лоток",
-    "Точка у размера — замер рулеткой и модель расходятся больше чем на 0,5 см. Наведите на размер, чтобы увидеть оба значения",
     "Красная зона — мало места для обслуживания: меньше 60 см",
     "Жёлтая зона — модель и рулетка расходятся, проверка по рулетке",
   ]);

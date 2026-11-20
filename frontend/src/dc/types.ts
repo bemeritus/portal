@@ -151,6 +151,8 @@ export interface Instance {
   hinge?: "low" | "high";
   /** Racks: an open frame, no side panels. */
   open_frame?: boolean;
+  /** Racks: the doors' hinge side, seen from the face they close; left by default. */
+  door_hinge?: "left" | "right";
   /** Cooling: supply outlets aimed by hand (§14.1); empty = subtype default. */
   supply_outlets?: SupplyOutlet[];
 }
@@ -257,12 +259,38 @@ export interface ViewPayload {
   target: Vec3mm;
   fov: number;
   ortho: boolean;
-  mode?: "schema" | "realistic" | "fill" | "power";
+  mode?: "schema" | "realistic" | "fill" | "power" | "owners";
   owner?: string;
   /** The selection's deep link without `#`: `obj-12`, `device-7`, `cell-5-16`. */
   selection?: string;
   /** Everyone who can see the room, or its author only. */
   shared: boolean;
+  /** What else is on screen (FEEDBACK-7 §4). */
+  state?: ViewState;
+  /** Place in the presentation tour, ascending. */
+  order?: number;
+  /** Shown under the name in the tour. */
+  caption?: string;
+  /** Seconds the tour holds this view. */
+  hold_s?: number;
+}
+
+/**
+ * A view's state besides the camera and mode (FEEDBACK-7 §4): view state,
+ * never room data — saved with a view, not in the room's revisions.
+ */
+export interface ViewState {
+  layers?: Record<string, boolean>;
+  xray?: boolean;
+  /** Object ids hidden in the viewport, and locked against selection. */
+  hidden?: number[];
+  locked?: number[];
+  /** Object ids shown alone («Только выбранное»). */
+  isolate?: number[];
+  /** The section box, mm, or none. */
+  section?: { min: Vec3mm; max: Vec3mm } | null;
+  /** Racks with an open door. */
+  doors?: { id: number; side: "front" | "rear" }[];
 }
 
 export type Annotation = AnnotationPayload & {
@@ -343,11 +371,22 @@ export interface Clearance {
 /** The gap a clearance check is decided on: the tape when there is one. */
 export const clearanceGap = (c: Clearance) => c.measured_mm ?? c.model_mm;
 
+/** Occupied shelf cells under one cooling unit. */
+export interface CoolingOverCells {
+  /** The cooling unit. */
+  object_id: number;
+  object: string;
+  shelf_id: number;
+  cells: number[];
+}
+
 export interface Analysis {
   problems: ({ object_id: number } & Problem)[];
   clearances: Clearance[];
   /** Shelf object id → blocked cell numbers. */
   blocked_cells: Record<string, number[]>;
+  /** Cooling units over occupied cells: a condensate warning (FEEDBACK-7 §1.1). */
+  cooling_over_cells: CoolingOverCells[];
 }
 
 export interface RoomData {
@@ -374,7 +413,9 @@ export type Op =
   | { op: "cell_set"; cell: ShelfCell }
   | { op: "cell_delete"; shelf_id: number; cell_no: number }
   | { op: "annotation_create"; annotation: AnnotationPayload }
-  | { op: "annotation_delete"; id: number };
+  | { op: "annotation_update"; id: number; annotation: AnnotationPayload }
+  | { op: "annotation_delete"; id: number }
+  | { op: "room_settings"; settings: RoomSettings };
 
 export interface Applied {
   revision: number;

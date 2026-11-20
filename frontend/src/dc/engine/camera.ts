@@ -21,7 +21,15 @@ export interface View {
 }
 
 export type Preset =
-  "iso" | "top" | "front" | "back" | "left" | "right" | "aisle" | "racks";
+  | "iso"
+  | "top"
+  | "bottom"
+  | "front"
+  | "back"
+  | "left"
+  | "right"
+  | "aisle"
+  | "racks";
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
@@ -32,6 +40,14 @@ export class CameraRig {
   cam: THREE.PerspectiveCamera | THREE.OrthographicCamera = this.persp;
   private w = 1;
   private h = 1;
+  /**
+   * The part of the canvas no panel covers, px (FEEDBACK-7 §1.3). Framing
+   * fits into it, and the view is offset so the orbit target sits at its
+   * centre, as a 3D tool's viewport does beside its side panels.
+   */
+  private safe = { x0: 0, y0: 0, x1: 1, y1: 1 };
+  /** The view offset now in use, px: the canvas centre minus the safe centre. */
+  private off = { x: 0, y: 0 };
   private tween: null | {
     t0: number;
     dur: number;
@@ -43,6 +59,8 @@ export class CameraRig {
     f1: number;
     h0: number;
     h1: number;
+    o0: { x: number; y: number };
+    o1: { x: number; y: number };
   } = null;
   readonly reducedMotion =
     typeof matchMedia !== "undefined" &&
@@ -98,12 +116,66 @@ export class CameraRig {
   resize(w: number, h: number) {
     this.w = w;
     this.h = h;
+    if (this.safe.x1 <= 1) this.safe = { x0: 0, y0: 0, x1: w, y1: h };
     this.persp.aspect = w / h;
     this.persp.updateProjectionMatrix();
     const z = this.ortho.zoom;
     this.setOrthoFrustum(this.ortho.top);
     this.ortho.zoom = z;
     this.ortho.updateProjectionMatrix();
+    this.applyOffset();
+  }
+
+  /** Set the uncovered part of the canvas (px); the next framing uses it. */
+  setSafe(r: { x0: number; y0: number; x1: number; y1: number }) {
+    this.safe = {
+      x0: clamp(r.x0, 0, this.w - 40),
+      y0: clamp(r.y0, 0, this.h - 40),
+      x1: clamp(r.x1, r.x0 + 40, this.w),
+      y1: clamp(r.y1, r.y0 + 40, this.h),
+    };
+  }
+
+  /** The uncovered part of the canvas, px (tests). */
+  safeRect() {
+    return { ...this.safe };
+  }
+
+  /** Where the safe centre wants the view offset. */
+  private safeOffset() {
+    return {
+      x: Math.round(this.w / 2 - (this.safe.x0 + this.safe.x1) / 2),
+      y: Math.round(this.h / 2 - (this.safe.y0 + this.safe.y1) / 2),
+    };
+  }
+
+  private applyOffset() {
+    for (const c of [this.persp, this.ortho]) {
+      if (this.off.x || this.off.y)
+        c.setViewOffset(this.w, this.h, this.off.x, this.off.y, this.w, this.h);
+      else c.clearViewOffset();
+    }
+  }
+
+  /**
+   * The distance at which a sphere of `radius` fills the safe part of the
+   * canvas, in perspective.
+   */
+  fitDistance(radius: number): number {
+    const tan = Math.tan((this.persp.fov * Math.PI) / 360);
+    const t = Math.min(
+      (tan * (this.safe.y1 - this.safe.y0)) / this.h,
+      (tan * (this.safe.x1 - this.safe.x0)) / this.h,
+    );
+    return radius / Math.sin(Math.atan(t));
+  }
+
+  /** The orthographic half-height that fits a w × h (mm) box in the safe part. */
+  fitHalfHeight(halfW: number, halfH: number): number {
+    return Math.max(
+      (halfH * this.h) / (this.safe.y1 - this.safe.y0),
+      (halfW * this.h) / (this.safe.x1 - this.safe.x0),
+    );
   }
 
   get isOrtho() {
@@ -164,47 +236,82 @@ export class CameraRig {
       f1: v.fov,
       h0: from.halfHeight ?? 1000,
       h1,
+      o0: { ...this.off },
+      o1: this.safeOffset(),
     };
+  }
+
+  /**
+   * The way the racks' fronts face, on the floor (x, z): the room's "front"
+   * is where an operator stands to work on them (FEEDBACK-7 §2.1). Set by
+   * the engine from the racks.
+   */
+  front = new THREE.Vector2(0, -1);
+
+  /** The horizontal unit vector to the right of someone facing the fronts. */
+  rightOfFront(): THREE.Vector2 {
+    return new THREE.Vector2(this.front.y, -this.front.x);
+  }
+
+  /** From the room's centre toward the camera, for a named view. */
+  presetDirection(name: Preset): THREE.Vector3 {
+    const f = this.front,
+      r = this.rightOfFront();
+    const flat = (x: number, z: number, downDeg: number) => {
+      const h = new THREE.Vector2(x, z).normalize();
+      const a = (downDeg * Math.PI) / 180;
+      return new THREE.Vector3(
+        h.x * Math.cos(a),
+        Math.sin(a),
+        h.y * Math.cos(a),
+      );
+    };
+    switch (name) {
+      case "back":
+        return flat(-f.x, -f.y, 18);
+      case "right":
+        return flat(r.x, r.y, 18);
+      case "left":
+        return flat(-r.x, -r.y, 18);
+      case "front":
+        return flat(f.x, f.y, 18);
+      default:
+        // The default view: the racks' fronts from above the shelf side,
+        // about 40° down, a little from the side.
+        return flat(f.x - 0.3 * r.x, f.y - 0.3 * r.y, 40);
+    }
   }
 
   preset(name: Preset) {
     const r = this.room,
       cx = (r.x0 + r.x1) / 2,
-      cz = (r.z0 + r.z1) / 2,
-      size = Math.max(r.x1 - r.x0, r.z1 - r.z0);
-    const tg: [number, number, number] = [
-      cx,
-      name === "top" ? 0 : this.roomHeight * 0.4,
-      cz,
-    ];
-    const d = size * 1.55;
-    const pos: Record<Preset, [number, number, number]> = {
-      iso: [cx + size * 0.1, size * 0.95, r.z1 + size * 0.95],
-      top: [cx, d * 1.1, cz + 1],
-      front: [cx, this.roomHeight * 0.6, r.z1 + d],
-      back: [cx, this.roomHeight * 0.6, r.z0 - d],
-      left: [r.x0 - d, this.roomHeight * 0.6, cz],
-      right: [r.x1 + d, this.roomHeight * 0.6, cz],
-      // Inside views are set by the engine, which knows the room's contents.
-      aisle: [cx, this.roomHeight * 0.7, cz],
-      racks: [cx, this.roomHeight * 0.6, cz],
-    };
-    if (name === "top") {
+      cz = (r.z0 + r.z1) / 2;
+    if (name === "top" || name === "bottom") {
+      // «bottom» (Ctrl+7) is the plan turned 180°: under the floor there is
+      // nothing to see.
       // A plan is read in orthographic projection.
       this.go({
-        position: pos.top,
-        target: tg,
+        position: [cx, 12000, cz + (name === "top" ? 1 : -1)],
+        target: [cx, 0, cz],
         fov: 45,
         ortho: true,
-        halfHeight: size * 0.62,
+        halfHeight:
+          this.fitHalfHeight((r.x1 - r.x0) / 2, (r.z1 - r.z0) / 2) * 1.12,
       });
       return;
     }
+    const tg = new THREE.Vector3(cx, this.roomHeight * 0.35, cz);
+    const radius = 0.5 * Math.hypot(r.x1 - r.x0, this.roomHeight, r.z1 - r.z0);
+    const d = this.presetDirection(name);
     this.go({
-      position: pos[name],
-      target: tg,
+      position: tg
+        .clone()
+        .addScaledVector(d, this.fitDistance(radius) * 0.92)
+        .toArray() as [number, number, number],
+      target: tg.toArray() as [number, number, number],
       fov: 45,
       ortho: name === "iso" ? false : this.isOrtho,
+      halfHeight: this.fitHalfHeight(radius, radius * 0.8),
     });
   }
 
@@ -217,11 +324,7 @@ export class CameraRig {
       d.y = 0.12;
       d.normalize();
     }
-    const dist = clamp(
-      (radius / Math.sin((this.persp.fov * Math.PI) / 360)) * 1.15,
-      600,
-      20000,
-    );
+    const dist = clamp(this.fitDistance(radius) * 1.15, 600, 20000);
     this.go(
       {
         position: c.clone().addScaledVector(d, dist).toArray() as [
@@ -232,7 +335,7 @@ export class CameraRig {
         target: c.toArray() as [number, number, number],
         fov: this.persp.fov,
         ortho: this.isOrtho,
-        halfHeight: radius * 1.25,
+        halfHeight: this.fitHalfHeight(radius, radius) * 1.15,
       },
       600,
     );
@@ -435,6 +538,11 @@ export class CameraRig {
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       this.cam.position.lerpVectors(t.p0, t.p1, e);
       this.controls.target.lerpVectors(t.g0, t.g1, e);
+      this.off = {
+        x: Math.round(t.o0.x + (t.o1.x - t.o0.x) * e),
+        y: Math.round(t.o0.y + (t.o1.y - t.o0.y) * e),
+      };
+      this.applyOffset();
       if (this.cam === this.persp) {
         this.persp.fov = t.f0 + (t.f1 - t.f0) * e;
         this.persp.updateProjectionMatrix();

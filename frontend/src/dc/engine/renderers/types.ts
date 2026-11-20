@@ -74,8 +74,12 @@ export function withBase(role: string, base: string): string {
 /** What a rack's doors need for the open/close animation. */
 export interface DoorLeaf {
   pivot: THREE.Object3D;
-  /** +1 hinge on the left (opens anticlockwise from above), −1 on the right. */
+  /** The sign of the leaf's rotation about y as it opens (outwards). */
   dir: number;
+  /** From the hinge to the free edge along the pivot's x: +1 or −1. */
+  along: number;
+  /** The leaf's width, mm. */
+  width: number;
 }
 
 export interface Built {

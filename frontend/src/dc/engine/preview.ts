@@ -115,7 +115,6 @@ let shared: {
   lib: MaterialLibrary;
 } | null = null;
 const cache = new Map<string, string>();
-let queue: Promise<unknown> = Promise.resolve();
 
 /** The key a card's picture is cached under. */
 export function thumbKey(item: CatalogItem, tokens: DcTokens, s: ThumbSize) {
@@ -170,32 +169,57 @@ function draw(item: CatalogItem, tokens: DcTokens, s: ThumbSize): string {
   return url;
 }
 
+/** Pictures asked for and not drawn yet, by key. */
+const pending = new Map<
+  string,
+  {
+    draw: () => string;
+    urgent: boolean;
+    promise: Promise<string>;
+    resolve: (u: string) => void;
+  }
+>();
+let drawing = false;
+
+/** Draw the next picture — one that is on screen first — then yield. */
+function pump() {
+  if (drawing || !pending.size) return;
+  const all = [...pending.entries()];
+  const [key, job] = all.find(([, j]) => j.urgent) ?? all[0];
+  pending.delete(key);
+  drawing = true;
+  requestAnimationFrame(() => {
+    const url = cache.get(key) ?? job.draw();
+    cache.set(key, url);
+    job.resolve(url);
+    drawing = false;
+    pump();
+  });
+}
+
 /**
- * The card picture of `item`: from the cache, or drawn after the pictures
- * already asked for — one at a time, yielding to the page between them.
+ * The card picture of `item`: from the cache, or drawn one at a time,
+ * yielding to the page between them — cards on screen first (FEEDBACK-7
+ * §3): `urgent` moves an asked-for picture ahead of the rest.
  */
 export function thumbnail(
   item: CatalogItem,
   tokens: DcTokens,
   s: ThumbSize,
+  urgent = false,
 ): Promise<string> {
   const key = thumbKey(item, tokens, s);
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
-  const job = queue.then(
-    () =>
-      new Promise<string>((resolve) =>
-        requestAnimationFrame(() => {
-          const again = cache.get(key);
-          if (again) return resolve(again);
-          const url = draw(item, tokens, s);
-          cache.set(key, url);
-          resolve(url);
-        }),
-      ),
-  );
-  queue = job.catch(() => undefined);
-  return job;
+  let job = pending.get(key);
+  if (!job) {
+    let resolve!: (u: string) => void;
+    const promise = new Promise<string>((r) => (resolve = r));
+    job = { draw: () => draw(item, tokens, s), urgent, promise, resolve };
+    pending.set(key, job);
+  } else if (urgent) job.urgent = true;
+  pump();
+  return job.promise;
 }
 
 // --- The item page's viewer ------------------------------------------------------------

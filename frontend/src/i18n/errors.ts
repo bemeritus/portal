@@ -233,6 +233,26 @@ export const EXACT: Record<string, { ru: string; uz: string }> = {
     ru: "Угол обзора вне допустимого диапазона",
     uz: "Ko'rish burchagi ruxsat etilgan oraliqdan tashqarida",
   },
+  "A view's state is too large": {
+    ru: "Состояние вида слишком велико",
+    uz: "Ko'rinish holati juda katta",
+  },
+  "Hold time out of range": {
+    ru: "Время показа вне допустимого диапазона",
+    uz: "Ko'rsatish vaqti ruxsat etilgan oraliqdan tashqarida",
+  },
+  "An annotation's kind cannot be changed": {
+    ru: "Тип заметки или вида менять нельзя",
+    uz: "Eslatma yoki ko'rinish turini o'zgartirib bo'lmaydi",
+  },
+  "Clearance out of range": {
+    ru: "Зазор для обслуживания вне допустимого диапазона",
+    uz: "Xizmat ko'rsatish oralig'i ruxsat etilgan oraliqdan tashqarida",
+  },
+  "Power budget out of range": {
+    ru: "Бюджет мощности вне допустимого диапазона",
+    uz: "Quvvat byudjeti ruxsat etilgan oraliqdan tashqarida",
+  },
   "An object needs a name": {
     ru: "Укажите название объекта",
     uz: "Obyekt nomini kiriting",

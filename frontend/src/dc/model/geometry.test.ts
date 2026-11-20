@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  blockedCells,
   clearances,
   doorSwing,
   footprint,
@@ -184,5 +185,37 @@ describe("geometry mirrors the server", () => {
       z0: 1000,
       guideX: null,
     });
+  });
+});
+
+describe("blocked cells (the server's blocked_cells)", () => {
+  const props = {
+    boards_mm: [100, 948, 1795],
+    cells_per_board: 14,
+    sections: [5, 9],
+    plated_boards: 2,
+  };
+  const sh: Solid = {
+    ...s("shelf", "shelf", rect(200, 0, 4730, 910), 0, 1795),
+    rotation: 180,
+  };
+  const acs = [
+    s("ac1", "cooling", rect(4005, 30, 5255, 680), 1960, 2340),
+    s("ac2", "cooling", rect(2488, 30, 3633, 680), 1965, 2345),
+    s("ac3", "cooling", rect(298, 30, 1443, 680), 1935, 2315),
+  ];
+  it("gives the same cells as the server", () => {
+    expect(blockedCells(sh, props, acs)).toEqual([
+      1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14,
+    ]);
+    expect(blockedCells({ ...sh, rotation: 0 }, props, acs)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14,
+    ]);
+  });
+  it("follows a unit as it moves", () => {
+    const moved = { ...acs[1], rect: rect(2488 + 300, 30, 3633 + 300, 680) };
+    expect(blockedCells(sh, props, [moved])).not.toEqual(
+      blockedCells(sh, props, [acs[1]]),
+    );
   });
 });

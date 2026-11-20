@@ -98,6 +98,11 @@ export function SelectionPanel(props: Props) {
   }
   return (
     <div className="space-y-4 text-sm">
+      <CondensateNote
+        cells={data.analysis.cooling_over_cells
+          .filter((c) => c.object_id === obj.id)
+          .flatMap((c) => c.cells)}
+      />
       <ObjectSummary obj={obj} item={item} {...props} />
       {item.kind === "shelf" && <ShelfPanel obj={obj} item={item} {...props} />}
       {props.canEdit && (
@@ -148,6 +153,27 @@ export function clearanceSplitText(
 export const clearanceSplit = (c: Clearance) =>
   c.measured_mm !== null &&
   c.measured_mm >= c.required_mm !== c.model_mm >= c.required_mm;
+
+/**
+ * A cooling unit over occupied shelf cells (FEEDBACK-7 §1.1): allowed, but
+ * the equipment under it risks condensate.
+ */
+function CondensateNote({ cells }: { cells: number[] }) {
+  const { t } = useTranslation();
+  if (!cells.length) return null;
+  return (
+    <div
+      className="rounded-md border border-destructive/40 p-2"
+      data-testid="condensate-warning"
+    >
+      <div className="mb-1 font-medium">{t("dc.condensate.title")}</div>
+      <p>{t("dc.condensate.text", { cells: cells.join(", ") })}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t("dc.condensate.note")}
+      </p>
+    </div>
+  );
+}
 
 /** Shortfalls, each a button that selects the rack and draws its gap. */
 export function ClearanceList({
@@ -225,6 +251,16 @@ function ObjectSummary({
         </dd>
         <dt className="text-muted-foreground">{t("dc.dims.rotation")}</dt>
         <dd>{obj.rotation_deg}°</dd>
+        {item.kind === "rack" && (
+          <>
+            <dt className="text-muted-foreground">{t("dc.door.hinge")}</dt>
+            <dd data-testid="door-hinge">
+              {obj.instance.door_hinge === "right"
+                ? t("dc.door.hingeRight")
+                : t("dc.door.hingeLeft")}
+            </dd>
+          </>
+        )}
       </dl>
       {problems.length > 0 && (
         <ul className="rounded-md border border-destructive/50 p-2 text-destructive">
@@ -332,6 +368,13 @@ function ObjectEditor({
       else inst[k] = v as DoorType;
       return { ...x, instance: inst };
     });
+  const hinge = (v: string) =>
+    setF((x) => {
+      const inst = { ...x.instance };
+      if (v === "left") delete inst.door_hinge;
+      else inst.door_hinge = "right";
+      return { ...x, instance: inst };
+    });
   return (
     <form
       className="space-y-2 rounded-md border p-2"
@@ -411,6 +454,19 @@ function ObjectEditor({
                 </select>
               </div>
             ))}
+          </div>
+          {/* The doors' hinge side, seen from the face they close. */}
+          <div>
+            <Label htmlFor="o-door_hinge">{t("dc.door.hinge")}</Label>
+            <select
+              id="o-door_hinge"
+              className="w-full rounded-md border bg-background px-2 py-1.5"
+              value={f.instance.door_hinge ?? "left"}
+              onChange={(e) => hinge(e.target.value)}
+            >
+              <option value="left">{t("dc.door.hingeLeft")}</option>
+              <option value="right">{t("dc.door.hingeRight")}</option>
+            </select>
           </div>
           <label className="flex items-center gap-2">
             <Checkbox

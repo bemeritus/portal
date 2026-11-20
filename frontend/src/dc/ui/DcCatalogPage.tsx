@@ -74,7 +74,13 @@ import {
 } from "../model/catalog";
 import { useFmt } from "../settings";
 import type { CatalogItem } from "../types";
-import { executionLabel, Tags, Thumb, useCatalog } from "./catalogParts";
+import {
+  ComfortNote,
+  executionLabel,
+  Tags,
+  Thumb,
+  useCatalog,
+} from "./catalogParts";
 
 const SORT_KEYS: SortKey[] = [
   "cold",
@@ -817,6 +823,7 @@ function Card({
           </span>
         </div>
         <Tags item={item} />
+        <ComfortNote item={item} />
       </div>
     </article>
   );

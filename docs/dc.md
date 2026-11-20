@@ -77,28 +77,41 @@ plan. Switching the theme while the room is open moves nothing.
   is in your unit (mm whole, cm to one decimal, m to three; ranges as
   `5.54–5.55 m`, with the decimal separator of your language). The API and
   DXF stay in millimetres.
-- **Modes** (bottom bar, keys 1–4): `schema` (outlines; overhead objects
+- **Modes** (bottom bar): `schema` (outlines; overhead objects
   dashed on the plan only), `realistic` (after
-  the photos: white walls and ceiling, terracotta tiles, tube lights; shelf
-  cells under an air conditioner look as they are, with a thin outline and
-  hatch in the warning colour only while hovered or selected; `schema` and
-  `fill` paint them red),
+  the photos: white walls and ceiling, terracotta tiles, tube lights in
+  fixtures on the ceiling; racks with square-hole rails, U numbers every 5U,
+  perforated or glass doors, side panels in two, a plinth on levelling
+  feet, status LEDs that show at any distance, fans and power supplies on
+  the servers' backs and cable bundles to the cable manager, drawn within
+  4 m of the camera; shelf cells under an air conditioner look as they
+  are, with a thin outline and hatch in the warning colour only while
+  hovered or selected; `schema` and `fill` paint them red),
   `fill` (used units, free runs), `power` (power per rack against the
-  room's budget; unknown power hatched, never zero). Views (keys 5–8):
-  overview, top, aisle (photo 03's camera, from the door corner), racks.
-  The bar is grouped: modes · views · undo / redo · Export ▾ (PNG, DXF, CSV,
-  QR stickers) · «⋯» (import CSV, reset the layout, history, saved views,
-  orthographic, walk); every icon has a tooltip with its shortcut.
+  room's budget; without one, on an absolute 0 → 10 kW scale with a link
+  to set the budget; a rack with devices of unknown power says how many),
+  `owners` (devices by owner, eight colours in a fixed order, the rest
+  grey under «другие»; the legend lists devices and units per owner).
+  Views: overview (the racks' fronts from above the shelf side, about 40°
+  down, what is in the way faded), top, aisle (photo 03's camera, from the
+  door corner), racks. The bar is grouped: modes · views · undo / redo ·
+  Export ▾ (PNG, DXF, CSV, QR stickers) · «⋯»: actions (import CSV, reset
+  the layout, history, saved views), then toggles with a check mark and
+  their key (orthographic, walk, X-ray, fade what is in the way).
 - **The plan** is a plan: orthographic, straight down, no orbit — pan and
   zoom. Turning it (right drag, the view cube, a view) goes to 3D. Chain
   dimensions stand outside the outline: the rack row along the bottom, the
   last rack's line across the room on the right; inside only the labels and
   the short gaps.
-- **Layers** (the rail's layers button): the room's dimensions (on), gaps
-  between objects, every tape measurement, service zones (on; only
-  violated ones are drawn), object labels (on), assumptions. Remembered in
-  this browser. Selecting an object adds its own dimensions and its gaps
-  to its neighbours.
+- **Layers** (the rail's layers button, `L`): the room's overall dimensions
+  (on), the plan's chain dimensions (on), gaps between objects, the other
+  tape measurements, the selection's own dimensions (on), service zones
+  (on; only violated ones are drawn), object labels (on), lighting (the
+  ceiling's tubes as dashed outlines in schema and on the plan), and
+  assumptions. Every dimension belongs to exactly one layer
+  (`engine/dimensions.ts`, checked by a unit test). With a selection only
+  its own dimensions and its gaps to its neighbours show. Remembered in
+  this browser.
 - **Dimensions**: the value is the tape reading (or both readings). Where the
   model differs from the tape by more than 5 mm the dimension has a dot; its
   tooltip gives tape, model and the difference. Labels never overlap each
@@ -159,11 +172,20 @@ plan. Switching the theme while the room is open moves nothing.
   the portal's own palette while the module is open.
 - **Owner highlight**: one client's devices and cells in colour, the rest
   dimmed; a chip shows the count and clears it.
-- **Saved views** (views tab): camera, mode, highlight and selection; shared
-  with everyone who can see the room, or personal (the server hides it
-  from others). Copy link gives the link to exactly this screen:
-  `/dc/<room>?mode=…&owner=…&cam=…#obj-<id>` (also `#device-<id>`,
-  `#cell-<shelf>-<n>`, `?view=plan`).
+- **Saved views** (views tab): camera, mode, highlight, selection and the
+  view state — layers, X-ray, hidden and locked objects, isolation, the
+  section box, open doors; shared with everyone who can see the room, or
+  personal (the server hides it from others). Each has a small render of
+  itself, its author and who sees it; on hover open, update from the
+  current view, delete; a caption and a hold time. Copy link gives the
+  link to exactly this screen: `/dc/<room>?mode=…&owner=…&cam=…#obj-<id>`
+  (also `#device-<id>`, `#cell-<shelf>-<n>`, `?view=plan`).
+- **Tour**: drag the saved views into an order, then «Показать по порядку»:
+  full screen, every panel hidden, the camera flies between them (1.2 s,
+  ease-in-out) and holds each (6 s unless the view says otherwise), its
+  name and caption in the lower third; → / ← move, Space pauses, Esc ends.
+  A playback of saved state, so a tour can go from realistic to fill to a
+  section through a rack.
 - **Catalog** (`/dc/catalog/<section>`): a sidebar of sections and filters
   (purpose, type and manufacturer with counts, cooling and width ranges in
   your unit, 24/7, published sensible capacity) — every filter, the sort,
@@ -191,6 +213,74 @@ plan. Switching the theme while the room is open moves nothing.
 - The view polls the room's revision every 15 s; if someone else saved first,
   your change is re-applied on top when it still fits, otherwise you are told
   and your input is kept.
+
+### The viewport (FEEDBACK-7 §4)
+
+The room works like a 3D tool, not only looks like one. All of this is
+navigation and view state: nothing edits the room beyond what phase 1
+allows, and none of it is in the room's revisions.
+
+- **Framing** fits the part of the canvas no panel covers — the inspector,
+  the rail and the outliner, the bars, the chips — and centres the view
+  there, so nothing is framed under a panel; a label whose anchor falls
+  under a panel is hidden, not cut. «Frame selected» looks from whichever
+  of eight directions (35° down) hides the object least, the current one on
+  a tie; what still stands in the way fades to 15 % (on by default; «⋯»).
+- **Grid**: one shader grid without an edge, fading with distance, 100 mm /
+  1 m lines that step to 1 m / 10 m when zoomed out; the room's x axis red
+  and z blue through its origin corner, named on the plan. None in
+  realistic.
+- **View cube**: drawn without perspective; the face names stand upright and
+  fade as a face turns away. «Фронт стоек» is the side the racks' fronts
+  face, «Тыл стоек» the other.
+- **Outliner** (`O`, the rail): the room, racks with their devices by unit,
+  the shelf with its occupied cells, cooling, cable trays, the rest; a
+  warning mark, an eye (hide) and a lock (no selection) per object, for
+  this viewer; search by name, model, owner, serial. Selection is shared
+  with the view both ways.
+- **X-ray** (`Alt+Z`, the rail): every object at 30 %, outlines kept.
+  **Isolate** (`/`): only the selection, framed, until Esc.
+- **Section** (`Shift+B`, the rail): a box that clips the scene; drag the
+  balls on its faces, or a preset — a horizontal cut at a typed height, a
+  vertical cut through the rack row. Cut faces are capped in the object's
+  colour with a hatch. Saved in views; `DcEngine.sectionBox()` and
+  `onViewState` are where the airflow slices will attach.
+- **Hover a device** (300 ms): name, kind, units, power and its source,
+  owner; outlined in the view. `H` highlights its owner: that owner's
+  equipment keeps its colour, the rest dims.
+- **Doors**: double-click a rack opens its front door; Shift+double-click
+  turns the camera to its rear and opens that. A door swings outwards, into
+  the aisle, 110°; its hinge side is the rack's (`door_hinge`, left by
+  default, seen from the face; in the rack's editor and details). Where the
+  swing would pass through a neighbour or a wall it opens as far as it can
+  and a hint names what is in the way. A view setting.
+- **Status bar** (24 px, under the bottom bar): the tool's hint, the
+  selection («Стойка 3 · 31/42U · 9 кВт»), the scene and the cursor's
+  floor coordinates.
+
+**Keys** (`?` shows them; the number row and the numpad alike; none while
+a text field has focus):
+
+| Key | Action |
+|---|---|
+| `F` / `.` | frame selected |
+| `Home` | frame all |
+| `1` / `Ctrl+1` | front of the racks / their rear |
+| `3` / `Ctrl+3` | right / left |
+| `7` / `Ctrl+7` | top (plan) / the same turned 180° |
+| `5` | orthographic / perspective |
+| `Alt+Z` | X-ray |
+| `/` | isolate |
+| `O` | outliner |
+| `L` | layers |
+| `M` | ruler |
+| `Shift+B` | section |
+| `H` | highlight the owner of the device under the pointer |
+| `Esc` | close the keymap, leave isolation, the tool, the selection — one at a time |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
+
+The modes no longer have number keys (1–4 were modes and 5–8 views before
+FEEDBACK-7): the numbers are the camera's, as in Blender.
 
 ## How to edit the room geometry
 
@@ -302,7 +392,11 @@ come with phase 2.
   shelf cells in the realistic mode; where a room opens in the drawing theme;
   the palette's find-free-space parameters; the docked rail's separators;
   the clearance warning; the catalog (sizes in three units, the item page,
-  the table's sorting, a picture on every card, filters, comparison).
+  the table's sorting, a picture on every card, filters, comparison); and
+  FEEDBACK-7's: a cooling unit moved over occupied cells, every dimension in a
+  layer, no label cut by a panel at 1440 and 1920 px, the default view at the
+  racks' fronts, the outliner and the view sharing the selection, no key
+  acting while typing, a tour of two views, and no 404 in a session.
   `E2E_USER` / `E2E_PASSWORD` name the account the stack creates
   (`dcedit` by default). The tests change that account's language and theme
   and put them back afterwards, so they run one at a time. Set `PLAYWRIGHT_BROWSERS_PATH` where Playwright's browsers
@@ -567,9 +661,48 @@ Adjusted to the house style or the data:
    import in about 0.05 s here, one revision (`e2e/phase1-design.e2e.ts`).
 
 The browser checks run on a scratch database of their own (`just e2e`);
-before/after screenshots of every screen in three themes are in
-`docs/dc/screenshots/feedback-6/`, with the example inventory
+before/after screenshots of every screen in three themes are on the
+[`screenshots` branch](https://github.com/bemeritus/portal/tree/screenshots/docs/dc/screenshots/feedback-6) (never merged into `main`), with the example inventory
 (`frontend/e2e/inventory.ts`, example data, not the room's).
+
+### FEEDBACK-7 (the last phase 1 pass; the design is frozen after it)
+
+1. **Bugs** — a cooling unit moves over occupied shelf cells: only a change
+   that puts or moves something *into* a blocked cell is refused
+   (`dc::ops::refused_cell`); a unit over equipment is a warning
+   («Под кондиционером оборудование: ячейки 3, 4 — риск конденсата»: a pin,
+   the inspector, the summary; `analysis.cooling_over_cells`), and the
+   blocked cells follow the unit while it is dragged. The plan's chains are
+   a layer of their own; every dimension belongs to exactly one layer.
+   Framing and labels respect the panels. Labels: the overlap test covers
+   every kind; a dimension's label slides along its line, never onto the
+   selection; with a selection the room's dimensions step back; compact
+   rack labels in fill and power. The views tab and the «⋯» menu redone.
+   Power without a budget on an absolute scale, and a room settings form
+   (budget, clearances; the `room_settings` change, undoable). Lights in a
+   fixture, or dashed on the ceiling behind a layer. Fill bars neutral in
+   drawing.
+2. **Cameras** — the default view at the racks' fronts; frame selected from
+   where the object is least hidden; the view cube without perspective,
+   named after the room.
+3. **Small things** — the mini elevation 72 px with U ticks and free runs;
+   pins on the racks' top edge; catalog pictures drawn on-screen first,
+   with a silhouette until then; the browser's `/favicon.ico` 404 gone (an
+   inline icon in `index.html`).
+4. **The viewport** — above, «The viewport».
+5. **Realistic racks** — above, «Modes».
+6. **Drawing** — warm paper (`#f6f4ee`, panels `#fbfaf6`), chrome at 1 px
+   `#2b2b2b` 60 %, the grid at 20 % ink, zones hatched (red 45°, amber
+   cross-hatch, grey dots for blocked cells), headings only in uppercase.
+7. **Catalog** — a comfort unit's card and page say it is not built for
+   round-the-clock duty.
+
+Tests: `e2e/phase1-finish.e2e.ts`; `engine/dimensions.test.ts`,
+`model/owners.test.ts`, the client's `blockedCells` against the server's,
+and `dc::ops` tests for both sides of the blocked-cell rule. Migration 0029
+lets `owners` be a user's last mode. Before/after screenshots are on the
+`screenshots` branch: [FEEDBACK-7](https://github.com/bemeritus/portal/tree/screenshots/docs/dc/screenshots/feedback-7) and [its
+follow-up](https://github.com/bemeritus/portal/tree/screenshots/docs/dc/screenshots/feedback-7-followup).
 
 Not in the data, so not shown: datasheet page numbers (sources link to the
 datasheet without a page).

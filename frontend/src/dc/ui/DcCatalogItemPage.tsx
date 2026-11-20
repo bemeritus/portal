@@ -29,6 +29,7 @@ import {
   executionLabel,
   keyFigures,
   specGroups,
+  ComfortNote,
   Tags,
   useCatalog,
 } from "./catalogParts";
@@ -104,6 +105,7 @@ export function DcCatalogItemPage() {
           <p className="dc-muted">{header}</p>
           <h1 title={item.model}>{shortModel(item.model)}</h1>
           <Tags item={item} />
+          <ComfortNote item={item} />
           <div className="dc-tiles">
             {keyFigures(item, fmt, t).map((k) => (
               <div key={k.label} className="dc-tile">

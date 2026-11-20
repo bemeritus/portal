@@ -69,11 +69,17 @@ interface Props {
   onCapacityPick: (c: CapacityCandidate, req: CapacityRequest) => void;
   onFindSpace: () => void;
   onImport: () => void;
+  /** The room settings form in the summary, open or folded. */
+  settingsOpen: boolean;
+  onSettingsOpen: (open: boolean) => void;
   /** Read-only: the room at an older revision. */
   past: boolean;
   saveView: (name: string, shared: boolean) => Promise<boolean>;
   openView: (v: ViewPayload) => void;
   copyLink: () => void;
+  currentView: () => Omit<ViewPayload, "name" | "shared">;
+  viewThumb: (id: number, v: ViewPayload) => string | null;
+  startTour: () => void;
   ruler: RulerProps;
 }
 
@@ -182,9 +188,12 @@ export function Inspector(p: Props) {
               <RoomSummary
                 data={data}
                 canEdit={p.canEdit && !p.past}
-                onRack={(id) => p.onSelect({ type: "object", id })}
+                onObject={(id) => p.onSelect({ type: "object", id })}
                 onClearance={p.onClearance}
                 onImport={p.onImport}
+                run={p.run}
+                settingsOpen={p.settingsOpen}
+                onSettingsOpen={p.onSettingsOpen}
               />
             )}
             {obj && item?.kind === "rack" && (
@@ -266,6 +275,9 @@ export function Inspector(p: Props) {
               saveView={p.saveView}
               openView={p.openView}
               copyLink={p.copyLink}
+              current={p.currentView}
+              thumb={p.viewThumb}
+              startTour={p.startTour}
             />
           </div>
         )}

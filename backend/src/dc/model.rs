@@ -468,6 +468,14 @@ pub enum Hinge {
     High,
 }
 
+/// Which side a rack's doors are hinged on, seen from the face they close.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RackHinge {
+    Left,
+    Right,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct RackInstance {
@@ -478,6 +486,10 @@ pub struct RackInstance {
     /// An open frame: no side panels (rack 1 on the photos).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_frame: Option<bool>,
+    /// The side the doors hang on, as seen standing at that face: left (the
+    /// default) or right (FEEDBACK-7 follow-up).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub door_hinge: Option<RackHinge>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -934,6 +946,20 @@ pub struct ViewPayload {
     /// Shared with everyone who can see the room, or personal.
     #[serde(default = "yes")]
     pub shared: bool,
+    /// What else is on screen (FEEDBACK-7 §4): layers, X-ray, hidden,
+    /// locked and isolated objects, the section box, open doors. The client
+    /// owns its shape; the server keeps it as given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<Value>,
+    /// Place in the presentation tour (§4.8), ascending.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
+    /// Shown under the name in the tour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caption: Option<String>,
+    /// Seconds the tour holds this view.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold_s: Option<i32>,
 }
 
 fn yes() -> bool {
@@ -947,6 +973,7 @@ pub enum ViewMode {
     Realistic,
     Fill,
     Power,
+    Owners,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

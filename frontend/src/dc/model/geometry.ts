@@ -579,3 +579,69 @@ export function cellLabel(
   if (!c || c.plated) return { n, plated: true };
   return { n: n - p.plated_boards * p.cells_per_board, plated: false };
 }
+
+/** Clear height above a top-board cell below which a unit overhead blocks it. */
+export const TOP_CELL_CLEAR_MM = 580;
+/** Half the width of what stands in a cell (a tower case). */
+export const CELL_ITEM_HALF_MM = 110;
+/** Extra distance kept from an overhead unit's body. */
+export const OVERHEAD_MARGIN_MM = 30;
+
+/** The plan rectangle of what would stand in a top-board column. */
+function cellItemRect(shelf: Solid, p: ShelfProps, column: number): Rect {
+  const r = shelf.rect;
+  const alongX = ((shelf.rotation % 180) + 180) % 180 === 0;
+  const len = alongX ? r.x1 - r.x0 : r.z1 - r.z0;
+  // Column 0 is at the far end when the front faces −z (0) or −x (90).
+  const rot = ((shelf.rotation % 360) + 360) % 360;
+  const col = rot === 0 || rot === 90 ? p.cells_per_board - 1 - column : column;
+  const centre = (len / p.cells_per_board) * (col + 0.5);
+  if (alongX) {
+    const c = r.x0 + centre;
+    return rect(
+      Math.round(c - CELL_ITEM_HALF_MM),
+      r.z0,
+      Math.round(c + CELL_ITEM_HALF_MM),
+      r.z1,
+    );
+  }
+  const c = r.z0 + centre;
+  return rect(
+    r.x0,
+    Math.round(c - CELL_ITEM_HALF_MM),
+    r.x1,
+    Math.round(c + CELL_ITEM_HALF_MM),
+  );
+}
+
+/**
+ * Cells of the top board that a cooling unit hangs too low over to use — the
+ * server's `geometry::blocked_cells`, here so the blocked cells can follow a
+ * unit while it is dragged (FEEDBACK-7 §1.1).
+ */
+export function blockedCells(
+  shelf: Solid,
+  p: ShelfProps,
+  overhead: Solid[],
+): number[] {
+  const top = p.boards_mm[p.boards_mm.length - 1];
+  if (top === undefined) return [];
+  const out: number[] = [];
+  for (let col = 0; col < p.cells_per_board; col++) {
+    const cell = cellItemRect(shelf, p, col);
+    const hit = overhead.some((u) => {
+      const m = OVERHEAD_MARGIN_MM;
+      const body = rect(
+        u.rect.x0 - m,
+        u.rect.z0 - m,
+        u.rect.x1 + m,
+        u.rect.z1 + m,
+      );
+      return (
+        u.y0 >= top && u.y0 - top < TOP_CELL_CLEAR_MM && overlaps(cell, body)
+      );
+    });
+    if (hit) out.push(col + 1);
+  }
+  return out;
+}
