@@ -24,7 +24,7 @@ use sqlx::types::Json;
 use super::geometry::{self, Clearance, Problem, Solid};
 use super::model::{
     AnnotationPayload, CatalogItem, CatalogProps, DcObject, DeviceFields, Instance, Kind, Room,
-    ShelfCell, Snapshot, Text, enum_str,
+    RoomSettings, ShelfCell, ShelfProps, Snapshot, Text, enum_str,
 };
 use super::store;
 use crate::audit::{Audit, audit_tx};
@@ -61,16 +61,50 @@ fn empty_object() -> Value {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Op {
-    ObjectCreate { object: ObjectFields },
-    ObjectUpdate { id: i64, object: ObjectFields },
-    ObjectDelete { id: i64 },
-    DeviceCreate { device: DeviceFields },
-    DeviceUpdate { id: i64, device: DeviceFields },
-    DeviceDelete { id: i64 },
-    CellSet { cell: ShelfCell },
-    CellDelete { shelf_id: i64, cell_no: i32 },
-    AnnotationCreate { annotation: AnnotationPayload },
-    AnnotationDelete { id: i64 },
+    ObjectCreate {
+        object: ObjectFields,
+    },
+    ObjectUpdate {
+        id: i64,
+        object: ObjectFields,
+    },
+    ObjectDelete {
+        id: i64,
+    },
+    DeviceCreate {
+        device: DeviceFields,
+    },
+    DeviceUpdate {
+        id: i64,
+        device: DeviceFields,
+    },
+    DeviceDelete {
+        id: i64,
+    },
+    CellSet {
+        cell: ShelfCell,
+    },
+    CellDelete {
+        shelf_id: i64,
+        cell_no: i32,
+    },
+    AnnotationCreate {
+        annotation: AnnotationPayload,
+    },
+    /// A note's text or a saved view's state (FEEDBACK-7 §1.5, §4.8: update
+    /// a view from the current one, the tour's order). Same kind only.
+    AnnotationUpdate {
+        id: i64,
+        annotation: AnnotationPayload,
+    },
+    AnnotationDelete {
+        id: i64,
+    },
+    /// The room's settings: clearances, the per-rack power budget
+    /// (FEEDBACK-7 §1.7).
+    RoomSettings {
+        settings: RoomSettings,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -112,13 +146,82 @@ impl From<ApiError> for Failure {
 // --- What a room's state implies ------------------------------------------------
 
 /// Derived facts about a room's state: what breaks the rules (should be empty
-/// for anything stored), rack clearances, shelf cells blocked by cooling.
+/// for anything stored), rack clearances, shelf cells blocked by cooling, and
+/// cooling units that hang over occupied cells.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Analysis {
     pub problems: Vec<ObjectProblem>,
     pub clearances: Vec<Clearance>,
     /// Shelf object id → blocked cell numbers.
     pub blocked_cells: BTreeMap<i64, Vec<i32>>,
+    /// A cooling unit moved over occupied cells: a warning, not a refusal
+    /// (FEEDBACK-7 §1.1) — condensate may drip onto the equipment.
+    pub cooling_over_cells: Vec<CoolingOverCells>,
+}
+
+/// Occupied cells under one cooling unit, on one shelf.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CoolingOverCells {
+    /// The cooling unit.
+    pub object_id: i64,
+    pub object: String,
+    pub shelf_id: i64,
+    pub cells: Vec<i32>,
+}
+
+/// Per cooling unit and shelf, the occupied cells the unit blocks.
+pub fn cooling_over_cells(
+    shelves: &[(&Solid, &ShelfProps)],
+    units: &[&Solid],
+    cells: &[ShelfCell],
+) -> Vec<CoolingOverCells> {
+    let mut out = Vec::new();
+    for u in units {
+        for (shelf, p) in shelves {
+            let under: Vec<i32> = geometry::blocked_cells(shelf, p, &[u])
+                .into_iter()
+                .filter(|n| {
+                    cells
+                        .iter()
+                        .any(|c| c.shelf_id == shelf.id && c.cell_no == *n)
+                })
+                .collect();
+            if !under.is_empty() {
+                out.push(CoolingOverCells {
+                    object_id: u.id,
+                    object: u.name.clone(),
+                    shelf_id: shelf.id,
+                    cells: under,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// The cell a change set put or moved into a place under a cooling unit, if
+/// any (FEEDBACK-7 §1.1). Only what the change set itself places is refused:
+/// a cell it set, or an occupied cell of a shelf it moved that was not
+/// blocked before. A cooling unit moved over occupied cells is allowed; that
+/// is a warning (`cooling_over_cells`).
+pub fn refused_cell(
+    before: &BTreeMap<i64, Vec<i32>>,
+    after: &BTreeMap<i64, Vec<i32>>,
+    cells: &[ShelfCell],
+    set_cells: &HashSet<(i64, i32)>,
+    moved_shelves: &HashSet<i64>,
+) -> Option<i32> {
+    let blocked = |m: &BTreeMap<i64, Vec<i32>>, c: &ShelfCell| {
+        m.get(&c.shelf_id).is_some_and(|b| b.contains(&c.cell_no))
+    };
+    cells
+        .iter()
+        .find(|c| {
+            blocked(after, c)
+                && (set_cells.contains(&(c.shelf_id, c.cell_no))
+                    || (moved_shelves.contains(&c.shelf_id) && !blocked(before, c)))
+        })
+        .map(|c| c.cell_no)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -171,12 +274,15 @@ pub fn analyse(
         &room.measurements.entries,
     );
     let cooling: Vec<&Solid> = solids.iter().filter(|s| s.kind == Kind::Cooling).collect();
+    let mut shelves = Vec::new();
     for (o, solid) in s.objects.iter().zip(&solids) {
         if let Some(CatalogProps::Shelf(p)) = items.get(&o.catalog_id).map(|i| &i.props) {
             a.blocked_cells
                 .insert(o.id, geometry::blocked_cells(solid, p, &cooling));
+            shelves.push((solid, p));
         }
     }
+    a.cooling_over_cells = cooling_over_cells(&shelves, &cooling, &s.cells);
     Ok(a)
 }
 
@@ -252,12 +358,46 @@ fn check_cell(c: &ShelfCell) -> ApiResult<()> {
     Ok(())
 }
 
+fn check_settings(s: &RoomSettings) -> ApiResult<()> {
+    if !(0..=5000).contains(&s.clearance_front_mm) || !(0..=5000).contains(&s.clearance_rear_mm) {
+        return Err(bad("Clearance out of range"));
+    }
+    if s.rack_power_budget_w
+        .is_some_and(|w| !(100..=100_000).contains(&w))
+    {
+        return Err(bad("Power budget out of range"));
+    }
+    Ok(())
+}
+
+/// "budget 6000 W, front 1000 mm, rear 600 mm" for the audit.
+fn settings_line(s: &RoomSettings) -> String {
+    let budget = s
+        .rack_power_budget_w
+        .map(|w| format!("{w} W"))
+        .unwrap_or_else(|| "not set".into());
+    format!(
+        "budget {budget}, front {} mm, rear {} mm",
+        s.clearance_front_mm, s.clearance_rear_mm
+    )
+}
+
 fn check_annotation(a: &AnnotationPayload) -> ApiResult<()> {
     match a {
         AnnotationPayload::Note(n) if n.text.trim().is_empty() => Err(bad("A note needs text")),
         AnnotationPayload::View(v) if v.name.trim().is_empty() => Err(bad("A view needs a name")),
         AnnotationPayload::View(v) if !(10..=120).contains(&v.fov) => {
             Err(bad("Field of view out of range"))
+        }
+        AnnotationPayload::View(v)
+            if v.state
+                .as_ref()
+                .is_some_and(|s| s.to_string().len() > 32_768) =>
+        {
+            Err(bad("A view's state is too large"))
+        }
+        AnnotationPayload::View(v) if v.hold_s.is_some_and(|s| !(1..=600).contains(&s)) => {
+            Err(bad("Hold time out of range"))
         }
         _ => Ok(()),
     }
@@ -327,7 +467,7 @@ pub async fn apply(
     if set.ops.len() > MAX_OPS {
         return Err(bad("Too many operations in one change set").into());
     }
-    let room = store::room_for_update(conn, room_id).await?;
+    let mut room = store::room_for_update(conn, room_id).await?;
     if room.revision != set.base_revision {
         return Err(Failure::Stale(Stale {
             revision: room.revision,
@@ -339,6 +479,9 @@ pub async fn apply(
         .map(|i| (i.id, i))
         .collect();
     let mut state = store::snapshot(conn, room_id).await?;
+    let blocked_before = analyse(&room, &items, &state)?.blocked_cells;
+    let mut set_cells: HashSet<(i64, i32)> = HashSet::new();
+    let mut new_settings: Option<RoomSettings> = None;
     let mut created = Vec::with_capacity(set.ops.len());
     let mut audits: Vec<(String, String, String)> = Vec::new();
     let mut touched: HashSet<i64> = HashSet::new();
@@ -575,6 +718,7 @@ pub async fn apply(
                     return Err(bad("No such cell on this shelf").into());
                 }
                 let shelf_name = shelf.name.clone();
+                set_cells.insert((cell.shelf_id, cell.cell_no));
                 let mut c = cell.clone();
                 c.name = c.name.trim().to_string();
                 store::upsert_cell(conn, &c)
@@ -656,8 +800,55 @@ pub async fn apply(
                 };
                 audits.push(("dc.annotation.delete".into(), label(&what), String::new()));
             }
+            Op::AnnotationUpdate { id, annotation } => {
+                check_annotation(annotation)?;
+                let idx = state
+                    .annotations
+                    .iter()
+                    .position(|a| a.id == *id && a.visible_to(actor.id))
+                    .ok_or_else(|| bad("No such annotation in this room"))?;
+                let same_kind = matches!(
+                    (&state.annotations[idx].payload, annotation),
+                    (AnnotationPayload::Note(_), AnnotationPayload::Note(_))
+                        | (AnnotationPayload::View(_), AnnotationPayload::View(_))
+                );
+                if !same_kind {
+                    return Err(bad("An annotation's kind cannot be changed").into());
+                }
+                let v = serde_json::to_value(annotation).unwrap_or(Value::Null);
+                sqlx::query("UPDATE dc_annotations SET payload = $2 WHERE id = $1")
+                    .bind(id)
+                    .bind(&v["payload"])
+                    .execute(&mut **conn)
+                    .await
+                    .map_err(|e| db_refusal("updating an annotation", e))?;
+                let what = match annotation {
+                    AnnotationPayload::Note(n) => n.text.clone(),
+                    AnnotationPayload::View(v) => v.name.clone(),
+                };
+                audits.push(("dc.annotation.update".into(), label(&what), String::new()));
+                state.annotations[idx].payload = annotation.clone();
+            }
+            Op::RoomSettings { settings } => {
+                check_settings(settings)?;
+                sqlx::query("UPDATE dc_rooms SET settings = $2 WHERE id = $1")
+                    .bind(room_id)
+                    .bind(Json(settings))
+                    .execute(&mut **conn)
+                    .await
+                    .map_err(|e| internal("saving a room's settings", e))?;
+                audits.push((
+                    "dc.room.settings".into(),
+                    room.name.clone(),
+                    settings_line(settings),
+                ));
+                new_settings = Some(settings.clone());
+            }
         }
         created.push(new_id);
+    }
+    if let Some(s) = new_settings {
+        room.settings = s;
     }
 
     // The room as it now stands.
@@ -675,18 +866,22 @@ pub async fn apply(
             .unwrap_or("");
         return Err(placement_error(name, &p.problem).into());
     }
-    for (shelf, blocked) in &analysis.blocked_cells {
-        if let Some(c) = state
-            .cells
-            .iter()
-            .find(|c| c.shelf_id == *shelf && blocked.contains(&c.cell_no))
-        {
-            return Err(bad(format!(
-                "Cell {} is under a cooling unit and cannot be used",
-                c.cell_no
-            ))
-            .into());
-        }
+    let moved_shelves: HashSet<i64> = touched
+        .iter()
+        .copied()
+        .filter(|id| object_kind(&items, &state, *id) == Some(Kind::Shelf))
+        .collect();
+    if let Some(n) = refused_cell(
+        &blocked_before,
+        &analysis.blocked_cells,
+        &state.cells,
+        &set_cells,
+        &moved_shelves,
+    ) {
+        return Err(bad(format!(
+            "Cell {n} is under a cooling unit and cannot be used"
+        ))
+        .into());
     }
     for rack in &state.objects {
         if !rack.contents_known && state.devices.iter().any(|d| d.fields.rack_id == rack.id) {
@@ -829,6 +1024,109 @@ mod tests {
         assert_eq!(
             summarize(&many),
             "3 changes: device.create ×2, object.update"
+        );
+    }
+
+    fn solid(name: &str, kind: Kind, rect: geometry::Rect, y0: i32, y1: i32) -> Solid {
+        Solid {
+            id: if kind == Kind::Shelf { 1 } else { 2 },
+            name: name.into(),
+            kind,
+            rect,
+            y0,
+            y1,
+            rotation_deg: if kind == Kind::Shelf { 180 } else { 0 },
+            swing: None,
+        }
+    }
+
+    fn cell(n: i32) -> ShelfCell {
+        ShelfCell {
+            shelf_id: 1,
+            cell_no: n,
+            name: format!("tower {n}"),
+            owner: String::new(),
+            power_w: None,
+            note: String::new(),
+        }
+    }
+
+    /// The seed's shelf against the z = 0 wall and an air conditioner over
+    /// its left end (the geometry tests' shelf).
+    fn shelf_and_unit(unit_x0: i32) -> (Solid, ShelfProps, Solid) {
+        let shelf = solid(
+            "shelf",
+            Kind::Shelf,
+            geometry::Rect::new(200, 0, 4730, 910),
+            0,
+            1795,
+        );
+        let p = ShelfProps {
+            boards_mm: vec![100, 948, 1795],
+            cells_per_board: 14,
+            sections: vec![5, 9],
+            plated_boards: 2,
+            finish: None,
+        };
+        let unit = solid(
+            "Кондиционер 2",
+            Kind::Cooling,
+            geometry::Rect::new(unit_x0, 30, unit_x0 + 1145, 680),
+            1935,
+            2315,
+        );
+        (shelf, p, unit)
+    }
+
+    #[test]
+    fn a_cooling_unit_moved_over_occupied_cells_is_a_warning() {
+        // Cells 11 and 12 hold equipment; the unit starts clear of them and is
+        // moved over them. Nothing in the change set placed a cell, so it is
+        // accepted, and the unit carries the warning.
+        let (shelf, p, away) = shelf_and_unit(300);
+        let (_, _, over) = shelf_and_unit(3300);
+        let cells = vec![cell(11), cell(12)];
+        let blocked = |u: &Solid| BTreeMap::from([(1, geometry::blocked_cells(&shelf, &p, &[u]))]);
+        let (before, after) = (blocked(&away), blocked(&over));
+        assert!(after[&1].contains(&11) && after[&1].contains(&12));
+        assert_eq!(
+            refused_cell(&before, &after, &cells, &HashSet::new(), &HashSet::new()),
+            None
+        );
+        let warn = cooling_over_cells(&[(&shelf, &p)], &[&over], &cells);
+        assert_eq!(
+            warn,
+            vec![CoolingOverCells {
+                object_id: 2,
+                object: "Кондиционер 2".into(),
+                shelf_id: 1,
+                cells: vec![11, 12],
+            }]
+        );
+        assert!(cooling_over_cells(&[(&shelf, &p)], &[&away], &cells).is_empty());
+    }
+
+    #[test]
+    fn putting_or_moving_a_cell_under_a_unit_is_refused() {
+        let (shelf, p, over) = shelf_and_unit(3300);
+        let after = BTreeMap::from([(1, geometry::blocked_cells(&shelf, &p, &[&over]))]);
+        let cells = vec![cell(11), cell(12)];
+        // A cell set into a blocked place.
+        let set = HashSet::from([(1, 12)]);
+        assert_eq!(
+            refused_cell(&after, &after, &cells, &set, &HashSet::new()),
+            Some(12)
+        );
+        // The shelf moved so that occupied cells come under the unit.
+        let moved = HashSet::from([1]);
+        assert_eq!(
+            refused_cell(&BTreeMap::new(), &after, &cells, &HashSet::new(), &moved),
+            Some(11)
+        );
+        // The shelf moved, but those cells were under the unit already.
+        assert_eq!(
+            refused_cell(&after, &after, &cells, &HashSet::new(), &moved),
+            None
         );
     }
 

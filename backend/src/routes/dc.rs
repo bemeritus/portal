@@ -163,6 +163,7 @@ enum DcMode {
     Realistic,
     Fill,
     Power,
+    Owners,
 }
 
 #[derive(Deserialize)]
