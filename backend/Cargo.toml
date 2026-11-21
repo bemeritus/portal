@@ -7,6 +7,11 @@ edition = "2024"
 name = "portal"
 path = "src/main.rs"
 
+# The airflow model (SPEC §14.2): `cfd` holds its pure algorithms (case
+# generation, post-processing, convergence checks).
+[workspace]
+members = [".", "cfd"]
+
 [dependencies]
 # --- Web ---
 axum = { version = "0.8", features = ["multipart"] }

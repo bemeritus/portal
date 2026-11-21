@@ -87,7 +87,7 @@ test: test-api test-web
 
 # Backend unit tests.
 test-api:
-    cd backend && cargo test
+    cd backend && cargo test --workspace
 
 # Frontend unit tests (Vitest), including the locale key-parity check.
 test-web:
@@ -97,7 +97,7 @@ test-web:
 check: check-api check-web
 
 check-api:
-    cd backend && cargo check
+    cd backend && cargo check --workspace
 
 check-web:
     cd frontend && npm run typecheck
@@ -106,18 +106,18 @@ check-web:
 lint: lint-api lint-web
 
 lint-api:
-    cd backend && cargo clippy --all-targets -- -D warnings
+    cd backend && cargo clippy --workspace --all-targets -- -D warnings
 
 lint-web:
     cd frontend && npm run lint
 
 # Format the Rust source in place.
 fmt:
-    cd backend && cargo fmt
+    cd backend && cargo fmt --all
 
 # Fail if anything is unformatted (for CI).
 fmt-check:
-    cd backend && cargo fmt --check
+    cd backend && cargo fmt --all --check
 
 # Everything a change should pass before being committed. Needs the local
 # cluster running (`just db-start`), for check-migrations.

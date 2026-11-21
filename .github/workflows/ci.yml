@@ -52,15 +52,15 @@ jobs:
           workspaces: backend
 
       - name: rustfmt
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: clippy (warnings denied)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       # Unit tests only — sqlx queries are runtime-checked and the tests touch
       # no database. One of them fails on two migrations with one version.
       - name: tests
-        run: cargo test
+        run: cargo test --workspace
 
       # The whole set on a fresh database through the API's own migrator, as
       # a start would. The `database` job's psql loop cannot catch this: it

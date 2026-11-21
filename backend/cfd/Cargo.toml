@@ -1,0 +1,12 @@
+[package]
+name = "portal-cfd"
+version = "0.1.0"
+edition = "2024"
+description = "The airflow model's pure algorithms: OpenFOAM case generation, post-processing, convergence checks"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The browser grid and the streamlines are stored gzipped (SPEC §14.2).
+# Pure Rust backend (miniz_oxide), no C library.
+flate2 = { version = "1.1.11", default-features = false, features = ["rust_backend"] }
