@@ -369,6 +369,10 @@ stale write's 409 also carries `revision`, a refused import also carries its
 | `GET /rooms/{id}/export/plan.dxf` · `/export/inventory.csv` | exports | use |
 | `GET /catalog?kind=` | catalog | use |
 | `GET /catalog/usage` | every object that uses a catalog item, with its room | use |
+| `GET /rooms/{id}/airflow` | the airflow model: a worker available or not, the assumptions of a run of the room as it stands, the latest run, the latest result (marked `outdated` when the room changed since) — see [Airflow model](#airflow-model-how-it-is-computed-and-how-to-read-it) | use |
+| `POST /rooms/{id}/airflow/runs` · `POST /rooms/{id}/airflow/runs/{run}/cancel` | queue a run of the room as it stands (201; 200 with the existing run when the same input is already queued, running or finished); cancel one | edit |
+| `PUT /rooms/{id}/airflow/assumptions` | `{base_revision, supply_temp_c, assumed_rack_heat_w, units: [{object_id, airflow_m3h}], racks: [{object_id, heat_w}]}` — one change set (a new revision, audited), then a new run | edit |
+| `GET /rooms/{id}/airflow/runs/{run}/summary` · `/grid` · `/streamlines` | a converged run's numbers and checks; its browser grid (f16, gzip); its streamline sets (JSON, gzip). A run that did not converge gives only its checks, and no grid or streamlines (409) | use |
 
 Operations: `object_create|update|delete`, `device_create|update|delete`,
 `cell_set|delete`, `annotation_create|delete`. Room and catalog operations
@@ -403,14 +407,175 @@ come with phase 2.
   are not downloaded — on Nix, `nix build nixpkgs#playwright-driver.browsers`
   of the same version as `@playwright/test`, and run with `LD_LIBRARY_PATH`
   unset (the dev shell's glibc is older than the browsers').
+- Airflow: `cargo test -p portal-cfd` — the case writer against
+  `make_case.py` + `bc.py` and the post-processing against `post.py` on
+  checked-in fixtures (`backend/cfd/tests/fixtures/README.md`), the OpenFOAM
+  reader, the f16 grid, the checks and batch means — and `dc::airflow` (the
+  input from the seeded room). A whole run: `just cfd-reference > ref.json`,
+  then `just cfd-case ref.json out/` (about 17 minutes on 12 cores). The
+  uncertainty of any run's bands from its probes:
+  `portal-cfd-worker uncertainty INPUT.json postProcessing/intakes/0/T 1500 2000`.
+  Against a database: `just cfd-worker` (on a branch, with `DATABASE_URL` set
+  to a scratch database such as the one `just e2e-serve` prints).
 - DXF check: `pip install ezdxf`, then
   `python -c "import ezdxf; from ezdxf import recover; d,a=recover.readfile('plan.dxf'); print(len(a.errors), len(a.fixes))"`
   — both must be 0.
 
-Code: `backend/src/dc/` (model, pure algorithms, store, change sets, seed),
-`backend/src/routes/dc.rs`, `backend/src/tool_access.rs`;
+Code: `backend/src/dc/` (model, pure algorithms, store, change sets, seed,
+the airflow input `airflow.rs` and runs `airflow_store.rs`),
+`backend/src/routes/dc.rs`, `backend/src/routes/dc_airflow.rs`, `backend/cfd/`
+(the airflow model's pure algorithms), `backend/cfd-worker/` (the worker), `backend/src/tool_access.rs`;
 `frontend/src/dc/` (`model/` pure code with tests, `engine/` three.js outside
 React with one renderer per catalog kind, `ui/` pages and panels).
+
+## Airflow model: how it is computed and how to read it
+
+The backend half (PROMPT-AIRFLOW part A). The mode that draws it (`airflow`)
+comes with part B. **Every number here is a model, not a measurement, and
+it is not calibrated** until sensors exist (SPEC §14.2, phase 5).
+
+### How it is computed
+
+1. **The room becomes an input** (`backend/src/dc/airflow.rs`), derived from
+   the room as it stands. Everything a run depends on is in it, so the same
+   input gives the same result. Phase 1 kinds are boxes:
+
+   | Object | In the model |
+   |---|---|
+   | rack | a solid plinth (to U1), a 60 mm top cap and 50 mm side panels (none on an open frame); the interior is a fluid zone whose fan carries the rack's heat from front to rear at the flow that warms the air by 10 K; 100 mm behind each door is left out of the fan zone. Doors are not modelled (all open) |
+   | cooling unit | a solid body; supply grilles from its `supply_outlets` (position, size, pitch, yaw), else the subtype's default; return grilles on the face the catalog's `openings` names, else the subtype's default (ducted: under the rear half). Supply is a fixed velocity whose normal flux is the unit's airflow over its meshed grille area, tilted by the pitch and turned by the yaw; returns are pressure outlets, so the mass balance closes itself |
+   | shelf | posts and 35 mm boards; on every recorded cell a 200 × 440 × 460 mm tower case, its heat (the cell's power, else 120 W) released in the 100 mm of air behind it |
+   | structure | a solid box; doors, windows and walls are not (the door is closed) |
+   | cable tray | a solid box for a sheet tray; wire baskets and ladders are not modelled |
+
+   An object within 50 mm of a wall, the floor or the ceiling is modelled
+   against it (a thinner gap of air breaks the mesh; the reference's
+   lessons). A face with a grille is never moved.
+
+2. **The worker runs it** (`backend/cfd-worker/`, `docs/DEPLOY.md` Appendix
+   D) in the pinned OpenFOAM image: `blockMesh` (70 mm cells) →
+   `snappyHexMesh` with `snap false` (a castellated hex mesh, refined to
+   35 mm at obstacles and 17.5 mm at grilles) → `topoSet` → `checkMesh` →
+   `buoyantBoussinesqSimpleFoam` (steady, Boussinesq, k-ε) with the
+   reference's schemes and relaxation, for 2000 iterations. The process
+   count is the app's `AIRFLOW_PROCESSES` (12), split geometrically
+   (`hierarchical`); scotch in this image splits the same mesh differently
+   from run to run, and two such runs gave means up to 0.8 °C apart. The
+   count, the image digest and the iterations are recorded with every
+   result: the same input gives the same result.
+
+3. **The flow is pseudo-steady.** A buoyant room flow never settles: it
+   keeps moving around a mean. Single iterations are not results (an
+   intake band of the reference moves by up to 6 °C between snapshots 100
+   iterations apart). So every number is a **mean over iterations from
+   1500 on**, and each intake band carries the uncertainty of that mean:
+   the 95 % interval by batch means over its per-iteration temperatures
+   (5 to 10 batches, the most whose means are not correlated at lag 1,
+   above 0.2; the batch count used is recorded, and a band still correlated
+   at 5 batches is marked, its interval then a lower bound).
+
+   While any band's interval is wider than ±1.0 °C, the run goes on in steps
+   of 500 iterations (the mean carries on over them, so the window grows) up
+   to the worker's cap (`CFD_MAX_ITERATIONS`, 4000). At the cap it is still a
+   result: those bands are **flagged unstable** with their interval, and the
+   summary lists them.
+
+4. **Checks** (`backend/cfd/src/checks.rs`). A run is **not converged** —
+   not a result; the API gives only its checks — only for a real failure:
+
+   | Failure (`reason`) | When |
+   |---|---|
+   | `residuals` | the mean initial residual over the window above p_rgh 2·10⁻², U, T, k, ε 5·10⁻³ (the reference levels off at 8·10⁻³, 1.6·10⁻³, 1.1·10⁻³, 1.7·10⁻³, 6·10⁻⁴) |
+   | `residuals_growing` | an equation's residual over the window's second half more than twice that over its first |
+   | `energy_balance` | heat in vs ρ·c_p·Σ φ(T − T_supply) through the grilles, on the averaged fields, off by more than 3 % |
+   | `diverged` | NaN in a field or a balance, or the solver crashed |
+   | `timeout` | longer than the worker's `CFD_TIMEOUT_MIN` (120) |
+
+   The mass balance (the net flow through the grilles) is reported; the
+   pressure-outlet returns close it by construction.
+
+5. **Post-processing** (`backend/cfd/src/post.rs`, a port of `post.py`)
+   resamples the averaged fields onto a 2.5 cm grid (inverse distance over
+   the four nearest cells) and takes from it:
+   - per rack, the intake at 0.35, 1.05 and 1.75 m (the mean of five points
+     across the front, 4 cm in front of it) and the exhaust (the same, 4 cm
+     behind the rear, over the three heights);
+   - RCI-HI, RTI and the return temperature;
+   - the streamline sets: 18 lines from each supply grille, 20 traced back
+     from each rack's intake, 12 from each rack's exhaust;
+   - a 5 cm grid of temperature and velocity for the browser.
+
+### How to read it
+
+- **Intake per band**: `mean ± half_width` is the model's intake temperature
+  and the 95 % interval of that mean (`batches`, `correlated`: how it was
+  estimated). `unstable`: the interval was still wider than ±1 °C at the cap —
+  the air there switches between sources more slowly than the run can
+  average; read the band as its interval, not its mean. `std`, `min` and
+  `max` say how much the band moved over the window (per-iteration
+  temperatures at its points, placed around the mean). Badges (SPEC §14) go
+  by the mean: up to 27 °C green, up to 32 °C yellow, above red.
+- **RCI-HI** (%): 100 = no intake above the recommended 27 °C; each degree
+  above it, up to the allowable 32 °C, takes a share off.
+- **RTI** (%): the return air's rise over the supply, against the racks'
+  10 K. Below 100, cold air goes back to the units without passing a rack;
+  above 100, hot air goes round through the racks again.
+- **Assumptions**: every input that was not measured is listed with its
+  source (`assumed`, `manual`, `datasheet`, `devices`). Rack heat is the sum
+  of the running devices' powers when every one is known, else the rack's
+  `heat_w`, else the room's `assumed_rack_heat_w` (3000 W); the supply
+  temperature is the room's `supply_temp_c` (18 °C); a unit's airflow is its
+  `airflow_m3h`, else the catalog's highest fan step, else the subtype's
+  default (ducted: 1100 m³/h).
+- **Outdated**: a result whose input differs from the room as it stands.
+  Once a room has had a run, every change set that changes its input queues
+  a new run (and cancels an older one still waiting or running); the old
+  result stays until the new one is ready.
+
+### Editing the assumptions
+
+`PUT /api/dc/rooms/{id}/airflow/assumptions` (`edit`): the supply
+temperature and the room's heat per rack as they should be (null = the
+default), and the units' airflow and the racks' heat for the objects listed
+(null = the default). It is one change set — a new revision, in the history
+and the audit log — and queues a run of the new revision. The same values
+can be changed with ordinary change sets (`room_settings`, `object_update`).
+
+### The reference, and what was measured
+
+`dc-handoff/reference/airflow-cfd/` is the pipeline this ports. Its baseline
+is the re-run on the pinned image, `result-v2606/summary-mean-1500-2000.json`
+(the original v1912 result is like for like with it only at iteration 1800).
+
+**The port is checked deterministically**, apart from the flow
+(`backend/cfd/tests/`):
+
+- the case writer and `make_case.py` + `bc.py` on the same input produce
+  equal cases: every dictionary, STL surface and `0/` field, numbers within
+  1e-9 relative; the mesh of the reference case is the same 354 631 cells;
+- the post-processing and `post.py` on the same solved fields give the same
+  numbers: every intake band, exhaust, return, RCI-HI and RTI within
+  1.1·10⁻⁶, the heat through the grilles identical.
+
+**The flow is not that deterministic.** Two runs that differ only in how
+the mesh is split give the same bands within a few tenths of a degree,
+except the ones that swing: on the reference case over iterations
+1500–2000, rack 2 top is 37.7 ± 1.9 °C (run 2), rack 3 top ± 1.4, rack 4
+top ± 1.0, the other nine bands ± 0.07–0.78 °C. The port's run of the same
+input gave rack 2 top 41.1 ± 1.9 °C (the baseline's 37.8 by its mean field),
+the other bands within 0.6 °C of the baseline — within what one window of
+those bands can tell. Comparing a band with the baseline is therefore
+information, read with these intervals, not a pass or fail.
+
+**The seeded room** (through the API on a scratch database: supply 17 °C,
+rack 4 at 1500 W, the others 3000 W, deflectors at 30°, nothing recorded on
+the shelf; 12 processes): a result, extended to the cap of 4000 iterations
+because rack 2 top would not settle — 32.9 ± 2.5 °C, flagged unstable
+(range 28.4–38.5 over the window); the other bands ± 0.07–0.45 °C. Energy
+balance 0.19 %, every residual within its limit and none growing. 338 430
+cells; the mesh 17 s, the solve 32 minutes for 4000 iterations (sharing the
+machine), post-processing under a second; 2.6 MB of grid and 0.4 MB of
+streamlines, gzipped.
 
 ## Decisions and deviations from SPEC
 
@@ -457,6 +622,26 @@ Adjusted to the house style or the data:
   photos).
 - A rack's KPIs show «—» while its contents are not recorded (all four are,
   until someone enters them) — never zero.
+
+The airflow model (PROMPT-AIRFLOW part A), with the owner:
+
+- **The mesh is the reference's** (70 mm cells refined to 35 and 17.5 mm,
+  355 k cells on the seeded room), not SPEC §14.2's 20–30 mm near grilles
+  and 1–4 million cells: those are the settings that converge on this room.
+- **Stability is an uncertainty, not a failure** (SPEC §14.2 asks for
+  convergence checks): a band's mean is reported with its 95 % interval, the
+  run extends while an interval is wider than ±1 °C, and a band still wider at
+  the cap is flagged unstable in a valid result. Only residuals, the energy
+  balance, divergence and a timeout make a run "not converged".
+- **The mass balance is reported, not a gate**: the pressure-outlet returns
+  close it by construction (SPEC §14.2 lists 1 %).
+- **The port is checked against the reference scripts deterministically**
+  (case and post-processing); SPEC §17.1b's 1.5 °C comparison of intake
+  temperatures with the re-run is reported with the bands' intervals, as
+  information.
+- **Process count**: fixed by the app (`AIRFLOW_PROCESSES`, 12), split
+  geometrically, recorded with each result; the same input gives the same
+  result on the same count.
 
 ## Phase 1 acceptance (SPEC §17.1)
 
