@@ -5,6 +5,8 @@
 //! side. The HTTP handlers are in `routes::dc`. Specification:
 //! `dc-handoff/SPEC.md`.
 
+pub mod airflow;
+pub mod airflow_store;
 pub mod capacity;
 pub mod csv;
 pub mod diff;

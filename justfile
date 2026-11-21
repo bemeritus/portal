@@ -87,7 +87,7 @@ test: test-api test-web
 
 # Backend unit tests.
 test-api:
-    cd backend && cargo test
+    cd backend && cargo test --workspace
 
 # Frontend unit tests (Vitest), including the locale key-parity check.
 test-web:
@@ -97,7 +97,7 @@ test-web:
 check: check-api check-web
 
 check-api:
-    cd backend && cargo check
+    cd backend && cargo check --workspace
 
 check-web:
     cd frontend && npm run typecheck
@@ -106,18 +106,18 @@ check-web:
 lint: lint-api lint-web
 
 lint-api:
-    cd backend && cargo clippy --all-targets -- -D warnings
+    cd backend && cargo clippy --workspace --all-targets -- -D warnings
 
 lint-web:
     cd frontend && npm run lint
 
 # Format the Rust source in place.
 fmt:
-    cd backend && cargo fmt
+    cd backend && cargo fmt --all
 
 # Fail if anything is unformatted (for CI).
 fmt-check:
-    cd backend && cargo fmt --check
+    cd backend && cargo fmt --all --check
 
 # Everything a change should pass before being committed. Needs the local
 # cluster running (`just db-start`), for check-migrations.
@@ -136,6 +136,48 @@ check-migrations:
     createdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} "$db"
     trap 'dropdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} --if-exists "$db"' EXIT
     cd backend && DATABASE_URL="$url" cargo run -q -- migrate
+
+# --- Airflow worker ---------------------------------------------------------
+# The airflow model's solver runs in its own container (SPEC §14.2,
+# docs/DEPLOY.md "Airflow worker"): the pinned OpenFOAM image plus
+# `portal-cfd-worker`, which claims runs from Postgres. The API never talks
+# to a container runtime. Podman if it is installed, else Docker;
+# `CONTAINER=docker just …` chooses.
+
+runtime_found := `command -v podman >/dev/null 2>&1 && echo podman || echo docker`
+container := env("CONTAINER", runtime_found)
+# Files written to the host belong to the caller (rootless Podman maps ids).
+as_me := if container == "podman" { "--userns=keep-id --user $(id -u):$(id -g)" } else { "--user $(id -u):$(id -g)" }
+
+# Build the airflow worker's image.
+cfd-build:
+    {{container}} build -f Dockerfile.cfd-worker -t portal-cfd-worker .
+
+# The worker does not migrate: the API must have applied migration 0030 to
+# that database. The MPI process count comes from each run (the API's
+# AIRFLOW_PROCESSES, 4 by default; set it to the host's core count, as this
+# recipe's CPUs follow it); a run asking for more fails, never oversubscribes. On a branch, point DATABASE_URL at a scratch database, never
+# at the dev one.
+#
+# Run the airflow worker against DATABASE_URL until Ctrl-C.
+cfd-worker cpus=env("AIRFLOW_PROCESSES", "4"): cfd-build
+    {{container}} run --rm --name portal-cfd-worker --network host --shm-size 2g \
+        --cpus {{cpus}} -e DATABASE_URL="$DATABASE_URL" \
+        -v portal-cfd-cases:/var/lib/portal-cfd portal-cfd-worker
+
+# The reference case: `just cfd-reference > input.json`; the process count
+# is the input's `settings.processes`.
+#
+# One case without a database: `just cfd-case input.json out/`.
+cfd-case input out: cfd-build
+    mkdir -p {{out}}
+    {{container}} run --rm --shm-size 2g {{as_me}} -e HOME=/tmp -e CFD_WORK_DIR=/out/.case \
+        -v "$(realpath {{input}})":/in.json:ro -v "$(realpath {{out}})":/out \
+        portal-cfd-worker run-case /in.json /out
+
+# The reference case of dc-handoff/reference/airflow-cfd as an input.
+cfd-reference: cfd-build
+    @{{container}} run --rm portal-cfd-worker reference-input
 
 # --- Database ---------------------------------------------------------------
 # The port lives only in the pg_ctl invocation: postgresql.conf leaves `port`

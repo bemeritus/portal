@@ -1,0 +1,16 @@
+FoamFile { version 2.0; format ascii; class volScalarField; location "0"; object alphat; }
+dimensions [0 2 -1 0 0 0 0];
+internalField uniform 0;
+boundaryField {
+  room { type alphatJayatillekeWallFunction; Prt 0.85; value uniform 0; }
+  obstacles { type alphatJayatillekeWallFunction; Prt 0.85; value uniform 0; }
+  ac1_walls { type alphatJayatillekeWallFunction; Prt 0.85; value uniform 0; }
+  ac1_supply { type calculated; value uniform 0; }
+  ac1_return { type calculated; value uniform 0; }
+  ac2_walls { type alphatJayatillekeWallFunction; Prt 0.85; value uniform 0; }
+  ac2_supply { type calculated; value uniform 0; }
+  ac2_return { type calculated; value uniform 0; }
+  ac3_walls { type alphatJayatillekeWallFunction; Prt 0.85; value uniform 0; }
+  ac3_supply { type calculated; value uniform 0; }
+  ac3_return { type calculated; value uniform 0; }
+}

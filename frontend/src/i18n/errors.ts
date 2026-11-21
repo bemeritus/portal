@@ -253,6 +253,30 @@ export const EXACT: Record<string, { ru: string; uz: string }> = {
     ru: "Бюджет мощности вне допустимого диапазона",
     uz: "Quvvat byudjeti ruxsat etilgan oraliqdan tashqarida",
   },
+  "Supply temperature out of range": {
+    ru: "Температура подачи вне допустимого диапазона",
+    uz: "Berilayotgan havo harorati ruxsat etilgan oraliqdan tashqarida",
+  },
+  "Rack heat out of range": {
+    ru: "Тепловыделение стойки вне допустимого диапазона",
+    uz: "Stoyka issiqlik ajratishi ruxsat etilgan oraliqdan tashqarida",
+  },
+  "No such airflow run.": {
+    ru: "Такого расчёта воздушного потока нет.",
+    uz: "Bunday havo oqimi hisobi yo'q.",
+  },
+  "A run of this revision is still stopping. Try again in a minute.": {
+    ru: "Расчёт этой ревизии ещё останавливается. Повторите через минуту.",
+    uz: "Bu reviziya hisobi hali to'xtatilmoqda. Bir daqiqadan keyin qayta urinib ko'ring.",
+  },
+  "This run is not waiting or running.": {
+    ru: "Этот расчёт не ожидает запуска и не выполняется.",
+    uz: "Bu hisob navbatda ham, bajarilishda ham emas.",
+  },
+  "This run has no result: it did not finish and converge.": {
+    ru: "У этого расчёта нет результата: он не завершился или не сошёлся.",
+    uz: "Bu hisobning natijasi yo'q: u tugamadi yoki yaqinlashmadi.",
+  },
   "An object needs a name": {
     ru: "Укажите название объекта",
     uz: "Obyekt nomini kiriting",
@@ -350,6 +374,16 @@ export const EXACT: Record<string, { ru: string; uz: string }> = {
  * substituted into the translation as `$1`, `$2`, ….
  */
 export const PATTERNS: { re: RegExp; ru: string; uz: string }[] = [
+  {
+    re: /^Object (\d+) is not in this room\.$/,
+    ru: "Объекта $1 нет в этом помещении.",
+    uz: "$1-obyekt bu xonada yo'q.",
+  },
+  {
+    re: /^(.+) does not take this assumption\.$/,
+    ru: "Для «$1» это допущение не задаётся.",
+    uz: "'$1' uchun bu taxmin berilmaydi.",
+  },
   {
     re: /^Password must be at least (\d+) characters$/,
     ru: "Пароль должен содержать не менее $1 символов",

@@ -1121,4 +1121,18 @@ export const dcEn = {
     chip: "Revision {{n}} — view only",
     back: "To the current",
   },
+  /** Why an airflow run is not a result (`reason` of a run). */
+  airflowReason: {
+    residuals: "the residuals stayed above their limits",
+    residuals_growing: "the residuals were growing",
+    energy_balance: "the heat carried out did not match the heat in (over 3 %)",
+    diverged: "the solution diverged",
+    timeout: "the calculation took too long",
+    mesh_failed: "the room could not be meshed",
+    post_failed: "the result could not be read",
+    bad_input: "the room cannot be modelled",
+    worker: "the calculation server failed",
+    processes_exceed_cpus:
+      "the run asks for more processes than the calculation server has cores",
+  },
 };

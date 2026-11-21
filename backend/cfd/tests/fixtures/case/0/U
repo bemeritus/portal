@@ -1,0 +1,16 @@
+FoamFile { version 2.0; format ascii; class volVectorField; location "0"; object U; }
+dimensions [0 1 -1 0 0 0 0];
+internalField uniform (0 0 0);
+boundaryField {
+  room { type noSlip; }
+  obstacles { type noSlip; }
+  ac1_walls { type noSlip; }
+  ac1_supply { type fixedValue; value uniform (0 -0.99186955412 1.71796846222); }
+  ac1_return { type pressureInletOutletVelocity; value uniform (0 0 0); }
+  ac2_walls { type noSlip; }
+  ac2_supply { type fixedValue; value uniform (0 -1.05259320104 1.8231449039); }
+  ac2_return { type pressureInletOutletVelocity; value uniform (0 0 0); }
+  ac3_walls { type noSlip; }
+  ac3_supply { type fixedValue; value uniform (0 -0.964884956218 1.67122976763); }
+  ac3_return { type pressureInletOutletVelocity; value uniform (0 0 0); }
+}

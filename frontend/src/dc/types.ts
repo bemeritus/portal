@@ -155,6 +155,10 @@ export interface Instance {
   door_hinge?: "left" | "right";
   /** Cooling: supply outlets aimed by hand (§14.1); empty = subtype default. */
   supply_outlets?: SupplyOutlet[];
+  /** Racks: the airflow model's heat (W) while the devices' powers are not all known. */
+  heat_w?: number;
+  /** Cooling: the airflow model's airflow (m³/h), set by hand. */
+  airflow_m3h?: number;
 }
 
 export interface SupplyOutlet {
@@ -322,6 +326,10 @@ export interface RoomSettings {
   clearance_rear_mm: number;
   rack_power_budget_w: number | null;
   electrical_rule_set: "pue" | "iec60364";
+  /** The airflow model's supply temperature (°C); absent = 18 °C, assumed. */
+  supply_temp_c?: number;
+  /** The airflow model's heat per rack (W) for racks of unknown power; absent = 3000 W. */
+  assumed_rack_heat_w?: number;
 }
 
 export interface Room {

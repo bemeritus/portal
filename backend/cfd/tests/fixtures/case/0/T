@@ -1,0 +1,16 @@
+FoamFile { version 2.0; format ascii; class volScalarField; location "0"; object T; }
+dimensions [0 0 0 1 0 0 0];
+internalField uniform 299;
+boundaryField {
+  room { type zeroGradient; }
+  obstacles { type zeroGradient; }
+  ac1_walls { type zeroGradient; }
+  ac1_supply { type fixedValue; value uniform 290.15; }
+  ac1_return { type inletOutlet; inletValue uniform 299; value uniform 299; }
+  ac2_walls { type zeroGradient; }
+  ac2_supply { type fixedValue; value uniform 290.15; }
+  ac2_return { type inletOutlet; inletValue uniform 299; value uniform 299; }
+  ac3_walls { type zeroGradient; }
+  ac3_supply { type fixedValue; value uniform 290.15; }
+  ac3_return { type inletOutlet; inletValue uniform 299; value uniform 299; }
+}

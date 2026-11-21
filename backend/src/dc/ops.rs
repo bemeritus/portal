@@ -367,6 +367,14 @@ fn check_settings(s: &RoomSettings) -> ApiResult<()> {
     {
         return Err(bad("Power budget out of range"));
     }
+    if s.supply_temp_c.is_some_and(|t| !(5.0..=35.0).contains(&t)) {
+        return Err(bad("Supply temperature out of range"));
+    }
+    if s.assumed_rack_heat_w
+        .is_some_and(|w| !(0..=100_000).contains(&w))
+    {
+        return Err(bad("Rack heat out of range"));
+    }
     Ok(())
 }
 
@@ -376,10 +384,17 @@ fn settings_line(s: &RoomSettings) -> String {
         .rack_power_budget_w
         .map(|w| format!("{w} W"))
         .unwrap_or_else(|| "not set".into());
-    format!(
+    let mut line = format!(
         "budget {budget}, front {} mm, rear {} mm",
         s.clearance_front_mm, s.clearance_rear_mm
-    )
+    );
+    if let Some(t) = s.supply_temp_c {
+        line.push_str(&format!(", supply {t} °C"));
+    }
+    if let Some(w) = s.assumed_rack_heat_w {
+        line.push_str(&format!(", rack heat {w} W"));
+    }
+    line
 }
 
 fn check_annotation(a: &AnnotationPayload) -> ApiResult<()> {

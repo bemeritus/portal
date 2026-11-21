@@ -17,3 +17,6 @@
 # Uploaded images are runtime state; keep the directory, not its contents.
 /uploads/*
 !/uploads/.gitkeep
+
+# Python bytecode (the airflow fixtures' generator scripts)
+__pycache__/
