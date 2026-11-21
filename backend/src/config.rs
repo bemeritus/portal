@@ -30,7 +30,7 @@ pub struct Config {
     /// Only used to put a clickable link into Telegram messages; without it
     /// the messages still go out, just without the link.
     pub public_base_url: Option<String>,
-    /// MPI processes of an airflow run (`AIRFLOW_PROCESSES`, default 12),
+    /// MPI processes of an airflow run (`AIRFLOW_PROCESSES`, default 4),
     /// recorded in each run's settings: the same input on the same count
     /// gives the same result. Match the worker's CPUs.
     pub airflow_processes: usize,

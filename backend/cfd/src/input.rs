@@ -175,9 +175,10 @@ pub struct Settings {
     pub processes: usize,
 }
 
-/// The process count on the reference host (12 cores).
+/// The process count when nothing sets it: a small host. Set the app's
+/// `AIRFLOW_PROCESSES` and the worker's CPUs to the host's core count.
 pub fn default_processes() -> usize {
-    12
+    4
 }
 
 impl Default for Settings {

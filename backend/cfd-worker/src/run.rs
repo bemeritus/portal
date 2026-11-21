@@ -240,7 +240,6 @@ impl<M: Monitor> Job<'_, M> {
                 "solve",
                 "mpirun",
                 &[
-                    "--oversubscribe".into(),
                     "-np".into(),
                     np,
                     "buoyantBoussinesqSimpleFoam".into(),
@@ -276,6 +275,18 @@ pub async fn run<M: Monitor>(
     monitor: M,
 ) -> Result<Outcome, Stop> {
     input.validate().map_err(|e| failed("bad_input", e))?;
+    // Never oversubscribe: MPI ranks sharing a CPU make a run slower and its
+    // timing meaningless. The process count is the run's (its result
+    // depends on it); the worker must have the CPUs.
+    if input.settings.processes > cfg.cpus {
+        return Err(failed(
+            "processes_exceed_cpus",
+            format!(
+                "the run asks for {} MPI processes; this worker has {} CPUs",
+                input.settings.processes, cfg.cpus
+            ),
+        ));
+    }
     let dir = cfg.work_dir.join(name);
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir)
@@ -480,4 +491,42 @@ fn read_probes(dir: &Path) -> Result<Vec<(f64, Vec<f64>)>, String> {
         }
     }
     Ok(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Quiet;
+
+    impl Monitor for Quiet {
+        async fn report(&mut self, _: &Progress) -> bool {
+            true
+        }
+    }
+
+    #[tokio::test]
+    async fn a_run_never_oversubscribes_the_worker() {
+        let work = std::env::temp_dir().join(format!("cfd-oversub-{}", std::process::id()));
+        let cfg = Config {
+            work_dir: work.clone(),
+            cpus: 4,
+            max_iterations: 4000,
+            timeout: Duration::from_secs(60),
+            image: "test".into(),
+            env: HashMap::new(),
+            keep_case: false,
+        };
+        let mut input = portal_cfd::reference::reference_input();
+        input.settings.processes = 12;
+        match run(&cfg, &input, "t", Quiet).await {
+            Err(Stop::Failed { reason, detail }) => {
+                assert_eq!(reason, "processes_exceed_cpus");
+                assert!(detail.contains("12") && detail.contains('4'), "{detail}");
+            }
+            _ => panic!("expected processes_exceed_cpus"),
+        }
+        // Nothing was written or run.
+        assert!(!work.join("t").exists());
+    }
 }

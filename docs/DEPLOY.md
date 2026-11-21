@@ -446,22 +446,24 @@ mode says the calculation is unavailable and the rest of the app is unaffected.
   RAM and a few hundred MB of disk for the case, deleted after
   post-processing. Only the compact result (a few MB) is stored in the
   database.
-- **The process count is fixed by the app**, `AIRFLOW_PROCESSES` (default 12),
+- **The process count is fixed by the app**, `AIRFLOW_PROCESSES` (default 4),
   and recorded in every run's settings with the image digest and the
   iteration count: the same input on the same count gives the same result
-  (the mesh is split geometrically). Give the worker that many CPUs; fewer
-  only make it slower.
+  (the mesh is split geometrically). **Set both `AIRFLOW_PROCESSES` and the
+  worker's CPUs to the host's core count.** The worker never oversubscribes:
+  a run asking for more processes than it has CPUs fails with
+  `processes_exceed_cpus`, both numbers in the run's `detail`.
 
 With Compose, the `cfd-worker` service in `docker-compose.yml`:
 
 ```sh
-PORTAL_CFD_CPUS=12 docker compose up -d --build app cfd-worker
+PORTAL_CFD_CPUS=12 docker compose up -d --build app cfd-worker   # a 12-core host
 docker compose logs -f cfd-worker
 ```
 
 | Variable (compose / worker) | Default | Meaning |
 |---|---|---|
-| `PORTAL_CFD_CPUS` / app `AIRFLOW_PROCESSES` | 12 | The worker's CPU limit, and the MPI processes of every run (set on the app) |
+| `PORTAL_CFD_CPUS` / app `AIRFLOW_PROCESSES` | 4 | The worker's CPU limit and the MPI processes of every run (set on the app): set it to the host's core count |
 | `PORTAL_CFD_TIMEOUT_MIN` / `CFD_TIMEOUT_MIN` | 120 | A run taking longer is stopped, as not converged (`timeout`) |
 | `PORTAL_CFD_MAX_ITERATIONS` / `CFD_MAX_ITERATIONS` | 4000 | How far a run is extended, 500 iterations at a time, while an intake band's mean is uncertain (95 % half-width over 1 °C); at the cap it is a result with those bands flagged |
 | — / `DATABASE_URL` | *(required)* | The app's database |
@@ -469,7 +471,8 @@ docker compose logs -f cfd-worker
 | — / `CFD_WORKER_NAME` | the hostname | Shown in `dc_airflow_runs.worker` |
 | — / `CFD_KEEP_CASE` | `0` | `1` keeps case directories, for debugging |
 
-Without Compose (Podman, rootless, on the database host):
+Without Compose (Podman, rootless, on the database host; a 12-core host, so
+the app has `AIRFLOW_PROCESSES=12`):
 
 ```sh
 podman build -f Dockerfile.cfd-worker -t portal-cfd-worker .

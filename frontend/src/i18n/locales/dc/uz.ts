@@ -1111,4 +1111,17 @@ export const dcUz = {
     chip: "{{n}}-reviziya — faqat ko'rish",
     back: "Joriysiga",
   },
+  airflowReason: {
+    residuals: "qoldiqlar ruxsat etilganidan yuqori qoldi",
+    residuals_growing: "qoldiqlar o'sib bordi",
+    energy_balance: "olib ketilgan issiqlik ajralgan issiqlikka mos kelmadi (3 % dan ortiq)",
+    diverged: "yechim tarqalib ketdi",
+    timeout: "hisob juda uzoq davom etdi",
+    mesh_failed: "xona to'rini qurib bo'lmadi",
+    post_failed: "natijani o'qib bo'lmadi",
+    bad_input: "xonani modellashtirib bo'lmaydi",
+    worker: "hisoblash serverida nosozlik",
+    processes_exceed_cpus:
+      "hisobga hisoblash serveridagi yadrolardan ko'proq jarayon kerak",
+  },
 };

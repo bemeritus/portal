@@ -20,7 +20,8 @@ CREATE TABLE dc_airflow_runs (
     progress         JSONB,
     -- Why a run is not a result: a code the UI translates. not_converged:
     -- residuals, residuals_growing, energy_balance, diverged, timeout;
-    -- failed: mesh_failed, post_failed, bad_input, worker.
+    -- failed: mesh_failed, post_failed, bad_input, worker, processes_exceed_cpus
+    -- (the run asks for more MPI processes than the worker has CPUs).
     reason           TEXT,
     -- What went wrong, for the log; never shown as a result.
     detail           TEXT,

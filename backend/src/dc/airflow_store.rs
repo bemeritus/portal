@@ -31,6 +31,9 @@ pub struct RunInfo {
     pub progress: Option<Value>,
     /// Why it is not a result; a code the UI translates.
     pub reason: Option<String>,
+    /// What went wrong, in English (for `processes_exceed_cpus`: both
+    /// numbers).
+    pub detail: Option<String>,
     pub created_at: DateTime<Utc>,
     pub started_at: Option<DateTime<Utc>>,
     pub finished_at: Option<DateTime<Utc>>,
@@ -45,13 +48,14 @@ type RunRow = (
     bool,
     Option<Value>,
     Option<String>,
+    Option<String>,
     DateTime<Utc>,
     Option<DateTime<Utc>>,
     Option<DateTime<Utc>>,
     bool,
 );
 
-const RUN_COLUMNS: &str = "id, revision, status, cancel_requested, progress, reason, created_at, \
+const RUN_COLUMNS: &str = "id, revision, status, cancel_requested, progress, reason, detail, created_at, \
      started_at, finished_at, input IS DISTINCT FROM $2::jsonb AS outdated";
 
 fn run_info(r: RunRow) -> RunInfo {
@@ -62,10 +66,11 @@ fn run_info(r: RunRow) -> RunInfo {
         cancel_requested: r.3,
         progress: r.4,
         reason: r.5,
-        created_at: r.6,
-        started_at: r.7,
-        finished_at: r.8,
-        outdated: r.9,
+        detail: r.6,
+        created_at: r.7,
+        started_at: r.8,
+        finished_at: r.9,
+        outdated: r.10,
     }
 }
 
