@@ -63,6 +63,7 @@ pub fn routes() -> Router<AppState> {
         .route("/rooms/{id}/import/template.csv", get(import_template))
         .route("/rooms/{id}/export/plan.dxf", get(export_dxf))
         .route("/rooms/{id}/export/inventory.csv", get(export_csv))
+        .merge(super::dc_airflow::routes())
         .route_layer(middleware::from_fn(csrf_guard))
 }
 
@@ -371,7 +372,7 @@ fn stale(revision: i32) -> Response {
         .into_response()
 }
 
-fn failure(f: Failure) -> Response {
+pub(super) fn failure(f: Failure) -> Response {
     match f {
         Failure::Stale(s) => stale(s.revision),
         Failure::Api(e) => e.into_response(),
@@ -390,7 +391,10 @@ async fn changes(
     };
     match ops::apply(&mut tx, id, set, &user).await {
         Ok(applied) => match tx.commit().await {
-            Ok(()) => Json(applied).into_response(),
+            Ok(()) => {
+                super::dc_airflow::follow(&state, id, &user).await;
+                Json(applied).into_response()
+            }
             Err(e) => internal("committing a change set", e).into_response(),
         },
         Err(f) => failure(f),
@@ -595,6 +599,7 @@ async fn restore(
         tx.commit()
             .await
             .map_err(|e| internal("committing a restore", e))?;
+        super::dc_airflow::follow(&state, id, &user).await;
         Ok(Applied {
             revision,
             created: vec![],

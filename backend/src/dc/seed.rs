@@ -1092,6 +1092,65 @@ pub fn plan() -> Result<Plan, String> {
     })
 }
 
+/// The plan as the API would serve the room: ids from 1, catalog ids by
+/// position, nothing recorded in racks or cells. For tests of code that
+/// reads a [`RoomView`].
+#[cfg(test)]
+pub fn plan_view() -> super::model::RoomView {
+    use super::model::{CatalogItem, DcObject, Room, RoomView, Snapshot};
+    let p = plan().expect("the seed plan builds");
+    let catalog = p
+        .catalog
+        .iter()
+        .enumerate()
+        .map(|(i, n)| CatalogItem {
+            id: i as i64 + 1,
+            manufacturer: n.manufacturer.clone(),
+            model: n.model.clone(),
+            width_mm: n.dims[0],
+            depth_mm: n.dims[1],
+            height_mm: n.dims[2],
+            props: n.props.clone(),
+            props_src: n.props_src.clone(),
+            archived: false,
+        })
+        .collect();
+    let objects = p
+        .objects
+        .iter()
+        .enumerate()
+        .map(|(i, o)| DcObject {
+            id: i as i64 + 1,
+            catalog_id: o.item as i64 + 1,
+            name: o.name.clone(),
+            x0_mm: o.x0,
+            z0_mm: o.z0,
+            y0_mm: o.y0,
+            rotation_deg: o.rotation_deg,
+            instance: o.instance.clone(),
+            contents_known: false,
+            note: o.note.clone(),
+        })
+        .collect();
+    RoomView {
+        room: Room {
+            id: 1,
+            name: p.room_name.clone(),
+            floor_plan: p.floor_plan.clone(),
+            height_mm: p.height_mm,
+            measurements: p.measurements.clone(),
+            settings: p.settings.clone(),
+            revision: 1,
+            updated_at: chrono::Utc::now(),
+        },
+        catalog,
+        contents: Snapshot {
+            objects,
+            ..Snapshot::default()
+        },
+    }
+}
+
 /// One `cooling.json` item as a catalog item.
 fn cooling_item(it: &Value) -> Result<NewItem, String> {
     let id = it["id"].as_str().unwrap_or("?");

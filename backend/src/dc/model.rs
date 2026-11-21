@@ -490,6 +490,11 @@ pub struct RackInstance {
     /// default) or right (FEEDBACK-7 follow-up).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub door_hinge: Option<RackHinge>,
+    /// The airflow model's heat for this rack, W, while its devices' powers
+    /// are not all known (an assumption, SPEC §14.2). `None` = the room's
+    /// [`RoomSettings::assumed_rack_heat_w`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heat_w: Option<i32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -505,6 +510,11 @@ pub struct CoolingInstance {
     /// default openings apply. Edited by hand from phase 2.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub supply_outlets: Vec<SupplyOutlet>,
+    /// The airflow model's airflow for this unit, m³/h: set by hand (an
+    /// anemometer reading, or a guess for a unit of unknown model). `None` =
+    /// the catalog's highest fan step, or the subtype's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub airflow_m3h: Option<i32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -608,7 +618,13 @@ impl Instance {
             serde_json::from_value(v.clone()).map_err(|e| e.to_string())
         }
         let inst = match item {
-            CatalogProps::Rack(_) => Instance::Rack(de(value)?),
+            CatalogProps::Rack(_) => {
+                let i: RackInstance = de(value)?;
+                if i.heat_w.is_some_and(|w| !(0..=100_000).contains(&w)) {
+                    return Err("rack heat must be 0…100 000 W".into());
+                }
+                Instance::Rack(i)
+            }
             CatalogProps::Shelf(_) => Instance::Shelf(de(value)?),
             CatalogProps::Cooling(c) => {
                 let i: CoolingInstance = de(value)?;
@@ -619,6 +635,9 @@ impl Instance {
                     && !c.discharge_options.contains(&d)
                 {
                     return Err("that discharge is not offered by this unit".into());
+                }
+                if i.airflow_m3h.is_some_and(|q| !(1..=100_000).contains(&q)) {
+                    return Err("unit airflow must be 1…100 000 m³/h".into());
                 }
                 for o in &i.supply_outlets {
                     o.validate()?;
@@ -685,6 +704,14 @@ pub struct RoomSettings {
     /// with each other and say that no budget is set.
     pub rack_power_budget_w: Option<i32>,
     pub electrical_rule_set: RuleSet,
+    /// The airflow model's supply air temperature, °C. `None` = 18 °C
+    /// (SPEC §14.1), shown as assumed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supply_temp_c: Option<f64>,
+    /// The airflow model's heat per rack, W, for racks whose devices'
+    /// powers are not all known. `None` = 3000 W, shown as assumed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assumed_rack_heat_w: Option<i32>,
 }
 
 impl Default for RoomSettings {
@@ -694,6 +721,8 @@ impl Default for RoomSettings {
             clearance_rear_mm: 600,
             rack_power_budget_w: None,
             electrical_rule_set: RuleSet::Pue,
+            supply_temp_c: None,
+            assumed_rack_heat_w: None,
         }
     }
 }

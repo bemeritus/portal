@@ -17,6 +17,7 @@ pub mod audit;
 pub mod auth;
 pub mod categories;
 pub mod dc;
+pub mod dc_airflow;
 pub mod documents;
 pub mod templates;
 pub mod tools;
