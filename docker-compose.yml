@@ -80,6 +80,42 @@ services:
     # No healthcheck: the runtime image has no curl or wget, and adding one
     # only to probe the port is not worth the extra layer.
 
+  # The airflow model's solver (SPEC §14.2, docs/DEPLOY.md "Airflow worker"):
+  # the pinned OpenFOAM image plus portal-cfd-worker, which claims runs from
+  # the database and runs OpenFOAM inside this container. The app never talks
+  # to a container runtime, and nothing here mounts a Docker socket. Without
+  # this service the airflow mode says the calculation is unavailable; the
+  # rest of the app is unaffected (`docker compose up db app` leaves it out).
+  cfd-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.cfd-worker
+    depends_on:
+      db:
+        condition: service_healthy
+      # The app applies the migrations the worker's tables come from; the
+      # worker retries until they exist.
+      app:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://${PORTAL_DB_USER:-portal}:${PORTAL_DB_PASSWORD:-portal}@db:5432/${PORTAL_DB_NAME:-portal}
+      # MPI ranks. Keep it equal to the CPU limit below, and fixed: the same
+      # input on the same number of processes gives the same result.
+      CFD_PROCESSES: ${PORTAL_CFD_CPUS:-4}
+      CFD_TIMEOUT_MIN: ${PORTAL_CFD_TIMEOUT_MIN:-120}
+      CFD_MAX_ITERATIONS: ${PORTAL_CFD_MAX_ITERATIONS:-4000}
+      CFD_WORKER_NAME: cfd-worker
+      RUST_LOG: ${PORTAL_RUST_LOG:-info}
+    cpus: ${PORTAL_CFD_CPUS:-4}
+    # MPI's shared-memory transport; the default 64 MB is too small.
+    shm_size: 1gb
+    volumes:
+      # Case directories while a run is in progress (a few hundred MB),
+      # deleted after post-processing.
+      - cfd-cases:/var/lib/portal-cfd
+    restart: unless-stopped
+
 volumes:
   pgdata:
   uploads:
+  cfd-cases:

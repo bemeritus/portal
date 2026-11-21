@@ -423,6 +423,67 @@ container is unreachable from the host — so restrict it at the publish step, n
 with `BIND_ADDR`. For `Secure` cookies set `PORTAL_SECURE_COOKIE=1` — no
 rebuild, since it is read from the environment at startup.
 
+## Appendix D — Airflow worker
+
+The server room's airflow model (SPEC §14.2, `docs/dc.md`) is computed by
+OpenFOAM in a separate process, `portal-cfd-worker`, shipped as its own image
+(`Dockerfile.cfd-worker`): the official OpenFOAM image **pinned by digest**
+(ESI v2606) plus that one binary. It is optional: without a worker the airflow
+mode says the calculation is unavailable and the rest of the app is unaffected.
+
+- **The database is the only link.** The app enqueues runs in
+  `dc_airflow_runs`; the worker claims them (`FOR UPDATE SKIP LOCKED`), runs
+  the OpenFOAM tools as child processes inside its own container, and writes
+  progress and the result back. The app never talks to a container runtime:
+  do not mount a Docker or Podman socket into either container (a socket is
+  root on the host).
+- **Migrations come from the app.** The worker only reads and writes the
+  tables of migration 0030; start (or upgrade) the app first. Until the tables
+  exist the worker logs a warning and retries.
+- **Resources.** A run of the seeded room (355 k cells, 2000 iterations) takes
+  about 20 minutes on 12 cores and longer when its checks ask for more
+  iterations; it needs about 1 GB of RAM per 4 processes and a few hundred MB
+  of disk for the case, deleted after post-processing. Only the compact result
+  (a few MB) is stored in the database.
+- **Keep the process count fixed.** The same input on the same number of
+  processes gives the same result; a different count changes the numbers
+  slightly. Each result records the count and the image digest.
+
+With Compose, the `cfd-worker` service in `docker-compose.yml`:
+
+```sh
+PORTAL_CFD_CPUS=8 docker compose up -d --build cfd-worker
+docker compose logs -f cfd-worker
+```
+
+| Variable (compose / worker) | Default | Meaning |
+|---|---|---|
+| `PORTAL_CFD_CPUS` / `CFD_PROCESSES` | 4 | CPU limit and MPI processes |
+| `PORTAL_CFD_TIMEOUT_MIN` / `CFD_TIMEOUT_MIN` | 120 | A run taking longer is stopped as failed |
+| `PORTAL_CFD_MAX_ITERATIONS` / `CFD_MAX_ITERATIONS` | 4000 | How far a run whose checks fail is extended, 500 iterations at a time, before it ends as not converged |
+| — / `DATABASE_URL` | *(required)* | The app's database |
+| — / `CFD_WORK_DIR` | `/var/lib/portal-cfd` | Case directories (a volume) |
+| — / `CFD_WORKER_NAME` | the hostname | Shown in `dc_airflow_runs.worker` |
+| — / `CFD_KEEP_CASE` | `0` | `1` keeps case directories, for debugging |
+
+Without Compose (Podman, rootless, on the database host):
+
+```sh
+podman build -f Dockerfile.cfd-worker -t portal-cfd-worker .
+podman run -d --name portal-cfd-worker --network host --shm-size 1g --cpus 8 \
+  -e DATABASE_URL='postgres://portal:…@127.0.0.1:5432/portal' -e CFD_PROCESSES=8 \
+  -v portal-cfd-cases:/var/lib/portal-cfd --restart unless-stopped portal-cfd-worker
+```
+
+`--shm-size` matters: MPI's shared-memory transport fails in the default 64 MB.
+Several workers may run against one database; each claims its own runs. A
+worker that dies mid-run leaves the run `running` with a stale heartbeat; the
+next worker takes it over after five minutes.
+
+**Changing the image digest changes the numbers.** Bump it only on purpose,
+re-run the reference case (`just cfd-reference`, `just cfd-case`) and compare
+it with `dc-handoff/reference/airflow-cfd/result-v2606/` before deploying.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |

@@ -8,6 +8,8 @@ frontend/node_modules/
 frontend/dist/
 .pgdata/
 .direnv/
+# The design handoff (photos, reference runs) is local and not needed to build.
+dc-handoff/
 .git/
 .gitignore
 

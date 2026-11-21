@@ -137,6 +137,44 @@ check-migrations:
     trap 'dropdb -h 127.0.0.1 -p {{pgport}} -U {{pguser}} --if-exists "$db"' EXIT
     cd backend && DATABASE_URL="$url" cargo run -q -- migrate
 
+# --- Airflow worker ---------------------------------------------------------
+# The airflow model's solver runs in its own container (SPEC §14.2,
+# docs/DEPLOY.md "Airflow worker"): the pinned OpenFOAM image plus
+# `portal-cfd-worker`, which claims runs from Postgres. The API never talks
+# to a container runtime. Podman by default; `CONTAINER=docker just …`.
+
+container := env("CONTAINER", "podman")
+# Files written to the host belong to the caller (rootless Podman maps ids).
+as_me := if container == "podman" { "--userns=keep-id --user $(id -u):$(id -g)" } else { "--user $(id -u):$(id -g)" }
+
+# Build the airflow worker's image.
+cfd-build:
+    {{container}} build -f Dockerfile.cfd-worker -t portal-cfd-worker .
+
+# The worker does not migrate: the API must have applied migration 0030 to
+# that database. On a branch, point DATABASE_URL at a scratch database, never
+# at the dev one.
+#
+# Run the airflow worker against DATABASE_URL until Ctrl-C.
+cfd-worker processes="4": cfd-build
+    {{container}} run --rm --name portal-cfd-worker --network host --shm-size 1g \
+        --cpus {{processes}} -e DATABASE_URL="$DATABASE_URL" -e CFD_PROCESSES={{processes}} \
+        -v portal-cfd-cases:/var/lib/portal-cfd portal-cfd-worker
+
+# The reference case: `just cfd-reference > input.json`.
+#
+# One case without a database: `just cfd-case input.json out/`.
+cfd-case input out processes="4": cfd-build
+    mkdir -p {{out}}
+    {{container}} run --rm --shm-size 1g --cpus {{processes}} {{as_me}} -e HOME=/tmp \
+        -e CFD_PROCESSES={{processes}} -e CFD_WORK_DIR=/out/.case \
+        -v "$(realpath {{input}})":/in.json:ro -v "$(realpath {{out}})":/out \
+        portal-cfd-worker run-case /in.json /out
+
+# The reference case of dc-handoff/reference/airflow-cfd as an input.
+cfd-reference: cfd-build
+    @{{container}} run --rm portal-cfd-worker reference-input
+
 # --- Database ---------------------------------------------------------------
 # The port lives only in the pg_ctl invocation: postgresql.conf leaves `port`
 # commented out, so dropping -p silently starts the cluster on 5432 and the app

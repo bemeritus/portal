@@ -8,9 +8,10 @@ name = "portal"
 path = "src/main.rs"
 
 # The airflow model (SPEC §14.2): `cfd` holds its pure algorithms (case
-# generation, post-processing, convergence checks).
+# generation, post-processing, convergence checks); `cfd-worker` runs
+# OpenFOAM in its own container and is the only process that does.
 [workspace]
-members = [".", "cfd"]
+members = [".", "cfd", "cfd-worker"]
 
 [dependencies]
 # --- Web ---
