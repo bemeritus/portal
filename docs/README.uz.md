@@ -213,6 +213,23 @@ tomonidan o'qiladi; agar mavjud bo'lsa, avval mahalliy `.env` yuklanadi.
 | `STATIC_DIR` | `static` | Beriladigan qurilgan SPA; ishlab chiqishda ishlatilmaydi |
 | `CORS_ORIGINS` | *(bo'sh)* | Vergul bilan ajratilgan originlar, ular cookie bilan so'rov yubora oladi. **Faqat ishlab chiqish uchun** — yuqoriga qarang |
 | `SECURE_COOKIE` | `0` | Sessiya cookie sidagi `Secure`. TLS ortida `1` qiling (SR-2) |
+| `AIRFLOW_PROCESSES` | `4` | Server xonasi havo oqimi hisobining MPI jarayonlari soni; har bir natija bilan yoziladi. Uni ham, hisoblovchining (worker) protsessorlarini ham serverdagi yadrolar soniga teng qiling: hisoblovchida protsessor kamroq bo'lsa, hisob `processes_exceed_cpus` bilan muvaffaqiyatsiz tugaydi (`docs/DEPLOY.uz.md`, D ilovasi) |
+
+### Havo oqimi modeli
+
+Server xonasining havo oqimi modeli (SPEC §14.2) OpenFOAM bilan alohida
+jarayonda hisoblanadi: `portal-cfd-worker` (`Dockerfile.cfd-worker`) —
+digest bo'yicha qotirilgan rasmiy OpenFOAM obrazi va shu bitta dastur. API
+hisoblarni faqat navbatga qo'yadi (`dc_airflow_runs` jadvali); hisoblovchi
+ularni bazadan oladi, OpenFOAM ni o'z konteynerida ishga tushiradi va
+natijani bazaga yozadi. API hech qachon konteyner muhitiga murojaat
+qilmaydi. Hisoblovchisiz havo oqimi rejimi «hisob mavjud emas» deydi, modulning
+qolgan qismi ishlayveradi.
+
+- Ishga tushirish va sozlash: `docs/DEPLOY.uz.md`, D ilovasi; mahalliy
+  `just cfd-worker` (Podman o'rnatilgan bo'lsa Podman, aks holda Docker).
+- Hisob qanday bajariladi va natija qanday o'qiladi: `docs/dc.md`, «Airflow
+  model» bo'limi (inglizcha).
 
 ## API
 

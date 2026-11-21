@@ -412,7 +412,8 @@ come with phase 2.
   checked-in fixtures (`backend/cfd/tests/fixtures/README.md`), the OpenFOAM
   reader, the f16 grid, the checks and batch means — and `dc::airflow` (the
   input from the seeded room). A whole run: `just cfd-reference > ref.json`,
-  then `just cfd-case ref.json out/` (about 17 minutes on 12 cores). The
+  then `just cfd-case ref.json out/` (the input's `settings.processes`, 4 by
+  default — about 17 minutes with 12 on 12 cores). The
   uncertainty of any run's bands from its probes:
   `portal-cfd-worker uncertainty INPUT.json postProcessing/intakes/0/T 1500 2000`.
   Against a database: `just cfd-worker` (on a branch, with `DATABASE_URL` set
@@ -458,7 +459,10 @@ it is not calibrated** until sensors exist (SPEC §14.2, phase 5).
    35 mm at obstacles and 17.5 mm at grilles) → `topoSet` → `checkMesh` →
    `buoyantBoussinesqSimpleFoam` (steady, Boussinesq, k-ε) with the
    reference's schemes and relaxation, for 2000 iterations. The process
-   count is the app's `AIRFLOW_PROCESSES` (12), split geometrically
+   count is the app's `AIRFLOW_PROCESSES` (default 4; set it and the
+   worker's CPUs to the host's core count — a run asking for more processes
+   than the worker has CPUs fails as `processes_exceed_cpus`, never
+   oversubscribed), split geometrically
    (`hierarchical`); scotch in this image splits the same mesh differently
    from run to run, and two such runs gave means up to 0.8 °C apart. The
    count, the image digest and the iterations are recorded with every
@@ -494,6 +498,10 @@ it is not calibrated** until sensors exist (SPEC §14.2, phase 5).
    The mass balance (the net flow through the grilles) is reported; the
    pressure-outlet returns close it by construction.
 
+   A run that cannot be computed at all ends as **failed**, also with a
+   reason: `processes_exceed_cpus` (the run asks for more MPI processes than
+   the worker has CPUs; both numbers in its `detail`), `mesh_failed`,
+   `bad_input`, `post_failed`, `worker`.
 5. **Post-processing** (`backend/cfd/src/post.rs`, a port of `post.py`)
    resamples the averaged fields onto a 2.5 cm grid (inverse distance over
    the four nearest cells) and takes from it:
@@ -577,6 +585,16 @@ cells; the mesh 17 s, the solve 32 minutes for 4000 iterations (sharing the
 machine), post-processing under a second; 2.6 MB of grid and 0.4 MB of
 streamlines, gzipped.
 
+The seeded room's numbers differ from the reference's because its inputs
+do, not because of the port (checked above): the racks carry the same
+3 / 3 / 3 / 1.5 kW, but nothing is recorded on the shelf, so the reference's
+22 towers (2.64 kW, released behind them) are missing — 10.5 kW in all
+instead of 13.14 kW, hence the cooler intakes — and the rest is the room
+model's geometry rather than the reference's hand-made boxes: the supply
+outlets as recorded (75 % × 60 % of the face, not 74 % × 54 %), the shelf's
+boards at 100 and 948 mm (not 120 and 950) and its posts at the section
+divider only.
+
 ## Decisions and deviations from SPEC
 
 Taken with the project owner before starting:
@@ -639,7 +657,8 @@ The airflow model (PROMPT-AIRFLOW part A), with the owner:
   (case and post-processing); SPEC §17.1b's 1.5 °C comparison of intake
   temperatures with the re-run is reported with the bands' intervals, as
   information.
-- **Process count**: fixed by the app (`AIRFLOW_PROCESSES`, 12), split
+- **Process count**: fixed by the app (`AIRFLOW_PROCESSES`, default 4, set
+  to the host's core count; never oversubscribed), split
   geometrically, recorded with each result; the same input gives the same
   result on the same count.
 

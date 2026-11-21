@@ -434,6 +434,78 @@ emas, e'lon qilish qadamida cheklang. `Secure` cookie lar uchun esa
 `PORTAL_SECURE_COOKIE=1` ni bering — qayta qurish shart emas, u ishga
 tushishda muhitdan o'qiladi.
 
+## D ilovasi — Havo oqimi hisoblovchisi (airflow worker)
+
+Server xonasining havo oqimi modeli (SPEC §14.2, `docs/dc.md`) OpenFOAM
+yordamida alohida jarayonda — `portal-cfd-worker` da hisoblanadi. U o'z obrazi
+bilan keladi (`Dockerfile.cfd-worker`): **digest bo'yicha qotirilgan** rasmiy
+OpenFOAM obrazi (ESI v2606) va shu bitta dastur. U ixtiyoriy: hisoblovchi
+bo'lmasa, havo oqimi rejimi hisob mavjud emasligini aytadi, ilovaning qolgan
+qismi ishlayveradi.
+
+- **Yagona aloqa — baza.** Ilova hisoblarni `dc_airflow_runs` ga navbatga
+  qo'yadi; hisoblovchi ularni oladi (`FOR UPDATE SKIP LOCKED`), OpenFOAM
+  vositalarini o'z konteyneri ichida bola jarayonlar sifatida ishga tushiradi
+  va jarayon holati hamda natijani qaytarib yozadi. Ilova hech qachon
+  konteyner muhitiga murojaat qilmaydi: hech bir konteynerga Docker yoki
+  Podman soketini ulamang (soket — xostda root huquqi).
+- **Migratsiyalarni ilova qo'llaydi.** Hisoblovchi faqat 0030-migratsiya
+  jadvallarini o'qiydi va yozadi; avval ilovani ishga tushiring (yoki
+  yangilang). Jadvallar paydo bo'lgunicha hisoblovchi ogohlantirish yozib,
+  qayta urinadi.
+- **Resurslar.** Urug'langan xonaning bitta hisobi (355 ming yacheyka, 2000
+  iteratsiya) 12 yadroda taxminan 17 daqiqa davom etadi; biror stoyka kirishi
+  bandining o'rtachasi noaniq qolib, hisob chegaragacha uzaytirilsa — ikki
+  baravargacha. Unga taxminan 3 GB RAM va keys uchun bir necha yuz MB disk
+  kerak (keys qayta ishlashdan keyin o'chiriladi). Bazaga faqat ixcham natija
+  (bir necha MB) yoziladi.
+- **Jarayonlar sonini ilova belgilaydi**: `AIRFLOW_PROCESSES` (standart 4).
+  U har bir hisobning sozlamalariga obraz digesti va iteratsiyalar soni bilan
+  birga yoziladi: bir xil kirish ma'lumoti bir xil jarayonlar sonida bir xil
+  natija beradi (to'r geometrik bo'linadi). **`AIRFLOW_PROCESSES` ni ham,
+  hisoblovchining protsessorlarini ham serverdagi yadrolar soniga teng
+  qiling.** Hisoblovchi hech qachon protsessorlarni ortiqcha band qilmaydi:
+  protsessorlari kamroq bo'lsa, hisob `processes_exceed_cpus` sababi bilan
+  muvaffaqiyatsiz tugaydi, ikkala son hisobning `detail` maydonida.
+
+Compose bilan — `docker-compose.yml` dagi `cfd-worker` xizmati:
+
+```sh
+PORTAL_CFD_CPUS=12 docker compose up -d --build app cfd-worker   # 12 yadroli server
+docker compose logs -f cfd-worker
+```
+
+| O'zgaruvchi (compose / hisoblovchi) | Standart | Ma'nosi |
+|---|---|---|
+| `PORTAL_CFD_CPUS` / ilovaning `AIRFLOW_PROCESSES` | 4 | Hisoblovchining protsessor chegarasi va har bir hisobning MPI jarayonlari soni (ilovada beriladi): serverdagi yadrolar soniga teng qiling |
+| `PORTAL_CFD_TIMEOUT_MIN` / `CFD_TIMEOUT_MIN` | 120 | Bundan uzoq davom etgan hisob to'xtatiladi va «yaqinlashmadi» (`timeout`) deb tugaydi |
+| `PORTAL_CFD_MAX_ITERATIONS` / `CFD_MAX_ITERATIONS` | 4000 | Biror kirish bandining o'rtachasi noaniq ekan (95 % yarim kengligi 1 °C dan katta), hisob 500 iteratsiyadan qancha uzaytiriladi; chegarada bu bandlar belgilangan holda natija bo'ladi |
+| — / `DATABASE_URL` | *(majburiy)* | Ilovaning bazasi |
+| — / `CFD_WORK_DIR` | `/var/lib/portal-cfd` | Keys kataloglari (volume) |
+| — / `CFD_WORKER_NAME` | xost nomi | `dc_airflow_runs.worker` da ko'rsatiladi |
+| — / `CFD_KEEP_CASE` | `0` | `1` — keys kataloglarini saqlab qoladi (nosozliklarni tekshirish uchun) |
+
+Compose siz (Podman, rootless, baza joylashgan serverda; 12 yadroli server,
+shuning uchun ilovada `AIRFLOW_PROCESSES=12`):
+
+```sh
+podman build -f Dockerfile.cfd-worker -t portal-cfd-worker .
+podman run -d --name portal-cfd-worker --network host --shm-size 2g --cpus 12 \
+  -e DATABASE_URL='postgres://portal:…@127.0.0.1:5432/portal' \
+  -v portal-cfd-cases:/var/lib/portal-cfd --restart unless-stopped portal-cfd-worker
+```
+
+`--shm-size` muhim: MPI ning umumiy xotira transporti standart 64 MB da
+ishlamaydi. Bitta bazaga bir nechta hisoblovchi ulanishi mumkin; har biri o'z
+hisoblarini oladi. Hisob o'rtasida to'xtab qolgan hisoblovchining hisobi
+eskirgan yurak urishi (heartbeat) bilan `running` holatida qoladi; besh
+daqiqadan keyin uni keyingi hisoblovchi oladi.
+
+**Obraz digestini o'zgartirish sonlarni o'zgartiradi.** Uni faqat ataylab
+yangilang, etalon keysni qayta hisoblang (`just cfd-reference`,
+`just cfd-case`) va joylashtirishdan oldin
+`dc-handoff/reference/airflow-cfd/result-v2606/` bilan solishtiring.
+
 ## Nosozliklarni bartaraf etish
 
 | Alomat | Sabab / yechim |
