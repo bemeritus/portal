@@ -141,9 +141,11 @@ check-migrations:
 # The airflow model's solver runs in its own container (SPEC §14.2,
 # docs/DEPLOY.md "Airflow worker"): the pinned OpenFOAM image plus
 # `portal-cfd-worker`, which claims runs from Postgres. The API never talks
-# to a container runtime. Podman by default; `CONTAINER=docker just …`.
+# to a container runtime. Podman if it is installed, else Docker;
+# `CONTAINER=docker just …` chooses.
 
-container := env("CONTAINER", "podman")
+runtime_found := `command -v podman >/dev/null 2>&1 && echo podman || echo docker`
+container := env("CONTAINER", runtime_found)
 # Files written to the host belong to the caller (rootless Podman maps ids).
 as_me := if container == "podman" { "--userns=keep-id --user $(id -u):$(id -g)" } else { "--user $(id -u):$(id -g)" }
 
@@ -153,11 +155,12 @@ cfd-build:
 
 # The worker does not migrate: the API must have applied migration 0030 to
 # that database. The MPI process count comes from each run (the API's
-# AIRFLOW_PROCESSES, 12 by default); give the worker as many CPUs. On a branch, point DATABASE_URL at a scratch database, never
+# AIRFLOW_PROCESSES, 4 by default; set it to the host's core count, as this
+# recipe's CPUs follow it); a run asking for more fails, never oversubscribes. On a branch, point DATABASE_URL at a scratch database, never
 # at the dev one.
 #
 # Run the airflow worker against DATABASE_URL until Ctrl-C.
-cfd-worker cpus="12": cfd-build
+cfd-worker cpus=env("AIRFLOW_PROCESSES", "4"): cfd-build
     {{container}} run --rm --name portal-cfd-worker --network host --shm-size 2g \
         --cpus {{cpus}} -e DATABASE_URL="$DATABASE_URL" \
         -v portal-cfd-cases:/var/lib/portal-cfd portal-cfd-worker
