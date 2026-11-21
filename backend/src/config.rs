@@ -30,6 +30,10 @@ pub struct Config {
     /// Only used to put a clickable link into Telegram messages; without it
     /// the messages still go out, just without the link.
     pub public_base_url: Option<String>,
+    /// MPI processes of an airflow run (`AIRFLOW_PROCESSES`, default 12),
+    /// recorded in each run's settings: the same input on the same count
+    /// gives the same result. Match the worker's CPUs.
+    pub airflow_processes: usize,
 }
 
 impl Config {
@@ -77,6 +81,11 @@ impl Config {
                 .ok()
                 .map(|v| v.trim().trim_end_matches('/').to_string())
                 .filter(|v| !v.is_empty()),
+            airflow_processes: std::env::var("AIRFLOW_PROCESSES")
+                .ok()
+                .and_then(|v| v.trim().parse().ok())
+                .filter(|n: &usize| *n >= 1)
+                .unwrap_or(portal_cfd::input::default_processes()),
         }
     }
 }

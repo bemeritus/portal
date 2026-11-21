@@ -10,12 +10,13 @@
 //! portal-cfd-worker                              claim and run jobs until stopped
 //! portal-cfd-worker run-case INPUT.json OUT_DIR  one case, no database
 //! portal-cfd-worker reference-input              the reference case as JSON
+//! portal-cfd-worker uncertainty INPUT PROBES A B  each intake band's mean ± 95 % over (A, B]
 //! ```
 //!
 //! Environment: `DATABASE_URL`; `CFD_WORK_DIR` (case directories, deleted
-//! after each run); `CFD_PROCESSES` (MPI ranks, default: the CPUs this
-//! process may use); `CFD_TIMEOUT_MIN` (120); `CFD_MAX_ITERATIONS` (4000:
-//! how far a run whose checks fail is extended); `CFD_WORKER_NAME`;
+//! after each run); the MPI process count comes from each run's settings;
+//! `CFD_TIMEOUT_MIN` (120); `CFD_MAX_ITERATIONS` (4000:
+//! how far a run is extended while a band's mean is uncertain); `CFD_WORKER_NAME`;
 //! `CFD_IMAGE` (the image digest, recorded with every result);
 //! `FOAM_BASHRC`; `CFD_KEEP_CASE=1` keeps case directories.
 
@@ -51,7 +52,7 @@ async fn config() -> Result<Config, String> {
     let bashrc = env_or("FOAM_BASHRC", "/usr/lib/openfoam/openfoam2606/etc/bashrc");
     Ok(Config {
         work_dir: PathBuf::from(env_or("CFD_WORK_DIR", "/var/lib/portal-cfd")),
-        processes: env_num("CFD_PROCESSES", cpus).max(1),
+        cpus,
         timeout: Duration::from_secs(60 * env_num("CFD_TIMEOUT_MIN", 120u64)),
         max_iterations: env_num("CFD_MAX_ITERATIONS", 4000),
         image: env_or("CFD_IMAGE", "unknown"),
@@ -79,9 +80,12 @@ async fn main() {
             0
         }
         Some("run-case") if args.len() == 4 => run_case(&args[2], &args[3]).await,
+        Some("uncertainty") if args.len() == 6 => uncertainty(&args[2..]),
         None => serve().await,
         _ => {
-            eprintln!("usage: portal-cfd-worker [run-case INPUT.json OUT_DIR | reference-input]");
+            eprintln!(
+                "usage: portal-cfd-worker [run-case INPUT.json OUT_DIR | reference-input | uncertainty INPUT.json PROBES FROM TO]"
+            );
             2
         }
     };
@@ -186,7 +190,7 @@ impl Monitor for DbMonitor<'_> {
             self.pool,
             self.worker,
             &self.cfg.image,
-            self.cfg.processes as i32,
+            self.cfg.cpus as i32,
         )
         .await;
         self.going
@@ -227,13 +231,13 @@ async fn serve() -> i32 {
     };
     tracing::info!(
         worker,
-        processes = cfg.processes,
+        cpus = cfg.cpus,
         image = cfg.image,
         "waiting for airflow runs"
     );
     let jobs = async {
         loop {
-            if let Err(e) = db::heartbeat(&pool, &worker, &cfg.image, cfg.processes as i32).await {
+            if let Err(e) = db::heartbeat(&pool, &worker, &cfg.image, cfg.cpus as i32).await {
                 tracing::warn!("heartbeat: {e}");
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 continue;
@@ -311,7 +315,7 @@ async fn handle(pool: &PgPool, cfg: &Config, worker: &str, job: db::Claimed) {
                 },
                 Some(f) => db::Finish {
                     status: "not_converged",
-                    reason: Some(failure_code(f)),
+                    reason: Some(f.code()),
                     detail: None,
                     summary,
                     grid: None,
@@ -327,17 +331,27 @@ async fn handle(pool: &PgPool, cfg: &Config, worker: &str, job: db::Claimed) {
             grid: None,
             streamlines: None,
         },
+        // Not a result, and said so: «не сошлось» with the reason.
         Err(Stop::TimedOut) => db::Finish {
-            status: "failed",
+            status: "not_converged",
             reason: Some("timeout"),
             detail: None,
             summary: None,
             grid: None,
             streamlines: None,
         },
+        // A solver that crashed (a floating-point exception, NaN) diverged.
         Err(Stop::Failed { reason, detail }) => db::Finish {
-            status: "failed",
-            reason: Some(reason),
+            status: if *reason == "solver_failed" {
+                "not_converged"
+            } else {
+                "failed"
+            },
+            reason: Some(if *reason == "solver_failed" {
+                "diverged"
+            } else {
+                reason
+            }),
             detail: Some(detail),
             summary: None,
             grid: None,
@@ -350,12 +364,54 @@ async fn handle(pool: &PgPool, cfg: &Config, worker: &str, job: db::Claimed) {
     }
 }
 
-fn failure_code(f: portal_cfd::checks::Failure) -> &'static str {
-    use portal_cfd::checks::Failure::*;
-    match f {
-        Residuals => "residuals",
-        EnergyBalance => "energy_balance",
-        MassBalance => "mass_balance",
-        IntakeDrift => "intake_drift",
+/// Each intake band's uncertainty over `(from, to]` from a probes file
+/// (`postProcessing/intakes/<t>/T` of a case written for INPUT), as the
+/// jobs compute it; JSON on stdout.
+fn uncertainty(args: &[String]) -> i32 {
+    let run = || -> Result<serde_json::Value, String> {
+        let input: CaseInput = serde_json::from_str(
+            &std::fs::read_to_string(&args[0]).map_err(|e| format!("{}: {e}", args[0]))?,
+        )
+        .map_err(|e| e.to_string())?;
+        let text = std::fs::read_to_string(&args[1]).map_err(|e| format!("{}: {e}", args[1]))?;
+        let probes = portal_cfd::checks::dat_rows(&text);
+        let window = [
+            args[2].parse::<i32>().map_err(|e| e.to_string())?,
+            args[3].parse::<i32>().map_err(|e| e.to_string())?,
+        ];
+        let fluct = portal_cfd::checks::fluctuations(&input, &probes, window);
+        let mut bands = vec![];
+        for (i, r) in input.racks.iter().enumerate() {
+            for (k, (h, _)) in portal_cfd::post::HEIGHTS.iter().enumerate() {
+                let col = (i * 3 + k) * 5;
+                let series: Vec<f64> = probes
+                    .iter()
+                    .filter(|(t, _)| *t > window[0] as f64 && *t <= window[1] as f64)
+                    .map(|(_, v)| v[col..col + 5].iter().sum::<f64>() / 5.0 - 273.15)
+                    .collect();
+                let bm = portal_cfd::checks::batch_means(&series);
+                let f = fluct[i][k];
+                bands.push(serde_json::json!({
+                    "rack": r.name, "height": h,
+                    "mean": series.iter().sum::<f64>() / series.len().max(1) as f64,
+                    "half_width": f.half_width, "batches": f.batches, "lag1": bm.lag1,
+                    "correlated": f.correlated, "std": f.std,
+                }));
+            }
+        }
+        Ok(serde_json::json!({ "window": window, "bands": bands }))
+    };
+    match run() {
+        Ok(v) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&v).expect("serializable")
+            );
+            0
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            2
+        }
     }
 }

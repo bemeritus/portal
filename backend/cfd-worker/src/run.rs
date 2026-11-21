@@ -12,7 +12,7 @@ use portal_cfd::checks::{self, Checks, Opening, Residuals};
 use portal_cfd::foam::{self, Mesh};
 use portal_cfd::grid::{self, BROWSER_GRID_MM};
 use portal_cfd::input::CaseInput;
-use portal_cfd::post::{self, Nearest, PointSampler, StreamSet};
+use portal_cfd::post::{self, Fluctuation, Nearest, StreamSet};
 use portal_cfd::summary::{Flow, Summary, Timings, VERSION};
 use serde::Serialize;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -22,7 +22,9 @@ use tokio::process::Command;
 #[derive(Clone, Debug)]
 pub struct Config {
     pub work_dir: PathBuf,
-    pub processes: usize,
+    /// CPUs this process may use (reported with the heartbeat; the MPI
+    /// process count comes from each run's settings).
+    pub cpus: usize,
     pub timeout: Duration,
     /// Iterations a run may be extended to while its checks fail.
     pub max_iterations: i32,
@@ -232,8 +234,8 @@ impl<M: Monitor> Job<'_, M> {
     }
 
     async fn solve(&mut self) -> Result<(), Stop> {
-        let np = self.cfg.processes.to_string();
-        if self.cfg.processes > 1 {
+        let np = self.input.settings.processes.to_string();
+        if self.input.settings.processes > 1 {
             self.tool(
                 "solve",
                 "mpirun",
@@ -252,7 +254,7 @@ impl<M: Monitor> Job<'_, M> {
     }
 
     async fn reconstruct(&mut self, times: &[i32]) -> Result<(), Stop> {
-        if self.cfg.processes > 1 {
+        if self.input.settings.processes > 1 {
             let t: Vec<String> = times.iter().map(|t| t.to_string()).collect();
             let t = t.join(",");
             self.foam("reconstruct", &["reconstructPar", "-time", &t])
@@ -297,7 +299,6 @@ pub async fn run<M: Monitor>(
 
 async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
     let input = job.input;
-    let window = input.settings.average_last;
     let mut timings = Timings::default();
     let t0 = Instant::now();
     for (rel, text) in case::files(input) {
@@ -305,7 +306,7 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
     }
     job.write(
         "system/decomposeParDict",
-        &case::decompose_par_dict(input, job.cfg.processes),
+        &case::decompose_par_dict(input, input.settings.processes),
     )?;
     job.foam("blockMesh", &["blockMesh"]).await?;
     job.foam("snappyHexMesh", &["snappyHexMesh", "-overwrite"])
@@ -341,28 +342,35 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
         }
     }
     job.write("0/U", &case::u_field(input, &areas))?;
-    if job.cfg.processes > 1 {
+    if input.settings.processes > 1 {
         job.foam("decomposePar", &["decomposePar", "-force"])
             .await?;
     }
     timings.mesh = t0.elapsed().as_secs_f64().round();
 
-    // Solve; while the checks fail, extend by another window up to the cap.
+    // Solve. While a band's mean is too uncertain, go on in steps of
+    // EXTEND_STEP (the average carries on) up to the cap; a real failure
+    // ends the run at once.
     let centres = mesh.cell_centres();
     let near = Nearest::for_case(input, &centres);
     let t1 = Instant::now();
     job.stage = "solve";
-    let (checks, mean_t, mean_u) = loop {
+    let start = case::average_start(input);
+    let (checks, mean_t, mean_u, fluct) = loop {
         job.solve().await?;
         let end = job.end;
-        let mid = end - window / 2;
-        job.reconstruct(&[mid, end]).await?;
-        let (checks, t, u) = check_window(job, &mesh, &near, mid, end)?;
-        let next = end + window;
-        if checks.failure().is_none() || next > job.cfg.max_iterations {
-            break (checks, t, u);
+        job.reconstruct(&[end]).await?;
+        let (checks, t, u, fluct) = check_window(job, &mesh, start, end)?;
+        let next = end + case::EXTEND_STEP;
+        tracing::info!(
+            end,
+            failure = ?checks.failure(),
+            half_width = checks.half_width_k.value,
+            "window checked"
+        );
+        if checks.failure().is_some() || !checks.uncertain() || next > job.cfg.max_iterations {
+            break (checks, t, u, fluct);
         }
-        tracing::info!(end, failure = ?checks.failure(), "checks failed; extending the run");
         job.end = next;
         job.write("system/controlDict", &case::control_dict(input, next))?;
     };
@@ -374,8 +382,6 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
     let t2 = Instant::now();
     let t_c: Vec<f64> = mean_t.iter().map(|t| t - 273.15).collect();
     let fine = post::resample(input, &near, &t_c, &mean_u, post::H);
-    let probes = read_probes(&job.dir).map_err(read_err)?;
-    let fluct = checks::fluctuations(input, &probes, checks.window);
     let numbers = post::numbers(input, &fine, &t_c, &mean_u, &fluct);
     let sets: Vec<StreamSet> = post::streamlines(input, &fine);
     drop(fine);
@@ -385,14 +391,21 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
         .map_err(read_err)?;
     timings.post = t2.elapsed().as_secs_f64().round();
     let failure = checks.failure();
+    // At the cap a still uncertain band is part of the result, flagged.
+    let unstable = if failure.is_none() {
+        checks.wide.clone()
+    } else {
+        vec![]
+    };
     let summary = Summary {
         version: VERSION,
         numbers,
         flow: Flow::PseudoSteady,
         iterations: job.end,
         checks,
+        unstable,
         settings: input.settings.clone(),
-        processes: job.cfg.processes,
+        processes: input.settings.processes,
         image: job.cfg.image.clone(),
         solver: "buoyantBoussinesqSimpleFoam".into(),
         timings_s: timings,
@@ -411,53 +424,37 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
     })
 }
 
-/// The checks of the window ending at `end`, and the averaged T and U.
+/// The checks of the window `(start, end]`, the averaged T and U, and each
+/// band's fluctuation and uncertainty.
 #[allow(clippy::type_complexity)]
 fn check_window<M: Monitor>(
     job: &Job<'_, M>,
     mesh: &Mesh,
-    near: &Nearest,
-    mid: i32,
+    start: i32,
     end: i32,
-) -> Result<(Checks, Vec<f64>, Vec<[f64; 3]>), Stop> {
+) -> Result<(Checks, Vec<f64>, Vec<[f64; 3]>, Vec<[Fluctuation; 3]>), Stop> {
     let input = job.input;
-    let at = |t: i32| job.dir.join(t.to_string());
-    let t_mid = foam::scalar_field(&at(mid).join("TMean")).map_err(read_err)?;
-    let t_end = foam::scalar_field(&at(end).join("TMean")).map_err(read_err)?;
-    let u_end = foam::vector_field(&at(end).join("UMean")).map_err(read_err)?;
-    let n1 = foam::averaged_iterations(&at(mid), "average", "T").map_err(read_err)?;
-    let n2 = foam::averaged_iterations(&at(end), "average", "T").map_err(read_err)?;
-    let celsius = |v: &[f64]| v.iter().map(|t| t - 273.15).collect::<Vec<f64>>();
-    let (c_mid, c_end) = (celsius(&t_mid), celsius(&t_end));
-    let (s_mid, s_end) = (
-        PointSampler::new(input, near, &c_mid),
-        PointSampler::new(input, near, &c_end),
-    );
-    let first = post::intake_means(input, |p| s_mid.temperature(p));
-    let all = post::intake_means(input, |p| s_end.temperature(p));
-    let second: Vec<[f64; 3]> = first
-        .iter()
-        .zip(&all)
-        .map(|(f, a)| [0, 1, 2].map(|k| checks::second_half(f[k], a[k], n1, n2)))
-        .collect();
+    let at = job.dir.join(end.to_string());
+    let t = foam::scalar_field(&at.join("TMean")).map_err(read_err)?;
+    let u = foam::vector_field(&at.join("UMean")).map_err(read_err)?;
     let mut openings = vec![];
     for p in case::opening_patches(input) {
         let n = mesh.patches.get(&p).map_or(0, |&(_, n)| n);
         openings.push(Opening {
-            phi: foam::patch_scalars(&at(end).join("phiMean"), &p, n).map_err(read_err)?,
-            t: foam::patch_scalars(&at(end).join("TMean"), &p, n).map_err(read_err)?,
+            phi: foam::patch_scalars(&at.join("phiMean"), &p, n).map_err(read_err)?,
+            t: foam::patch_scalars(&at.join("TMean"), &p, n).map_err(read_err)?,
         });
     }
-    let balance = checks::heat_removed(input, &openings);
-    let checks = checks::evaluate(
-        input,
-        [end - input.settings.average_last, end],
-        &job.residuals,
-        balance,
-        &first,
-        &second,
-    );
-    Ok((checks, t_end, u_end))
+    let finite = t.iter().all(|v| v.is_finite()) && u.iter().flatten().all(|v| v.is_finite());
+    let balance = if finite {
+        checks::heat_removed(input, &openings)
+    } else {
+        (f64::NAN, f64::NAN)
+    };
+    let probes = read_probes(&job.dir).map_err(read_err)?;
+    let fluct = checks::fluctuations(input, &probes, [start, end]);
+    let checks = checks::evaluate(input, [start, end], &job.residuals, balance, &fluct);
+    Ok((checks, t, u, fluct))
 }
 
 /// The intake probes of every solver run, in time order.

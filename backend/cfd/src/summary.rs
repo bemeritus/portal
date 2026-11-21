@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::checks::Checks;
+use crate::checks::{Checks, Unstable};
 use crate::grid::Header;
 use crate::input::{Assumption, Settings};
 use crate::post::Numbers;
@@ -35,10 +35,15 @@ pub struct Summary {
     pub numbers: Numbers,
     pub flow: Flow,
     pub checks: Checks,
+    /// Intake bands whose mean was still uncertain (95 % half-width over
+    /// the limit) when the run reached its cap: shown with their interval,
+    /// flagged unstable.
+    pub unstable: Vec<Unstable>,
     pub settings: Settings,
     /// Iterations solved (more than `settings.iterations` when the window
     /// had to be extended).
     pub iterations: i32,
+    /// MPI processes (from the settings).
     pub processes: usize,
     /// The solver image, by digest.
     pub image: String,

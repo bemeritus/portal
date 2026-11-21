@@ -441,26 +441,29 @@ mode says the calculation is unavailable and the rest of the app is unaffected.
   tables of migration 0030; start (or upgrade) the app first. Until the tables
   exist the worker logs a warning and retries.
 - **Resources.** A run of the seeded room (355 k cells, 2000 iterations) takes
-  about 20 minutes on 12 cores and longer when its checks ask for more
-  iterations; it needs about 1 GB of RAM per 4 processes and a few hundred MB
-  of disk for the case, deleted after post-processing. Only the compact result
-  (a few MB) is stored in the database.
-- **Keep the process count fixed.** The same input on the same number of
-  processes gives the same result; a different count changes the numbers
-  slightly. Each result records the count and the image digest.
+  about 17 minutes on 12 cores, and up to twice that when an intake band's mean
+  stays uncertain and the run is extended to the cap; it needs about 3 GB of
+  RAM and a few hundred MB of disk for the case, deleted after
+  post-processing. Only the compact result (a few MB) is stored in the
+  database.
+- **The process count is fixed by the app**, `AIRFLOW_PROCESSES` (default 12),
+  and recorded in every run's settings with the image digest and the
+  iteration count: the same input on the same count gives the same result
+  (the mesh is split geometrically). Give the worker that many CPUs; fewer
+  only make it slower.
 
 With Compose, the `cfd-worker` service in `docker-compose.yml`:
 
 ```sh
-PORTAL_CFD_CPUS=8 docker compose up -d --build cfd-worker
+PORTAL_CFD_CPUS=12 docker compose up -d --build app cfd-worker
 docker compose logs -f cfd-worker
 ```
 
 | Variable (compose / worker) | Default | Meaning |
 |---|---|---|
-| `PORTAL_CFD_CPUS` / `CFD_PROCESSES` | 4 | CPU limit and MPI processes |
-| `PORTAL_CFD_TIMEOUT_MIN` / `CFD_TIMEOUT_MIN` | 120 | A run taking longer is stopped as failed |
-| `PORTAL_CFD_MAX_ITERATIONS` / `CFD_MAX_ITERATIONS` | 4000 | How far a run whose checks fail is extended, 500 iterations at a time, before it ends as not converged |
+| `PORTAL_CFD_CPUS` / app `AIRFLOW_PROCESSES` | 12 | The worker's CPU limit, and the MPI processes of every run (set on the app) |
+| `PORTAL_CFD_TIMEOUT_MIN` / `CFD_TIMEOUT_MIN` | 120 | A run taking longer is stopped, as not converged (`timeout`) |
+| `PORTAL_CFD_MAX_ITERATIONS` / `CFD_MAX_ITERATIONS` | 4000 | How far a run is extended, 500 iterations at a time, while an intake band's mean is uncertain (95 % half-width over 1 °C); at the cap it is a result with those bands flagged |
 | — / `DATABASE_URL` | *(required)* | The app's database |
 | — / `CFD_WORK_DIR` | `/var/lib/portal-cfd` | Case directories (a volume) |
 | — / `CFD_WORKER_NAME` | the hostname | Shown in `dc_airflow_runs.worker` |
@@ -470,8 +473,8 @@ Without Compose (Podman, rootless, on the database host):
 
 ```sh
 podman build -f Dockerfile.cfd-worker -t portal-cfd-worker .
-podman run -d --name portal-cfd-worker --network host --shm-size 1g --cpus 8 \
-  -e DATABASE_URL='postgres://portal:…@127.0.0.1:5432/portal' -e CFD_PROCESSES=8 \
+podman run -d --name portal-cfd-worker --network host --shm-size 2g --cpus 12 \
+  -e DATABASE_URL='postgres://portal:…@127.0.0.1:5432/portal' \
   -v portal-cfd-cases:/var/lib/portal-cfd --restart unless-stopped portal-cfd-worker
 ```
 

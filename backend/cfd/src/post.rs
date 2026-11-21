@@ -312,32 +312,6 @@ fn trilinear<const N: usize>(
     out
 }
 
-/// The temperature of the 2.5 cm grid at single points, computed only
-/// where needed: the same numbers as [`Grid::temperature`] of a full
-/// [`resample`], for fields that need no full grid (the half-window means).
-pub struct PointSampler<'a> {
-    near: &'a Nearest<'a>,
-    t_c: &'a [f64],
-    n: [usize; 3],
-}
-
-impl<'a> PointSampler<'a> {
-    pub fn new(input: &CaseInput, near: &'a Nearest<'a>, t_c: &'a [f64]) -> PointSampler<'a> {
-        let n = input.room.map(|v| axis_count(mm(v), H));
-        PointSampler { near, t_c, n }
-    }
-
-    pub fn temperature(&self, p: [f64; 3]) -> f64 {
-        trilinear(H, self.n, p, |ijk| {
-            let q = ijk.map(|v| H / 2.0 + v as f64 * H);
-            [idw(self.near, q)
-                .iter()
-                .map(|&(w, c)| w * self.t_c[c as usize])
-                .sum()]
-        })[0]
-    }
-}
-
 /// Points `h/2, 3h/2, …` below `len` (`np.arange(h/2, len, h)`).
 fn axis_count(len: f64, h: f64) -> usize {
     ((len - h / 2.0) / h).ceil().max(1.0) as usize
@@ -435,13 +409,26 @@ pub struct Fluctuation {
     /// Mean − minimum, and maximum − mean, of the band over the window.
     pub below: f64,
     pub above: f64,
+    /// Half-width of the 95 % interval of the window mean, by batch means.
+    pub half_width: f64,
+    /// How many batches that took (5–10: the most whose means are not
+    /// correlated).
+    pub batches: usize,
+    /// Even 5 batches were correlated: the half-width is a lower bound.
+    pub correlated: bool,
 }
 
-/// One intake band over the averaging window, °C, model. `min` and `max`
-/// are the band's range over the window placed around its mean.
+/// One intake band over the averaging window, °C, model: `mean ±
+/// half_width` (95 %). `std`, `min` and `max` say how much it moved over the
+/// window (`min`, `max` placed around the mean). `unstable`: the interval is
+/// still wider than ±[`crate::checks::HALF_WIDTH_LIMIT_K`] at the cap.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Band {
     pub mean: f64,
+    pub half_width: f64,
+    pub batches: usize,
+    pub correlated: bool,
+    pub unstable: bool,
     pub std: f64,
     pub min: f64,
     pub max: f64,
@@ -488,9 +475,35 @@ pub struct Numbers {
     pub cells: usize,
 }
 
-/// The rack, room and index numbers of `post.py`, from the 2.5 cm grid of
-/// the averaged fields; `fluct` is per rack, per band (top, mid, bottom).
-pub fn numbers(
+/// Where the return temperature is sampled (`post.py`): six points along
+/// the unit's body, 200 mm in from its ends, by three across the return
+/// grille, 40 mm in from its edges; 5 cm outside the grille's face.
+fn return_points(g: &Grille, body: &Box3) -> Vec<[f64; 3]> {
+    let [a, b] = g.face.plane_axes();
+    let r = g.rect;
+    let (long, short, sr) = if r[1] - r[0] >= r[3] - r[2] {
+        (a, b, [r[2], r[3]])
+    } else {
+        (b, a, [r[0], r[1]])
+    };
+    let plane = mm(g.face.plane_of(body)) + g.face.sign() * mm(50);
+    let mut out = vec![];
+    for vl in linspace(mm(body[2 * long] + 200), mm(body[2 * long + 1] - 200), 6) {
+        for vs in linspace(mm(sr[0] + 40), mm(sr[1] - 40), 3) {
+            let mut p = [0.0; 3];
+            p[g.face.axis()] = plane;
+            p[long] = vl;
+            p[short] = vs;
+            out.push(p);
+        }
+    }
+    out
+}
+
+/// The rack, room and index numbers of `post.py`, unrounded, from the
+/// 2.5 cm grid of the averaged fields; `fluct` is per rack, per band (top,
+/// mid, bottom), with each band's uncertainty.
+pub fn numbers_raw(
     input: &CaseInput,
     grid: &Grid,
     t_cells: &[f64],
@@ -510,10 +523,14 @@ pub fn numbers(
                 let f = fluct.get(i).map(|f| f[k]).unwrap_or_default();
                 let mean = means[i][k];
                 Band {
-                    mean: round1(mean),
-                    std: (f.std * 100.0).round() / 100.0,
-                    min: round1(mean - f.below),
-                    max: round1(mean + f.above),
+                    mean,
+                    std: f.std,
+                    min: mean - f.below,
+                    max: mean + f.above,
+                    half_width: f.half_width,
+                    batches: f.batches,
+                    correlated: f.correlated,
+                    unstable: f.half_width > crate::checks::HALF_WIDTH_LIMIT_K,
                 }
             };
             let intake = Intake {
@@ -522,7 +539,7 @@ pub fn numbers(
                 bottom: b(2),
             };
             let ex = exhaust_points(r);
-            let exhaust = round1(ex.iter().map(|p| band(p)).sum::<f64>() / ex.len() as f64);
+            let exhaust = ex.iter().map(|p| band(p)).sum::<f64>() / ex.len() as f64;
             RackResult {
                 object_id: r.object_id,
                 name: r.name.clone(),
@@ -543,7 +560,6 @@ pub fn numbers(
     } else {
         100.0 * (1.0 - over / (intakes.len() as f64 * (ALLOWABLE_MAX_C - RECOMMENDED_MAX_C)))
     };
-    // The return temperature: over each return grille, 5 cm outside it.
     let per_unit: Vec<f64> = input
         .units
         .iter()
@@ -551,32 +567,67 @@ pub fn numbers(
             let pts: Vec<[f64; 3]> = u
                 .returns
                 .iter()
-                .flat_map(|g| grille_points(g, &u.body, 50, (6, 50), (3, 40)))
+                .flat_map(|g| return_points(g, &u.body))
                 .collect();
             band(&pts)
         })
         .collect();
     let t_ret = per_unit.iter().sum::<f64>() / per_unit.len().max(1) as f64;
     let ts = input.supply_temp_c;
-    let rti = 100.0 * (t_ret - ts) / input.settings.rack_delta_t_k;
     let fold = |f: fn(f64, f64) -> f64, init: f64| t_cells.iter().copied().fold(init, f);
     Numbers {
         racks,
-        rci_hi: round1(rci_hi),
-        rti: rti.round(),
-        return_temp: round1(t_ret),
+        rci_hi,
+        rti: 100.0 * (t_ret - ts) / input.settings.rack_delta_t_k,
+        return_temp: t_ret,
         supply_temp: ts,
-        t_min: round1(fold(f64::min, f64::INFINITY)),
-        t_max: round1(fold(f64::max, f64::NEG_INFINITY)),
-        u_max: (u_cells
+        t_min: fold(f64::min, f64::INFINITY),
+        t_max: fold(f64::max, f64::NEG_INFINITY),
+        u_max: u_cells
             .iter()
             .map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt())
-            .fold(0.0, f64::max)
-            * 100.0)
-            .round()
-            / 100.0,
+            .fold(0.0, f64::max),
         cells: t_cells.len(),
     }
+}
+
+/// [`numbers_raw`] rounded as `post.py` rounds them: temperatures to
+/// 0.1 °C (RCI-HI from the rounded intakes), RTI to 1 %, speed to 0.01 m/s.
+pub fn numbers(
+    input: &CaseInput,
+    grid: &Grid,
+    t_cells: &[f64],
+    u_cells: &[[f64; 3]],
+    fluct: &[[Fluctuation; 3]],
+) -> Numbers {
+    let mut n = numbers_raw(input, grid, t_cells, u_cells, fluct);
+    for r in &mut n.racks {
+        for b in [&mut r.intake.top, &mut r.intake.mid, &mut r.intake.bottom] {
+            b.mean = round1(b.mean);
+            b.min = round1(b.min);
+            b.max = round1(b.max);
+            b.std = (b.std * 100.0).round() / 100.0;
+            b.half_width = (b.half_width * 100.0).round() / 100.0;
+        }
+        r.exhaust = round1(r.exhaust);
+        r.max_intake = r.intake.means().into_iter().fold(f64::MIN, f64::max);
+    }
+    let intakes: Vec<f64> = n.racks.iter().flat_map(|r| r.intake.means()).collect();
+    if !intakes.is_empty() {
+        let over: f64 = intakes
+            .iter()
+            .map(|t| (t - RECOMMENDED_MAX_C).max(0.0))
+            .sum();
+        n.rci_hi =
+            100.0 * (1.0 - over / (intakes.len() as f64 * (ALLOWABLE_MAX_C - RECOMMENDED_MAX_C)));
+    }
+    n.rci_hi = round1(n.rci_hi);
+    n.rti = n.rti.round();
+    n.return_temp = round1(n.return_temp);
+    n.t_min = round1(n.t_min);
+    n.t_max = round1(n.t_max);
+    n.u_max = (n.u_max * 100.0).round() / 100.0;
+    n
 }
 
 // --- Streamlines -------------------------------------------------------------------

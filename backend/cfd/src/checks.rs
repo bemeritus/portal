@@ -1,12 +1,20 @@
-//! Convergence checks (SPEC §14.2): residuals below thresholds, the energy
-//! and mass balances, intake temperatures stable over the averaging window.
-//! A run that fails any of them is not shown as a result.
+//! Convergence checks and the uncertainty of the result (SPEC §14.2).
 //!
-//! The flow in a room is pseudo-steady: it keeps moving around a mean. So
-//! every number is a mean over the last window of iterations, and stability
-//! is judged on means (the window's two halves), never on single iterations.
-//! The inputs: the solver's log (residuals), the averaged fields at the
-//! middle and the end of the window, and the intake probes.
+//! The flow in a room is pseudo-steady: it keeps moving around a mean, some
+//! intake bands by more than a degree. So every number is a mean over a
+//! window of iterations, and how far that mean can be trusted is an
+//! uncertainty, not a failure: per intake band, the 95 % interval of the
+//! window mean by batch means. A run is extended while a band's interval is
+//! wider than ±[`HALF_WIDTH_LIMIT_K`]; at the cap it is still a result,
+//! with those bands flagged unstable.
+//!
+//! A run is not a result ("not converged") only for real failures:
+//! residuals above their limits or growing, the energy balance off by more
+//! than 3 %, a diverged solution (NaN, a solver crash), a timeout.
+//!
+//! The inputs: the solver's log (residuals), the averaged fields at the end
+//! of the window (the energy balance through the grilles), and the intake
+//! probes (every iteration).
 
 use std::collections::BTreeMap;
 
@@ -14,11 +22,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::case::RHO_CP;
 use crate::input::CaseInput;
+use crate::post::Fluctuation;
 
 /// Mean initial residual over the averaging window, per equation. The
 /// buoyant room flow is pseudo-steady, so the residuals level off instead
 /// of dropping to the solver's tolerance; these limits accept the plateau
-/// of the reference run and reject a solution that is still moving.
+/// of the reference run (8·10⁻³, 1.6·10⁻³, 1.1·10⁻³, 1.7·10⁻³, 6·10⁻⁴).
 pub const RESIDUAL_LIMITS: [(&str, f64); 5] = [
     ("p_rgh", 2e-2),
     ("U", 5e-3),
@@ -26,14 +35,17 @@ pub const RESIDUAL_LIMITS: [(&str, f64); 5] = [
     ("k", 5e-3),
     ("epsilon", 5e-3),
 ];
+/// Residuals growing: the window's second half over its first.
+pub const GROWTH_FACTOR: f64 = 2.0;
 /// Heat in vs heat carried out by the units, % of the heat in.
 pub const ENERGY_LIMIT_PCT: f64 = 3.0;
-/// Net flow through all openings, % of the supply flow.
-pub const MASS_LIMIT_PCT: f64 = 1.0;
-/// The largest change of an intake band's mean temperature between the
-/// two halves of the averaging window, K. A run whose bands move more is
-/// extended by another window, up to the worker's cap.
-pub const DRIFT_LIMIT_K: f64 = 0.5;
+/// The widest 95 % half-width of a band mean the run is not extended for, K.
+pub const HALF_WIDTH_LIMIT_K: f64 = 1.0;
+/// Batch means: between 5 and 10 batches, the most whose means have a lag-1
+/// autocorrelation of at most this.
+pub const BATCHES_MIN: usize = 5;
+pub const BATCHES_MAX: usize = 10;
+pub const BATCH_AUTOCORR_LIMIT: f64 = 0.2;
 
 /// Reads the solver's log as it arrives: the iteration, and each
 /// equation's first initial residual of that iteration (`U` is the largest
@@ -97,10 +109,10 @@ impl Residuals {
             .unwrap_or_default()
     }
 
-    /// The mean of each equation's residual over iterations `> from`.
-    pub fn mean_after(&self, from: i32) -> BTreeMap<String, f64> {
+    /// The mean of each equation's residual over iterations `(from, to]`.
+    pub fn between(&self, from: i32, to: i32) -> BTreeMap<String, f64> {
         let mut sum: BTreeMap<String, (f64, u32)> = BTreeMap::new();
-        for (_, m) in self.history.iter().filter(|(i, _)| *i > from) {
+        for (_, m) in self.history.iter().filter(|(i, _)| *i > from && *i <= to) {
             for (k, v) in m {
                 let e = sum.entry(k.clone()).or_default();
                 e.0 += v;
@@ -144,14 +156,13 @@ impl Check {
     }
 }
 
-/// One intake band's mean over each half of the averaging window, °C.
+/// A band whose mean is still uncertain at the cap.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Halves {
+pub struct Unstable {
     pub object_id: i64,
     pub name: String,
     pub height: String,
-    pub first: f64,
-    pub second: f64,
+    pub half_width: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -160,42 +171,68 @@ pub struct Checks {
     pub window: [i32; 2],
     /// Mean initial residual per equation over the window.
     pub residuals: BTreeMap<String, Check>,
+    /// Equations whose residual over the window's second half is more than
+    /// [`GROWTH_FACTOR`] times that over its first half.
+    pub residuals_growing: Vec<String>,
     pub heat_in_w: f64,
     /// Carried out through the grilles, from the averaged fields.
     pub heat_removed_w: f64,
     /// |in − removed| / in, %.
     pub energy_balance_pct: Check,
-    /// |Σ flux| / supply flow, %.
-    pub mass_balance_pct: Check,
-    /// The largest difference between a band's means over the two halves
-    /// of the window, K.
-    pub intake_drift_k: Check,
-    pub halves: Vec<Halves>,
+    /// |Σ flux| / supply flow, %. Reported; the pressure-outlet returns
+    /// close it by construction.
+    pub mass_balance_pct: f64,
+    /// A field or a balance is not a number.
+    pub diverged: bool,
+    /// The widest 95 % half-width of a band mean, K, against the limit the
+    /// run is extended for.
+    pub half_width_k: Check,
+    /// Bands wider than the limit (flagged unstable in the result when the
+    /// run ends at the cap).
+    pub wide: Vec<Unstable>,
 }
 
-/// Why a run is not shown as a result; the UI translates the code.
+/// Why a run is not a result; the UI translates the code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Failure {
-    Residuals,
+    Diverged,
     EnergyBalance,
-    MassBalance,
-    IntakeDrift,
+    Residuals,
+    ResidualsGrowing,
+}
+
+impl Failure {
+    pub fn code(self) -> &'static str {
+        match self {
+            Failure::Diverged => "diverged",
+            Failure::EnergyBalance => "energy_balance",
+            Failure::Residuals => "residuals",
+            Failure::ResidualsGrowing => "residuals_growing",
+        }
+    }
 }
 
 impl Checks {
+    /// A real failure: the run is not a result. An uncertain mean is not
+    /// one (see [`Checks::uncertain`]).
     pub fn failure(&self) -> Option<Failure> {
-        if !self.energy_balance_pct.ok {
+        if self.diverged {
+            Some(Failure::Diverged)
+        } else if !self.energy_balance_pct.ok {
             Some(Failure::EnergyBalance)
-        } else if !self.mass_balance_pct.ok {
-            Some(Failure::MassBalance)
         } else if self.residuals.values().any(|c| !c.ok) {
             Some(Failure::Residuals)
-        } else if !self.intake_drift_k.ok {
-            Some(Failure::IntakeDrift)
+        } else if !self.residuals_growing.is_empty() {
+            Some(Failure::ResidualsGrowing)
         } else {
             None
         }
+    }
+
+    /// Some band's mean is still wider than the limit: worth more iterations.
+    pub fn uncertain(&self) -> bool {
+        !self.half_width_k.ok
     }
 }
 
@@ -222,15 +259,13 @@ pub fn heat_removed(input: &CaseInput, openings: &[Opening]) -> (f64, f64) {
     (heat, net)
 }
 
-/// The checks of one window. `first` and `second` are each rack's intake
-/// band means (top, mid, bottom) over the window's halves.
+/// The checks of the window `(from, to]`; `fluct` per rack and band.
 pub fn evaluate(
     input: &CaseInput,
     window: [i32; 2],
     residuals: &Residuals,
     (removed, net): (f64, f64),
-    first: &[[f64; 3]],
-    second: &[[f64; 3]],
+    fluct: &[[Fluctuation; 3]],
 ) -> Checks {
     let heat_in = input.heat_in_w();
     let supply: f64 = input
@@ -243,44 +278,67 @@ pub fn evaluate(
     } else {
         0.0
     };
-    let mean = residuals.mean_after(window[0]);
-    let residuals = RESIDUAL_LIMITS
+    let mean = residuals.between(window[0], window[1]);
+    let mid = (window[0] + window[1]) / 2;
+    let (first, second) = (
+        residuals.between(window[0], mid),
+        residuals.between(mid, window[1]),
+    );
+    let residual_checks: BTreeMap<String, Check> = RESIDUAL_LIMITS
         .iter()
         .map(|&(k, limit)| {
             let v = mean.get(k).copied().unwrap_or(f64::NAN);
             (k.to_string(), Check::at_most(v, limit))
         })
         .collect();
-    let mut halves = vec![];
+    let growing = RESIDUAL_LIMITS
+        .iter()
+        .filter(|(k, _)| match (first.get(*k), second.get(*k)) {
+            (Some(a), Some(b)) => *b > GROWTH_FACTOR * a,
+            _ => false,
+        })
+        .map(|(k, _)| k.to_string())
+        .collect();
+    let mut wide = vec![];
+    let mut widest: f64 = 0.0;
     for (i, r) in input.racks.iter().enumerate() {
         for (k, (height, _)) in crate::post::HEIGHTS.iter().enumerate() {
-            halves.push(Halves {
-                object_id: r.object_id,
-                name: r.name.clone(),
-                height: height.to_string(),
-                first: round2(first[i][k]),
-                second: round2(second[i][k]),
-            });
+            let hw = fluct.get(i).map_or(f64::NAN, |f| f[k].half_width);
+            widest = widest.max(hw);
+            if hw.is_nan() || hw > HALF_WIDTH_LIMIT_K {
+                wide.push(Unstable {
+                    object_id: r.object_id,
+                    name: r.name.clone(),
+                    height: height.to_string(),
+                    half_width: round2(hw),
+                });
+            }
         }
     }
-    let drift = input
-        .racks
-        .iter()
-        .enumerate()
-        .flat_map(|(i, _)| (0..3).map(move |k| (first[i][k] - second[i][k]).abs()))
-        .fold(0.0, f64::max);
+    let diverged =
+        !removed.is_finite() || !net.is_finite() || mean.values().any(|v| !v.is_finite());
     Checks {
         window,
-        residuals,
+        residuals: residual_checks,
+        residuals_growing: growing,
         heat_in_w: heat_in.round(),
-        heat_removed_w: removed.round(),
+        heat_removed_w: if removed.is_finite() {
+            removed.round()
+        } else {
+            removed
+        },
         energy_balance_pct: Check::at_most(round2(energy), ENERGY_LIMIT_PCT),
-        mass_balance_pct: Check::at_most(
-            (100.0 * net.abs() / supply * 1000.0).round() / 1000.0,
-            MASS_LIMIT_PCT,
+        mass_balance_pct: (100.0 * net.abs() / supply * 1000.0).round() / 1000.0,
+        diverged,
+        half_width_k: Check::at_most(
+            if wide.iter().any(|w| w.half_width.is_nan()) {
+                f64::NAN
+            } else {
+                round2(widest)
+            },
+            HALF_WIDTH_LIMIT_K,
         ),
-        intake_drift_k: Check::at_most(round2(drift), DRIFT_LIMIT_K),
-        halves,
+        wide,
     }
 }
 
@@ -288,19 +346,83 @@ fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
-/// The mean over the second half of a window from the mean over the first
-/// half (`n1` iterations) and the mean over all of it (`n2`).
-pub fn second_half(first: f64, all: f64, n1: i64, n2: i64) -> f64 {
-    (n2 as f64 * all - n1 as f64 * first) / (n2 - n1) as f64
+/// Student's t, two-sided 95 %, for 4…9 degrees of freedom.
+fn t95(df: usize) -> f64 {
+    [2.776, 2.571, 2.447, 2.365, 2.306, 2.262][df.clamp(4, 9) - 4]
 }
 
-/// Each intake band's fluctuation over the window `(from, to]`, from the
-/// intake probes (five per band, in [`crate::case::probe_points`] order).
+/// The uncertainty of a series' mean by batch means: the most batches
+/// (10 down to 5) whose means have a lag-1 autocorrelation of at most
+/// [`BATCH_AUTOCORR_LIMIT`]; the 95 % half-width is t·s/√b over the batch
+/// means. The oldest samples that do not fill a batch are left out.
+pub struct BatchMeans {
+    pub half_width: f64,
+    pub batches: usize,
+    pub lag1: f64,
+    pub correlated: bool,
+}
+
+pub fn batch_means(series: &[f64]) -> BatchMeans {
+    let estimate = |b: usize| -> Option<(f64, f64)> {
+        let size = series.len() / b;
+        if size < 2 {
+            return None;
+        }
+        let tail = &series[series.len() - size * b..];
+        let means: Vec<f64> = tail
+            .chunks(size)
+            .map(|c| c.iter().sum::<f64>() / size as f64)
+            .collect();
+        let m = means.iter().sum::<f64>() / b as f64;
+        let ss: f64 = means.iter().map(|x| (x - m).powi(2)).sum();
+        let lag1 = if ss > 0.0 {
+            means
+                .windows(2)
+                .map(|w| (w[0] - m) * (w[1] - m))
+                .sum::<f64>()
+                / ss
+        } else {
+            0.0
+        };
+        let sd = (ss / (b - 1) as f64).sqrt();
+        Some((t95(b - 1) * sd / (b as f64).sqrt(), lag1))
+    };
+    for b in (BATCHES_MIN..=BATCHES_MAX).rev() {
+        if let Some((hw, lag1)) = estimate(b)
+            && lag1 <= BATCH_AUTOCORR_LIMIT
+        {
+            return BatchMeans {
+                half_width: hw,
+                batches: b,
+                lag1,
+                correlated: false,
+            };
+        }
+    }
+    match estimate(BATCHES_MIN) {
+        Some((hw, lag1)) => BatchMeans {
+            half_width: hw,
+            batches: BATCHES_MIN,
+            lag1,
+            correlated: true,
+        },
+        None => BatchMeans {
+            half_width: f64::NAN,
+            batches: 0,
+            lag1: f64::NAN,
+            correlated: true,
+        },
+    }
+}
+
+/// Each intake band over the window `(from, to]`, from the intake probes
+/// (five per band, in [`crate::case::probe_points`] order): how much it
+/// moved, and the uncertainty of its mean.
 pub fn fluctuations(
     input: &CaseInput,
     probes: &[(f64, Vec<f64>)],
     window: [i32; 2],
-) -> Vec<[crate::post::Fluctuation; 3]> {
+) -> Vec<[Fluctuation; 3]> {
     const PER_BAND: usize = 5;
     let rows: Vec<&Vec<f64>> = probes
         .iter()
@@ -320,7 +442,11 @@ pub fn fluctuations(
                     .map(|r| r[b..b + PER_BAND].iter().sum::<f64>() / PER_BAND as f64)
                     .collect();
                 if series.is_empty() {
-                    return crate::post::Fluctuation::default();
+                    return Fluctuation {
+                        half_width: f64::NAN,
+                        correlated: true,
+                        ..Fluctuation::default()
+                    };
                 }
                 let n = series.len() as f64;
                 let mean = series.iter().sum::<f64>() / n;
@@ -330,10 +456,14 @@ pub fn fluctuations(
                     .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| {
                         (a.min(v), b.max(v))
                     });
-                crate::post::Fluctuation {
+                let bm = batch_means(&series);
+                Fluctuation {
                     std: var.sqrt(),
                     below: mean - lo,
                     above: hi - mean,
+                    half_width: bm.half_width,
+                    batches: bm.batches,
+                    correlated: bm.correlated,
                 }
             })
         })
@@ -343,7 +473,6 @@ pub fn fluctuations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::CaseInput;
 
     #[test]
     fn the_log_gives_one_residual_per_equation_and_iteration() {
@@ -364,17 +493,27 @@ mod tests {
         assert_eq!(r.iteration, 1501);
         assert_eq!(r.history[0].1["U"], 0.0021);
         assert_eq!(r.history[0].1["p_rgh"], 0.008);
-        assert_eq!(r.mean_after(1499)["p_rgh"], 0.006);
+        assert_eq!(r.between(1499, 1501)["p_rgh"], 0.006);
+        assert_eq!(r.between(1500, 1501)["p_rgh"], 0.004);
         // 1501 is still being printed: the last complete one is 1500.
         assert_eq!(r.latest()["p_rgh"], 0.008);
     }
 
-    fn residuals_at(level: f64) -> Residuals {
+    #[test]
+    fn dat_files_skip_their_comments() {
+        let rows = dat_rows("# Probe 0 (1 2 3)\n# Time 0\n1 0.25\n2\t-0.5\n");
+        assert_eq!(rows, vec![(1.0, vec![0.25]), (2.0, vec![-0.5])]);
+    }
+
+    /// Residuals at `level` (p_rgh five times higher) from 1490 to 2000,
+    /// multiplied by `late` after 1750.
+    fn residuals(level: f64, late: f64) -> Residuals {
         let mut r = Residuals::default();
         for i in 1490..=2000 {
             r.line(&format!("Time = {i}"));
+            let l = if i > 1750 { level * late } else { level };
             for f in ["Ux", "T", "p_rgh", "k", "epsilon"] {
-                let v = if f == "p_rgh" { 5.0 * level } else { level };
+                let v = if f == "p_rgh" { 5.0 * l } else { l };
                 r.line(&format!(
                     "s:  Solving for {f}, Initial residual = {v}, Final residual = 0, No Iterations 1"
                 ));
@@ -387,52 +526,89 @@ mod tests {
         crate::reference::reference_input()
     }
 
+    fn bands(half_width: f64) -> Vec<[Fluctuation; 3]> {
+        let f = Fluctuation {
+            std: 0.5,
+            below: 1.0,
+            above: 1.0,
+            half_width,
+            batches: 10,
+            correlated: false,
+        };
+        vec![[f; 3]; 4]
+    }
+
     #[test]
-    fn a_settled_window_passes() {
+    fn a_settled_run_passes() {
         let c = input();
-        let first = vec![[30.0, 25.0, 22.0]; c.racks.len()];
-        let second = vec![[30.4, 24.8, 22.0]; c.racks.len()];
-        let r = residuals_at(1e-3);
-        let ch = evaluate(&c, [1500, 2000], &r, (13_000.0, 1e-6), &first, &second);
+        let ch = evaluate(
+            &c,
+            [1500, 2000],
+            &residuals(1e-3, 1.0),
+            (13_000.0, 1e-6),
+            &bands(0.4),
+        );
         assert_eq!(ch.failure(), None, "{ch:?}");
+        assert!(!ch.uncertain());
         assert_eq!(ch.energy_balance_pct.value, 1.07);
-        assert_eq!(ch.intake_drift_k.value, 0.4);
-        assert_eq!(ch.halves.len(), 12);
+        assert!(ch.wide.is_empty());
     }
 
     #[test]
-    fn each_check_can_fail_the_run() {
+    fn an_uncertain_band_extends_the_run_but_is_no_failure() {
         let c = input();
-        let ok = vec![[30.0, 25.0, 22.0]; c.racks.len()];
-        let r = residuals_at(1e-3);
-        // 4.9 % of the heat unaccounted for.
-        let ch = evaluate(&c, [1500, 2000], &r, (12_492.0, 0.0), &ok, &ok);
-        assert_eq!(ch.failure(), Some(Failure::EnergyBalance));
-        // 2 % of the supply flow lost.
-        let ch = evaluate(&c, [1500, 2000], &r, (13_000.0, 0.0183), &ok, &ok);
-        assert_eq!(ch.failure(), Some(Failure::MassBalance));
-        // Residuals still high.
-        let high = residuals_at(1e-2);
-        let ch = evaluate(&c, [1500, 2000], &high, (13_000.0, 0.0), &ok, &ok);
-        assert_eq!(ch.failure(), Some(Failure::Residuals));
-        // One band's halves 2.35 K apart (rack 2 top in the v2606 reference).
-        let mut second = ok.clone();
-        second[1][0] += 2.35;
-        let ch = evaluate(&c, [1500, 2000], &r, (13_000.0, 0.0), &ok, &second);
-        assert_eq!(ch.failure(), Some(Failure::IntakeDrift));
-        assert_eq!(ch.intake_drift_k.value, 2.35);
-        // No residuals at all is not a pass.
-        let none = Residuals::default();
-        let ch = evaluate(&c, [1500, 2000], &none, (13_000.0, 0.0), &ok, &ok);
-        assert_eq!(ch.failure(), Some(Failure::Residuals));
+        let mut f = bands(0.4);
+        f[1][0].half_width = 1.7; // rack 2 top
+        let ch = evaluate(&c, [1500, 2000], &residuals(1e-3, 1.0), (13_000.0, 0.0), &f);
+        assert_eq!(ch.failure(), None);
+        assert!(ch.uncertain());
+        assert_eq!(ch.half_width_k.value, 1.7);
+        assert_eq!(ch.wide.len(), 1);
+        assert_eq!(
+            (ch.wide[0].height.as_str(), ch.wide[0].half_width),
+            ("top", 1.7)
+        );
     }
 
     #[test]
-    fn the_second_half_comes_from_the_two_written_means() {
-        // fieldAverage from 1500: 251 iterations at 1750, 501 at 2000.
-        let (first, second) = (30.0, 32.0);
-        let all = (251.0 * first + 250.0 * second) / 501.0;
-        assert!((second_half(first, all, 251, 501) - second).abs() < 1e-9);
+    fn real_failures_are_failures() {
+        let c = input();
+        let ok = bands(0.4);
+        let r = residuals(1e-3, 1.0);
+        // 4.9 % of the heat unaccounted for.
+        let ch = evaluate(&c, [1500, 2000], &r, (12_492.0, 0.0), &ok);
+        assert_eq!(ch.failure(), Some(Failure::EnergyBalance));
+        // Residuals above their limits.
+        let ch = evaluate(
+            &c,
+            [1500, 2000],
+            &residuals(1e-2, 1.0),
+            (13_000.0, 0.0),
+            &ok,
+        );
+        assert_eq!(ch.failure(), Some(Failure::Residuals));
+        // Below the limits but growing: three times higher in the second half.
+        let ch = evaluate(
+            &c,
+            [1500, 2000],
+            &residuals(5e-4, 3.0),
+            (13_000.0, 0.0),
+            &ok,
+        );
+        assert_eq!(ch.failure(), Some(Failure::ResidualsGrowing));
+        assert_eq!(ch.residuals_growing.len(), 5);
+        // NaN.
+        let ch = evaluate(&c, [1500, 2000], &r, (f64::NAN, 0.0), &ok);
+        assert_eq!(ch.failure(), Some(Failure::Diverged));
+        // No residuals at all is not a pass.
+        let ch = evaluate(
+            &c,
+            [1500, 2000],
+            &Residuals::default(),
+            (13_000.0, 0.0),
+            &ok,
+        );
+        assert_eq!(ch.failure(), Some(Failure::Residuals));
     }
 
     #[test]
@@ -455,6 +631,42 @@ mod tests {
         assert!(net.abs() < 1e-12);
     }
 
+    /// A deterministic pseudo-random sequence (an LCG), uniform in [-1, 1).
+    fn noise(n: usize, mut s: u64) -> Vec<f64> {
+        (0..n)
+            .map(|_| {
+                s = s
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                (s >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+            })
+            .collect()
+    }
+
+    #[test]
+    fn independent_noise_uses_ten_batches_and_a_small_interval() {
+        // ±1 K white noise over 500 iterations: the mean is known to about
+        // t·(0.577/√500) ≈ 0.05 K.
+        let s: Vec<f64> = noise(500, 7).iter().map(|v| 30.0 + v).collect();
+        let b = batch_means(&s);
+        assert_eq!(b.batches, 10);
+        assert!(!b.correlated);
+        assert!(b.half_width < 0.15, "{}", b.half_width);
+    }
+
+    #[test]
+    fn a_slow_swing_gives_a_wide_interval() {
+        // A ±2 K swing with a 600-iteration period, as rack 2 top's: the
+        // window does not average it out.
+        let s: Vec<f64> = (0..500)
+            .map(|i| 38.0 + 2.0 * (i as f64 * std::f64::consts::TAU / 600.0).sin())
+            .collect();
+        let b = batch_means(&s);
+        assert!(b.half_width > 1.0, "{}", b.half_width);
+        // Batch means of a slow swing stay correlated.
+        assert!(b.correlated || b.batches < 10);
+    }
+
     #[test]
     fn fluctuation_is_taken_over_the_window_only() {
         let c = input();
@@ -475,11 +687,8 @@ mod tests {
         let f = fluctuations(&c, &probes, [1500, 2000]);
         assert!((f[0][0].std - 1.0).abs() < 1e-9);
         assert!((f[0][0].below - 1.0).abs() < 1e-9 && (f[0][0].above - 1.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn dat_files_skip_their_comments() {
-        let rows = dat_rows("# Surface field value\n# Time sum(phi)\n1 0.25\n2\t-0.5\n");
-        assert_eq!(rows, vec![(1.0, vec![0.25]), (2.0, vec![-0.5])]);
+        // Every batch has the same mean: no uncertainty, ten batches.
+        assert!(f[0][0].half_width < 1e-9);
+        assert_eq!(f[0][0].batches, 10);
     }
 }

@@ -68,6 +68,10 @@ services:
       # document titles in those messages clickable.
       TELEGRAM_BOT_TOKEN: ${PORTAL_TELEGRAM_BOT_TOKEN:-}
       PUBLIC_BASE_URL: ${PORTAL_PUBLIC_BASE_URL:-}
+      # MPI processes of an airflow run, recorded with each result (the same
+      # input on the same count gives the same result). Match the cfd-worker's
+      # CPUs below.
+      AIRFLOW_PROCESSES: ${PORTAL_CFD_CPUS:-12}
       # STATIC_DIR, UPLOADS_DIR and BIND_ADDR are already set in the image;
       # overriding BIND_ADDR here would break the published port below.
     ports:
@@ -99,14 +103,13 @@ services:
         condition: service_started
     environment:
       DATABASE_URL: postgres://${PORTAL_DB_USER:-portal}:${PORTAL_DB_PASSWORD:-portal}@db:5432/${PORTAL_DB_NAME:-portal}
-      # MPI ranks. Keep it equal to the CPU limit below, and fixed: the same
-      # input on the same number of processes gives the same result.
-      CFD_PROCESSES: ${PORTAL_CFD_CPUS:-4}
       CFD_TIMEOUT_MIN: ${PORTAL_CFD_TIMEOUT_MIN:-120}
       CFD_MAX_ITERATIONS: ${PORTAL_CFD_MAX_ITERATIONS:-4000}
       CFD_WORKER_NAME: cfd-worker
       RUST_LOG: ${PORTAL_RUST_LOG:-info}
-    cpus: ${PORTAL_CFD_CPUS:-4}
+    # The MPI process count comes from each run (the app's AIRFLOW_PROCESSES);
+    # give the worker as many CPUs.
+    cpus: ${PORTAL_CFD_CPUS:-12}
     # MPI's shared-memory transport; the default 64 MB is too small.
     shm_size: 1gb
     volumes:

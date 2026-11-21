@@ -284,8 +284,9 @@ fn against_walls(b: &mut Box3, room: [i32; 3], keep: &[Face]) -> bool {
     moved
 }
 
-/// The run's input for a room as it stands in `view`.
-pub fn case_input(view: &RoomView) -> Result<CaseInput, String> {
+/// The run's input for a room as it stands in `view`, solved on `processes`
+/// MPI processes.
+pub fn case_input(view: &RoomView, processes: usize) -> Result<CaseInput, String> {
     let room = &view.room;
     let xs: Vec<i32> = room.floor_plan.iter().map(|p| p[0]).collect();
     let zs: Vec<i32> = room.floor_plan.iter().map(|p| p[1]).collect();
@@ -519,7 +520,10 @@ pub fn case_input(view: &RoomView) -> Result<CaseInput, String> {
         }
     }
 
-    let s = Settings::default();
+    let s = Settings {
+        processes,
+        ..Settings::default()
+    };
     assumptions.push(assumption(
         "rack_delta_t_k",
         None,
@@ -704,7 +708,7 @@ mod tests {
     #[test]
     fn the_seeded_room_gives_the_reference_geometry() {
         let view = plan_view();
-        let c = case_input(&view).unwrap();
+        let c = case_input(&view, 12).unwrap();
         assert_eq!(c.room, [5545, 2410, 3845]);
         assert_eq!(c.units.len(), 3);
         assert_eq!(c.racks.len(), 4);
@@ -741,7 +745,7 @@ mod tests {
 
     #[test]
     fn every_guess_is_listed() {
-        let c = case_input(&plan_view()).unwrap();
+        let c = case_input(&plan_view(), 12).unwrap();
         let airflow = find(&c, "unit_airflow_m3h");
         assert_eq!(airflow.len(), 3);
         assert!(
@@ -779,7 +783,7 @@ mod tests {
             .unwrap();
         ac.instance["airflow_m3h"] = json!(900);
         ac.instance["supply_outlets"][0]["pitch_deg"] = json!(30);
-        let c = case_input(&view).unwrap();
+        let c = case_input(&view, 12).unwrap();
         assert_eq!(c.supply_temp_c, 17.0);
         let heats: Vec<i32> = c.racks.iter().map(|r| r.heat_w).collect();
         assert_eq!(heats, vec![2500, 2500, 2500, 1500]);
@@ -814,7 +818,7 @@ mod tests {
             power_w: Some(250),
             note: String::new(),
         });
-        let c = case_input(&view).unwrap();
+        let c = case_input(&view, 12).unwrap();
         assert_eq!(c.heat.len(), 1);
         assert_eq!(c.heat[0].heat_w, 250);
         let b = c.heat[0].boxes[0];
@@ -856,12 +860,12 @@ mod tests {
             dev(2, Some(350), DeviceStatus::Active),
             dev(3, None, DeviceStatus::Planned),
         ];
-        let c = case_input(&view).unwrap();
+        let c = case_input(&view, 12).unwrap();
         let r = c.racks.iter().find(|r| r.object_id == rack).unwrap();
         assert_eq!(r.heat_w, 750);
         // One running device of unknown power: back to the assumption.
         view.contents.devices[1].fields.power_w = None;
-        let c = case_input(&view).unwrap();
+        let c = case_input(&view, 12).unwrap();
         assert_eq!(
             c.racks.iter().find(|r| r.object_id == rack).unwrap().heat_w,
             3000
@@ -879,6 +883,6 @@ mod tests {
             [2000, 4000],
             [0, 4000],
         ];
-        assert!(case_input(&view).is_err());
+        assert!(case_input(&view, 12).is_err());
     }
 }

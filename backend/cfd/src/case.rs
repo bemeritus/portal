@@ -420,23 +420,36 @@ pub fn opening_patches(input: &CaseInput) -> Vec<String> {
         .collect()
 }
 
+/// Iterations a run is extended by while a band's mean is too uncertain
+/// ([`crate::checks`]).
+pub const EXTEND_STEP: i32 = 500;
+
+fn gcd(a: i32, b: i32) -> i32 {
+    if b == 0 {
+        a.abs().max(1)
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+/// The iteration the mean starts from. It stays there when a run is
+/// extended, so the window grows and its mean gets more certain.
+pub fn average_start(input: &CaseInput) -> i32 {
+    input.settings.iterations - input.settings.average_last
+}
+
 /// `system/controlDict` for a solve that ends at `end`. The result is the
-/// mean over the last `average_last` iterations (`fieldAverage` of U, T and
-/// φ); the fields are written at the middle and the end of that window, so
-/// the two halves' means can be compared (the stability check). A run that
-/// is extended ([`crate::checks`]) restarts at the previous end with a fresh
-/// average.
+/// mean from [`average_start`] to `end` (`fieldAverage` of U, T and φ);
+/// the rack intakes are probed every iteration for the uncertainty of that
+/// mean. Fields are written every [`EXTEND_STEP`] (where an extension
+/// restarts; the average carries on), only the latest kept.
 pub fn control_dict(input: &CaseInput, end: i32) -> String {
-    let window = input.settings.average_last;
-    let restart = end > input.settings.iterations;
     let mut f = String::new();
     let _ = writeln!(
         f,
-        "  average {{ type fieldAverage; libs (fieldFunctionObjects); writeControl writeTime; timeStart {}; restartOnRestart {}; fields ( U {{ mean on; prime2Mean off; base iteration; }} T {{ mean on; prime2Mean off; base iteration; }} phi {{ mean on; prime2Mean off; base iteration; }} ); }}",
-        end - window,
-        if restart { "true" } else { "false" }
+        "  average {{ type fieldAverage; libs (fieldFunctionObjects); writeControl writeTime; timeStart {}; restartOnRestart false; fields ( U {{ mean on; prime2Mean off; base iteration; }} T {{ mean on; prime2Mean off; base iteration; }} phi {{ mean on; prime2Mean off; base iteration; }} ); }}",
+        average_start(input)
     );
-    // The rack intakes every iteration: the fluctuation around the mean.
     let probes: Vec<String> = probe_points(input)
         .iter()
         .map(|p| format!("({} {} {})", p[0], p[1], p[2]))
@@ -448,11 +461,11 @@ pub fn control_dict(input: &CaseInput, end: i32) -> String {
             probes.join(" ")
         );
     }
-    let half = window / 2;
+    let every = gcd(input.settings.iterations, EXTEND_STEP);
     hdr("dictionary", "controlDict", "system")
         + &format!(
             "application buoyantBoussinesqSimpleFoam; startFrom latestTime; startTime 0; stopAt endTime; endTime {end}; deltaT 1;
-writeControl timeStep; writeInterval {half}; purgeWrite 2; writeFormat ascii; writePrecision 6; writeCompression off; timeFormat general; timePrecision 6; runTimeModifiable false;
+writeControl timeStep; writeInterval {every}; purgeWrite 1; writeFormat ascii; writePrecision 6; writeCompression off; timeFormat general; timePrecision 6; runTimeModifiable false;
 functions {{
 {f}}}
 "
@@ -726,7 +739,7 @@ mod tests {
         // The averaging window and the half-window writes.
         let cd = get("system/controlDict");
         assert!(cd.contains("endTime 2000;") && cd.contains("timeStart 1500;"));
-        assert!(cd.contains("writeInterval 250;") && cd.contains("purgeWrite 2;"));
+        assert!(cd.contains("writeInterval 500;") && cd.contains("purgeWrite 1;"));
         // Rack 1's fan: 3 kW over ΔT 10 K through its 0.5 × 1.88 m section.
         let fv = get("constant/fvOptions");
         assert!(

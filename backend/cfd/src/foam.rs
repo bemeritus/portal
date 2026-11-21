@@ -269,36 +269,6 @@ pub fn patch_scalars(path: &Path, patch: &str, n: usize) -> Result<Vec<f64>, Str
     numbers(&v[start..], n)
 }
 
-/// How many iterations the `fieldAverage` function object `object` has
-/// averaged `field` over, from `<time>/uniform/functionObjects/
-/// functionObjectProperties`.
-pub fn averaged_iterations(case_time: &Path, object: &str, field: &str) -> Result<i64, String> {
-    let path = case_time.join("uniform/functionObjects/functionObjectProperties");
-    let b = body(&read(&path)?)?;
-    let missing = || format!("{}: no {object}/{field}", path.display());
-    let word = |s: &str, w: &str| -> Option<usize> {
-        let mut at = 0;
-        while let Some(i) = s[at..].find(w).map(|i| i + at) {
-            let before = s[..i].chars().next_back().is_none_or(|c| c.is_whitespace());
-            let after = s[i + w.len()..].trim_start().starts_with('{');
-            if before && after {
-                return Some(i + w.len());
-            }
-            at = i + w.len();
-        }
-        None
-    };
-    let o = word(&b, object).ok_or_else(missing)?;
-    let f = word(&b[o..], field).ok_or_else(missing)? + o;
-    let rest = &b[f..];
-    let j = rest.find("totalIter").ok_or_else(missing)?;
-    rest[j + "totalIter".len()..]
-        .split(';')
-        .next()
-        .and_then(|v| v.trim().parse().ok())
-        .ok_or_else(missing)
-}
-
 fn internal_list(b: &str) -> Result<usize, String> {
     let i = b.find("internalField").ok_or("no internalField")?;
     let rest = &b[i + "internalField".len()..];

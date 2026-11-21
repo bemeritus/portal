@@ -71,8 +71,8 @@ fn run_info(r: RunRow) -> RunInfo {
 
 /// The input a run of the room as it stands would take, or why there can
 /// be none (e.g. a room that is not a box).
-pub fn input_of(view: &RoomView) -> Result<CaseInput, String> {
-    airflow::case_input(view)
+pub fn input_of(view: &RoomView, processes: usize) -> Result<CaseInput, String> {
+    airflow::case_input(view, processes)
 }
 
 fn json_of(input: &CaseInput) -> ApiResult<Value> {

@@ -18,13 +18,14 @@ CREATE TABLE dc_airflow_runs (
     cancel_requested BOOLEAN NOT NULL DEFAULT FALSE,
     -- {stage, iteration, iterations, residuals}, while running.
     progress         JSONB,
-    -- Why a run is not a result: a code the UI translates
-    -- (residuals, energy_balance, mass_balance, intake_drift, mesh_failed,
-    -- solver_failed, post_failed, bad_input, timeout, worker).
+    -- Why a run is not a result: a code the UI translates. not_converged:
+    -- residuals, residuals_growing, energy_balance, diverged, timeout;
+    -- failed: mesh_failed, post_failed, bad_input, worker.
     reason           TEXT,
     -- What went wrong, for the log; never shown as a result.
     detail           TEXT,
-    -- The numbers and the checks (also kept for a run that did not converge).
+    -- The numbers, each intake band as mean ± 95 % with an unstable flag, and
+    -- the checks (also kept for a run that did not converge).
     summary          JSONB,
     -- Only for a run that converged: the browser grid (f16, gzipped) and the
     -- streamline sets (JSON, gzipped).

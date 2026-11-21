@@ -169,6 +169,15 @@ pub struct Settings {
     pub average_last: i32,
     /// Air temperature rise through a rack: sets each rack's fan flow.
     pub rack_delta_t_k: f64,
+    /// MPI processes, split geometrically: fixed, so the same input gives
+    /// the same result.
+    #[serde(default = "default_processes")]
+    pub processes: usize,
+}
+
+/// The process count on the reference host (12 cores).
+pub fn default_processes() -> usize {
+    12
 }
 
 impl Default for Settings {
@@ -179,6 +188,7 @@ impl Default for Settings {
             iterations: 2000,
             average_last: 500,
             rack_delta_t_k: 10.0,
+            processes: default_processes(),
         }
     }
 }
@@ -309,7 +319,11 @@ impl CaseInput {
             return Err("case keys must be unique".into());
         }
         let s = &self.settings;
-        if s.cell_mm < 20 || s.iterations < 1 || s.average_last < 1 || s.average_last > s.iterations
+        if s.cell_mm < 20
+            || s.iterations < 1
+            || s.average_last < 1
+            || s.average_last > s.iterations
+            || s.processes < 1
         {
             return Err("bad numerical settings".into());
         }

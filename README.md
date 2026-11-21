@@ -229,6 +229,7 @@ Read once at startup by `Config::from_env` (`backend/src/config.rs`); a local
 | `STATIC_DIR` | `static` | The built SPA to serve; unused in development |
 | `CORS_ORIGINS` | *(empty)* | Comma-separated origins allowed to send credentialed requests. **Development only** — see above |
 | `SECURE_COOKIE` | `0` | `Secure` on the session cookie. Set to `1` behind TLS (SR-2) |
+| `AIRFLOW_PROCESSES` | `12` | MPI processes of a server-room airflow run, recorded with each result; match the airflow worker's CPUs (`docs/DEPLOY.md`, Appendix D) |
 
 ## API
 

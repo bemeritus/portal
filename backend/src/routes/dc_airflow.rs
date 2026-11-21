@@ -42,8 +42,11 @@ pub fn routes() -> Router<AppState> {
 
 /// The input of the room as it stands, as stored JSON (null when the room
 /// cannot be modelled).
-fn current(view: &RoomView) -> (Value, Result<portal_cfd::input::CaseInput, String>) {
-    let input = runs::input_of(view);
+fn current(
+    view: &RoomView,
+    processes: usize,
+) -> (Value, Result<portal_cfd::input::CaseInput, String>) {
+    let input = runs::input_of(view, processes);
     let value = input
         .as_ref()
         .ok()
@@ -79,7 +82,7 @@ async fn status(
         .await
         .map_err(|e| internal("connecting", e))?;
     let view = store::view(&mut conn, id).await?;
-    let (value, input) = current(&view);
+    let (value, input) = current(&view, state.config.airflow_processes);
     let (latest, result) = runs::latest(&mut conn, id, &value).await?;
     Ok(Json(Status {
         available: runs::worker_available(&mut conn).await?,
@@ -108,9 +111,10 @@ async fn enqueue_current(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     id: i64,
     user: &User,
+    processes: usize,
 ) -> ApiResult<Started> {
     let view = store::view(tx, id).await?;
-    let input = runs::input_of(&view).map_err(ApiError::BadRequest)?;
+    let input = runs::input_of(&view, processes).map_err(ApiError::BadRequest)?;
     let (run, created) =
         runs::enqueue(tx, id, &view.room.name, view.room.revision, &input, user).await?;
     Ok(Started {
@@ -130,7 +134,7 @@ async fn start(
         .begin()
         .await
         .map_err(|e| internal("starting an airflow run", e))?;
-    let started = enqueue_current(&mut tx, id, &user).await?;
+    let started = enqueue_current(&mut tx, id, &user, state.config.airflow_processes).await?;
     tx.commit()
         .await
         .map_err(|e| internal("committing an airflow run", e))?;
@@ -157,7 +161,7 @@ pub async fn follow(state: &AppState, id: i64, user: &User) {
             return Ok(());
         }
         let view = store::view(&mut tx, id).await?;
-        if let Ok(input) = runs::input_of(&view) {
+        if let Ok(input) = runs::input_of(&view, state.config.airflow_processes) {
             runs::enqueue(
                 &mut tx,
                 id,
@@ -330,7 +334,7 @@ async fn set_assumptions(
             };
             ops::apply(&mut tx, id, set, &user).await?;
         }
-        let started = enqueue_current(&mut tx, id, &user)
+        let started = enqueue_current(&mut tx, id, &user, state.config.airflow_processes)
             .await
             .map_err(Failure::Api)?;
         tx.commit()

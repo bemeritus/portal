@@ -152,22 +152,23 @@ cfd-build:
     {{container}} build -f Dockerfile.cfd-worker -t portal-cfd-worker .
 
 # The worker does not migrate: the API must have applied migration 0030 to
-# that database. On a branch, point DATABASE_URL at a scratch database, never
+# that database. The MPI process count comes from each run (the API's
+# AIRFLOW_PROCESSES, 12 by default); give the worker as many CPUs. On a branch, point DATABASE_URL at a scratch database, never
 # at the dev one.
 #
 # Run the airflow worker against DATABASE_URL until Ctrl-C.
-cfd-worker processes="4": cfd-build
-    {{container}} run --rm --name portal-cfd-worker --network host --shm-size 1g \
-        --cpus {{processes}} -e DATABASE_URL="$DATABASE_URL" -e CFD_PROCESSES={{processes}} \
+cfd-worker cpus="12": cfd-build
+    {{container}} run --rm --name portal-cfd-worker --network host --shm-size 2g \
+        --cpus {{cpus}} -e DATABASE_URL="$DATABASE_URL" \
         -v portal-cfd-cases:/var/lib/portal-cfd portal-cfd-worker
 
-# The reference case: `just cfd-reference > input.json`.
+# The reference case: `just cfd-reference > input.json`; the process count
+# is the input's `settings.processes`.
 #
 # One case without a database: `just cfd-case input.json out/`.
-cfd-case input out processes="4": cfd-build
+cfd-case input out: cfd-build
     mkdir -p {{out}}
-    {{container}} run --rm --shm-size 1g --cpus {{processes}} {{as_me}} -e HOME=/tmp \
-        -e CFD_PROCESSES={{processes}} -e CFD_WORK_DIR=/out/.case \
+    {{container}} run --rm --shm-size 2g {{as_me}} -e HOME=/tmp -e CFD_WORK_DIR=/out/.case \
         -v "$(realpath {{input}})":/in.json:ro -v "$(realpath {{out}})":/out \
         portal-cfd-worker run-case /in.json /out
 
