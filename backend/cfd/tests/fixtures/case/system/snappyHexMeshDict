@@ -1,0 +1,25 @@
+FoamFile { version 2.0; format ascii; class dictionary; location "system"; object snappyHexMeshDict; }
+
+castellatedMesh true; snap false; addLayers false;
+geometry {
+  obstacles.stl { type triSurfaceMesh; name obstacles; }
+  ac1.stl { type triSurfaceMesh; name ac1; regions { walls { name ac1_walls; } supply { name ac1_supply; } return { name ac1_return; } } }
+  ac2.stl { type triSurfaceMesh; name ac2; regions { walls { name ac2_walls; } supply { name ac2_supply; } return { name ac2_return; } } }
+  ac3.stl { type triSurfaceMesh; name ac3; regions { walls { name ac3_walls; } supply { name ac3_supply; } return { name ac3_return; } } }
+}
+castellatedMeshControls {
+  maxLocalCells 2000000; maxGlobalCells 6000000; minRefinementCells 0; maxLoadUnbalance 0.1; nCellsBetweenLevels 2;
+  features ( );
+  refinementSurfaces {
+    obstacles { level (1 1); patchInfo { type wall; } }
+    ac1 { level (2 2); patchInfo { type wall; } regions { supply { level (2 2); patchInfo { type patch; } } return { level (2 2); patchInfo { type patch; } } } }
+    ac2 { level (2 2); patchInfo { type wall; } regions { supply { level (2 2); patchInfo { type patch; } } return { level (2 2); patchInfo { type patch; } } } }
+    ac3 { level (2 2); patchInfo { type wall; } regions { supply { level (2 2); patchInfo { type patch; } } return { level (2 2); patchInfo { type patch; } } } }
+  }
+  resolveFeatureAngle 30; refinementRegions { };
+  locationInMesh (2.0 1.2 1.6); allowFreeStandingZoneFaces true;
+}
+snapControls { nSmoothPatch 3; tolerance 2.0; nSolveIter 50; nRelaxIter 5; nFeatureSnapIter 10; implicitFeatureSnap true; explicitFeatureSnap false; multiRegionFeatureSnap false; }
+addLayersControls { relativeSizes true; layers { }; expansionRatio 1.0; finalLayerThickness 0.3; minThickness 0.1; nGrow 0; featureAngle 60; nRelaxIter 3; nSmoothSurfaceNormals 1; nSmoothNormals 3; nSmoothThickness 10; maxFaceThicknessRatio 0.5; maxThicknessToMedialRatio 0.3; minMedialAxisAngle 90; nBufferCellsNoExtrude 0; nLayerIter 50; }
+meshQualityControls { maxNonOrtho 65; maxBoundarySkewness 20; maxInternalSkewness 4; maxConcave 80; minVol 1e-13; minTetQuality 1e-15; minArea -1; minTwist 0.02; minDeterminant 0.001; minFaceWeight 0.05; minVolRatio 0.01; minTriangleTwist -1; nSmoothScale 4; errorReduction 0.75; relaxed { maxNonOrtho 75; } }
+mergeTolerance 1e-6;

@@ -1,0 +1,10 @@
+FoamFile { version 2.0; format ascii; class dictionary; location "constant"; object fvOptions; }
+rack1Fan { type meanVelocityForce; active true; selectionMode cellZone; cellZone rack1; fields (U); Ubar (0 0 0.2646); relaxation 0.2; }
+rack1Heat { type scalarSemiImplicitSource; active true; selectionMode cellZone; cellZone rack1; volumeMode absolute; injectionRateSuSp { T (2.48756 0); } }
+rack2Fan { type meanVelocityForce; active true; selectionMode cellZone; cellZone rack2; fields (U); Ubar (0 0 0.2646); relaxation 0.2; }
+rack2Heat { type scalarSemiImplicitSource; active true; selectionMode cellZone; cellZone rack2; volumeMode absolute; injectionRateSuSp { T (2.48756 0); } }
+rack3Fan { type meanVelocityForce; active true; selectionMode cellZone; cellZone rack3; fields (U); Ubar (0 0 0.2646); relaxation 0.2; }
+rack3Heat { type scalarSemiImplicitSource; active true; selectionMode cellZone; cellZone rack3; volumeMode absolute; injectionRateSuSp { T (2.48756 0); } }
+rack4Fan { type meanVelocityForce; active true; selectionMode cellZone; cellZone rack4; fields (U); Ubar (0 0 0.1323); relaxation 0.2; }
+rack4Heat { type scalarSemiImplicitSource; active true; selectionMode cellZone; cellZone rack4; volumeMode absolute; injectionRateSuSp { T (1.24378 0); } }
+towersHeat { type scalarSemiImplicitSource; active true; selectionMode cellZone; cellZone towersHeat; volumeMode absolute; injectionRateSuSp { T (2.18905 0); } }

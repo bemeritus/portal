@@ -1,0 +1,16 @@
+FoamFile { version 2.0; format ascii; class volScalarField; location "0"; object k; }
+dimensions [0 2 -2 0 0 0 0];
+internalField uniform 0.005;
+boundaryField {
+  room { type kqRWallFunction; value uniform 0.005; }
+  obstacles { type kqRWallFunction; value uniform 0.005; }
+  ac1_walls { type kqRWallFunction; value uniform 0.005; }
+  ac1_supply { type fixedValue; value uniform 0.015; }
+  ac1_return { type inletOutlet; inletValue uniform 0.005; value uniform 0.005; }
+  ac2_walls { type kqRWallFunction; value uniform 0.005; }
+  ac2_supply { type fixedValue; value uniform 0.015; }
+  ac2_return { type inletOutlet; inletValue uniform 0.005; value uniform 0.005; }
+  ac3_walls { type kqRWallFunction; value uniform 0.005; }
+  ac3_supply { type fixedValue; value uniform 0.015; }
+  ac3_return { type inletOutlet; inletValue uniform 0.005; value uniform 0.005; }
+}
