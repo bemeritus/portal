@@ -346,7 +346,7 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
         job.foam("decomposePar", &["decomposePar", "-force"])
             .await?;
     }
-    timings.mesh = t0.elapsed().as_secs_f64().round();
+    timings.mesh = (t0.elapsed().as_secs_f64() * 10.0).round() / 10.0;
 
     // Solve. While a band's mean is too uncertain, go on in steps of
     // EXTEND_STEP (the average carries on) up to the cap; a real failure
@@ -374,7 +374,7 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
         job.end = next;
         job.write("system/controlDict", &case::control_dict(input, next))?;
     };
-    timings.solve = t1.elapsed().as_secs_f64().round();
+    timings.solve = (t1.elapsed().as_secs_f64() * 10.0).round() / 10.0;
 
     job.stage = "post";
     let p = job.progress();
@@ -389,7 +389,7 @@ async fn pipeline<M: Monitor>(job: &mut Job<'_, M>) -> Result<Outcome, Stop> {
     let grid_bytes = grid::encode(&coarse).map_err(read_err)?;
     let streamlines = grid::gzip(&serde_json::to_vec(&sets).map_err(|e| read_err(e.to_string()))?)
         .map_err(read_err)?;
-    timings.post = t2.elapsed().as_secs_f64().round();
+    timings.post = (t2.elapsed().as_secs_f64() * 10.0).round() / 10.0;
     let failure = checks.failure();
     // At the cap a still uncertain band is part of the result, flagged.
     let unstable = if failure.is_none() {

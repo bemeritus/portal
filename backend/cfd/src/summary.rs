@@ -21,6 +21,7 @@ pub enum Flow {
     PseudoSteady,
 }
 
+/// Wall-clock seconds, to 0.1 s.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Timings {
     pub mesh: f64,
